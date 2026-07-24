@@ -1,5 +1,9 @@
 require("dotenv").config();
 
+console.log("CHANNEL_SECRET =", process.env.CHANNEL_SECRET);
+console.log("CHANNEL_ACCESS_TOKEN =", process.env.CHANNEL_ACCESS_TOKEN ? "OK" : "NO");
+console.log("GOOGLE_CLIENT_ID =", process.env.GOOGLE_CLIENT_ID ? "OK" : "NO");
+
 const express = require("express");
 const { messagingApi, middleware } = require("@line/bot-sdk");
 const axios = require("axios");
