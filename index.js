@@ -1,8 +1,6 @@
+const {readPDF}=require("./services/pdfReader");
+const parserService=require("./services/parserService");
 require("dotenv").config();
-
-console.log("CHANNEL_SECRET =", process.env.CHANNEL_SECRET);
-console.log("CHANNEL_ACCESS_TOKEN =", process.env.CHANNEL_ACCESS_TOKEN ? "OK" : "NO");
-console.log("GOOGLE_CLIENT_ID =", process.env.GOOGLE_CLIENT_ID ? "OK" : "NO");
 
 const express = require("express");
 const { messagingApi, middleware } = require("@line/bot-sdk");
@@ -162,13 +160,21 @@ async function handleEvent(event){
 
   const buffer =
     Buffer.from(response.data);
+let booking=null;
 
+if(fileName.toLowerCase().endsWith(".pdf")){
 
+    const text=await readPDF(buffer);
 
+    booking=parserService.parse(text);
 
+    console.log("----------------------------");
 
+    console.log("Company :",booking.company);
 
-  // GOOGLE DRIVE
+    console.log("----------------------------");
+
+}
 
 
   const drive = google.drive({
@@ -254,13 +260,15 @@ async function handleEvent(event){
 
   `https://drive.google.com/file/d/${fileId}/view`;
 
+if (booking) {
 
+    booking.driveFileId = fileId;
 
+    booking.fileName = fileName;
 
+    booking.pdfLink = link;
 
-
-  // GOOGLE SHEET
-
+}
 
   const sheets = google.sheets({
 
