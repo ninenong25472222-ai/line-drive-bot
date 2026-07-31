@@ -10,50 +10,97 @@ function parseReservation(text){
 
 
     // เลขจอง
-    booking.bookingNo =
-        find(text, /(?:booking|reservation)\s*(?:no|number)?\s*[:#]?\s*([A-Z0-9-]+)/i);
+    const ref = text.match(
+        /Reservation ref\. number:\s*([A-Z0-9-]+)/i
+    );
+
+    if(ref){
+        booking.bookingNo = ref[1];
+    }
 
 
-    // ชื่อลูกค้า
-    booking.customerName =
-        find(text, /(?:customer|name|guest)\s*[:：]?\s*(.+)/i);
+    // ชื่อผู้เช่า
+    const driver = text.match(
+        /Driver's Name\s*(.+)/i
+    );
+
+    if(driver){
+        booking.customerName = driver[1].trim();
+    }
 
 
     // วันที่รับ
-    booking.pickupDate =
-        find(text, /(?:pickup|pick up)\s*date?\s*[:：]?\s*(.+)/i);
+    const pickupDate = text.match(
+        /Pick-up date\s*(\d{2}\.\d{2}\.\d{4})/i
+    );
+
+    if(pickupDate){
+        booking.pickupDate = pickupDate[1];
+    }
 
 
     // เวลารับ
-    booking.pickupTime =
-        find(text, /(?:pickup|pick up)\s*time?\s*[:：]?\s*(.+)/i);
+    const pickupTime = text.match(
+        /Pick-up time\s*(\d{2}:\d{2})/i
+    );
+
+    if(pickupTime){
+        booking.pickupTime = pickupTime[1];
+    }
 
 
-    // วันที่คืน
-    booking.returnDate =
-        find(text, /(?:return|drop off)\s*date?\s*[:：]?\s*(.+)/i);
+    // วันที่คืน + เวลาคืน
+    const dropoff = text.match(
+        /Drop-off date & time\s*(\d{2}\.\d{2}\.\d{4})\s*(\d{2}:\d{2})/i
+    );
+
+    if(dropoff){
+
+        booking.returnDate = dropoff[1];
+        booking.returnTime = dropoff[2];
+
+    }
 
 
-    // เวลาคืน
-    booking.returnTime =
-        find(text, /(?:return|drop off)\s*time?\s*[:：]?\s*(.+)/i);
+    // จุดรับ
+    const location = text.match(
+        /Pick-up location\s*(.*?)Airport/i
+    );
+
+    if(location){
+
+        booking.pickupLocation =
+            location[1].trim() + " Airport";
+
+    }
+
+
+    // จุดคืน
+    const returnLocation = text.match(
+        /Drop-off location\s*(.*?)Airport/i
+    );
+
+    if(returnLocation){
+
+        booking.returnLocation =
+            returnLocation[1].trim() + " Airport";
+
+    }
 
 
     // รถ
-    booking.car =
-        find(text, /(?:car|vehicle|model)\s*[:：]?\s*(.+)/i);
+    const car = text.match(
+        /Vehicle Name\s*(.+)/i
+    );
+
+    if(car){
+
+        booking.car = car[1].trim();
+
+    }
 
 
     return booking;
-
-}
-
-
-function find(text, regex){
-
-    const match = text.match(regex);
-
-    return match ? match[1].trim() : "";
 
 }
 
