@@ -95,9 +95,9 @@ app.post(
 
 async function handleEvent(event){
 
-
-  // รับเฉพาะไฟล์
-
+  console.log("====== EVENT ======");
+  console.log(JSON.stringify(event, null, 2));
+  
   if(
 
     event.type !== "message" ||
