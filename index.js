@@ -171,6 +171,8 @@ if(fileName.toLowerCase().endsWith(".pdf")){
 
     const text=await readPDF(buffer);
 
+    console.log(text);
+
     booking=parserService.parse(text);
 
     console.log("----------------------------");
@@ -304,21 +306,29 @@ if (booking) {
     requestBody:{
 
 
-      values:[
+values:[
 
-        [
+[ 
+  new Date(),
+  fileName,
 
-          new Date(),
+  booking?.renter || "",
+  booking?.bookingNo || "",
 
-          fileName,
+  booking?.pickupDate || "",
+  booking?.pickupTime || "",
 
-          fileId,
+  booking?.returnDate || "",
+  booking?.returnTime || "",
 
-          link
+  booking?.car || "",
 
-        ]
+  booking?.company || "",
 
-      ]
+  link
+]
+
+]
 
     }
 

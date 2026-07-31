@@ -17,7 +17,8 @@ const authUrl = oauth2Client.generateAuthUrl({
   scope: [
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/spreadsheets"
-  ]
+  ],
+  prompt: "consent"
 });
 
 console.log("\nเปิดลิงก์นี้:\n");
@@ -29,9 +30,17 @@ const rl = readline.createInterface({
 });
 
 rl.question("\nใส่ Code จาก Google: ", async (code) => {
-  const { tokens } = await oauth2Client.getToken(code);
+  try {
 
-  console.log(tokens);
+    const { tokens } = await oauth2Client.getToken(code);
+
+    console.log("\nTOKEN สำเร็จ:");
+    console.log(tokens);
+
+  } catch (error) {
+    console.log("ERROR:");
+    console.log(error.message);
+  }
 
   rl.close();
 });
