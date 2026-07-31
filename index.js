@@ -55,6 +55,11 @@ app.post(
 
   "/webhook",
 
+    (req,res,next)=>{
+    console.log("WEBHOOK HIT");
+    next();
+  },
+
   middleware(lineConfig),
 
   async(req,res)=>{
@@ -97,7 +102,7 @@ async function handleEvent(event){
 
   console.log("====== EVENT ======");
   console.log(JSON.stringify(event, null, 2));
-  
+
   if(
 
     event.type !== "message" ||
@@ -382,6 +387,15 @@ app.get("/",(req,res)=>{
 
 
 
+app.use((err, req, res, next) => {
+
+  console.error("========== ERROR ==========");
+  console.error(err);
+  console.error("===========================");
+
+  res.sendStatus(500);
+
+});
 
 
 app.listen(
