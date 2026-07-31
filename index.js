@@ -171,7 +171,9 @@ if(fileName.toLowerCase().endsWith(".pdf")){
 
     const text=await readPDF(buffer);
 
+    console.log("===== PDF TEXT =====");
     console.log(text);
+    console.log("====================");
 
     booking=parserService.parse(text);
 
