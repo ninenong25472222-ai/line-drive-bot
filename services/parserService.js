@@ -9,6 +9,10 @@ function parse(text){
 
     const company=detectCompany(text);
 
+    console.log("===== DETECT COMPANY =====");
+    console.log(company);
+    console.log("==========================");
+
     switch(company){
 
         case "trip":

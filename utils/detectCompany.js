@@ -2,9 +2,10 @@ function detectCompany(text) {
 
     text = text.toLowerCase();
 
-    // -------------------------
-    // Klook (เช็คก่อน)
-    // -------------------------
+    console.log("HAS KLOOK :", text.includes("klook"));
+    console.log("HAS CHIC NETWORK :", text.includes("chic network"));
+    console.log("HAS CHICCARRENT :", text.includes("chiccarrent.com"));
+
     if (
         text.includes("klook") ||
         text.includes("merchant.klook.com") ||
