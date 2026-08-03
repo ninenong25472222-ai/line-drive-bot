@@ -2,147 +2,110 @@ const Booking = require("../models/booking");
 
 function parseKlook(text) {
 
+    text = text.replace(/\r/g, "");
+
     const booking = Booking();
 
     booking.company = "Klook";
     booking.rawText = text;
 
-    const lines = text
-        .split("\n")
-        .map(x => x.trim())
-        .filter(x => x.length > 0);
+    // -----------------------------
+    // Booking No.
+    // -----------------------------
+    booking.bookingNo =
+        text.match(/\b[A-Z]{3}\d{6}\b/)?.[0] || "";
 
-    // -------------------------
-    // Booking No
-    // -------------------------
-    const bookingLine = lines.find(x => /^[A-Z]{3}\d{6}$/.test(x));
+    // -----------------------------
+    // Email (เอาอีเมลลูกค้า ไม่ใช่ operator@klook.com)
+    // -----------------------------
+    const emails =
+        [...text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)]
+        .map(x => x[0]);
 
-    if (bookingLine) {
-        booking.bookingNo = bookingLine;
-    }
+    booking.email =
+        emails.find(e =>
+            !e.includes("klook.com") &&
+            !e.includes("chiccarrent.com")
+        ) || "";
 
-    // -------------------------
-    // Customer Email
-    // -------------------------
-    const email = lines.find(x =>
-        x.includes("@") &&
-        !x.includes("operator@klook.com") &&
-        !x.includes("merchant@klook.com") &&
-        !x.includes("reservations.c@") &&
-        !x.includes("reservations@")
-    );
-
-    if (email) {
-        booking.email = email;
-    }
-
-    // -------------------------
+    // -----------------------------
     // Phone
-    // -------------------------
-    const phone = lines.find(x =>
-        /^(\+?\d{2,4}[- ]?)?\d{8,12}$/.test(x.replace(/-/g, ""))
-        || /^\d{2}-\d{10}$/.test(x)
-        || /^\d{2}-\d{9}$/.test(x)
-    );
+    // -----------------------------
+    booking.phone =
+        text.match(/66-\d{10}|\+66-\d{9,10}|0\d{9}/)?.[0] || "";
 
-    if (phone) {
-        booking.phone = phone;
-    }
+    // -----------------------------
+    // Customer
+    // -----------------------------
+    const lines = text.split("\n").map(x => x.trim());
 
-    // -------------------------
-    // Customer Name
-    // -------------------------
-    const nameIndex = lines.findIndex(x => x === booking.phone);
+    const emailIndex =
+        lines.findIndex(x => x === booking.email);
 
-    if (nameIndex > 0) {
+    if (emailIndex > 1) {
 
-        const name = lines[nameIndex - 2];
-
-        if (
-            name &&
-            !name.includes("2026") &&
-            !name.includes("@")
-        ) {
-            booking.renter = name;
-        }
+        booking.renter =
+            lines[emailIndex - 2];
 
     }
 
-    // -------------------------
-    // Dates
-    // -------------------------
-    const dates = [];
+    // -----------------------------
+    // Pickup
+    // -----------------------------
+    const pickup =
+        text.match(/Chic Network -[^\n]+\nT\d+\n(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
 
-    for (const line of lines) {
+    if (pickup) {
 
-        const m = line.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$/);
+        booking.pickupLocation =
+            pickup[0].split("\n")[0];
 
-        if (m) {
-            dates.push({
-                date: m[1],
-                time: m[2]
-            });
-        }
+        booking.pickupDate =
+            pickup[1];
 
-    }
-
-    if (dates.length >= 3) {
-
-        booking.pickupDate = dates[1].date;
-        booking.pickupTime = dates[1].time;
-
-        booking.returnDate = dates[2].date;
-        booking.returnTime = dates[2].time;
+        booking.pickupTime =
+            pickup[2];
 
     }
 
-    // -------------------------
-    // Locations
-    // -------------------------
-    const locations = lines.filter(x =>
-        x.startsWith("Chic Network")
-    );
+    // -----------------------------
+    // Return
+    // -----------------------------
+    const returns =
+        [...text.matchAll(/Chic Network -[^\n]+\nT\d+\n(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/g)];
 
-    if (locations.length >= 2) {
+    if (returns.length >= 2) {
 
-        booking.pickupLocation = locations[0];
-        booking.returnLocation = locations[1];
+        booking.returnLocation =
+            returns[1][0].split("\n")[0];
+
+        booking.returnDate =
+            returns[1][1];
+
+        booking.returnTime =
+            returns[1][2];
 
     }
 
-    // -------------------------
-    // Car
-    // -------------------------
-    const car = lines.find(x =>
-        x.includes("Toyota") ||
-        x.includes("Honda") ||
-        x.includes("Nissan") ||
-        x.includes("Ativ") ||
-        x.includes("Yaris")
-    );
+    // -----------------------------
+    // Vehicle
+    // -----------------------------
+    booking.car =
+        text.match(/HDAV_[^\n]+/)?.[0] || "";
 
-    if (car) {
-        booking.car = car;
-    }
-
-    // -------------------------
+    // -----------------------------
     // Amount
-    // -------------------------
-    const amount = lines.find(x =>
-        /^[\d,.]+\s*THB$/.test(x)
-    );
+    // -----------------------------
+    booking.amount =
+        text.match(/(\d+\.\d{2})\s*THB/) ?. [1] || "";
 
-    if (amount) {
+    booking.currency = "THB";
 
-        booking.amount =
-            amount.replace("THB", "").trim();
-
-        booking.currency = "THB";
-
-    }
+    console.log("===== BOOKING =====");
+    console.log(booking);
+    console.log("===================");
 
     return booking;
-
 }
 
 module.exports = parseKlook;

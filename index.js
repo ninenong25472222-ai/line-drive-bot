@@ -46,7 +46,26 @@ auth.setCredentials({
 });
 
 
+// -------------------------------
+// Helpers
+// -------------------------------
 
+function formatDate(date) {
+
+    if (!date) return "-";
+
+    const d = new Date(date);
+
+    if (isNaN(d.getTime())) {
+        return date;
+    }
+
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = String(d.getFullYear()).slice(-2);
+
+    return `${day}/${month}/${year}`;
+}
 
 
 // WEBHOOK
@@ -188,6 +207,10 @@ if(fileName.toLowerCase().endsWith(".pdf")){
     console.log("===================");
 }
 
+if (!booking) {
+    booking = {};
+}
+
 
   const drive = google.drive({
 
@@ -302,7 +325,7 @@ if (booking) {
       process.env.GOOGLE_SHEET_ID,
 
 
-    range:"Sheet!A:K",
+    range:"Sheet!A:N",
 
 
     valueInputOption:"USER_ENTERED",
@@ -311,28 +334,30 @@ if (booking) {
     requestBody:{
 
 
-values:[
+values: [
+  [
+    new Date(),
+    fileName,
 
-[ 
-  new Date(),
-  fileName,
+    booking?.renter || "",
+    booking?.phone || "",
 
-  booking?.renter || "",
-  booking?.bookingNo || "",
+    booking?.bookingNo || "",
 
-  booking?.pickupDate || "",
-  booking?.pickupTime || "",
+    booking?.pickupDate || "",
+    booking?.pickupTime || "",
+    booking?.pickupLocation || "",
 
-  booking?.returnDate || "",
-  booking?.returnTime || "",
+    booking?.returnDate || "",
+    booking?.returnTime || "",
+    booking?.returnLocation || "",
 
-  booking?.car || "",
+    booking?.car || "",
 
-  booking?.company || "",
+    booking?.company || "",
 
-  link
-]
-
+    link
+  ]
 ]
 
     }
@@ -342,43 +367,49 @@ values:[
 
 
 
+// -------------------------------
+// ตอบกลับ LINE
+// -------------------------------
 
+await client.replyMessage({
 
+    replyToken: event.replyToken,
 
-  // ตอบกลับ LINE
+    messages: [
 
+        {
 
-  await client.replyMessage({
+            type: "text",
 
+            text:
+`✅ บันทึกไฟล์แล้ว ${booking?.company || ""}
 
-    replyToken:event.replyToken,
+👤 ${booking?.renter || "-"}
 
+📞 ${booking?.phone || "-"}
 
-    messages:[
+🚗 รับรถ
+${formatDate(booking?.pickupDate)} ${booking?.pickupTime || "-"}
+${booking?.pickupLocation || "-"}
 
+🔄 คืนรถ
+${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
+${booking?.returnLocation || "-"}
 
-      {
+🚙 ${booking?.car || "-"}
 
-        type:"text",
-
-
-        text:
-
-`✅ บันทึกไฟล์แล้ว
+💰 ${booking?.amount || "-"} ${booking?.currency || ""}
 
 📄 ${fileName}
 
-📂 เปิดไฟล์:
+📂 เปิดไฟล์
 ${link}`
 
-
-      }
-
+        }
 
     ]
 
-
-  });
+});
 
 
 
