@@ -3,17 +3,26 @@ function detectCompany(text) {
     text = text.toLowerCase();
 
     // -------------------------
-    // ChicCar
+    // Klook (เช็คก่อน)
     // -------------------------
     if (
-        text.includes("chic network") ||
-        text.includes("chiccarrent.com") ||
-        text.includes("reservations.c@chiccarrent.com") ||
-        text.includes("vehicle details") ||
-        text.includes("reservation no.") ||
-        text.includes("reservation ref. no.")
+        text.includes("klook") ||
+        text.includes("merchant.klook.com") ||
+        text.includes("operator@klook.com") ||
+        text.includes("klook_booking_reference")
     ) {
-        return "chiccar";
+        return "klook";
+    }
+
+    // -------------------------
+    // Reservation
+    // -------------------------
+    if (
+        text.includes("reservation ref. number") ||
+        text.includes("driver's name") ||
+        text.includes("vehicle name")
+    ) {
+        return "reservation";
     }
 
     // -------------------------
@@ -28,29 +37,17 @@ function detectCompany(text) {
     }
 
     // -------------------------
-    // Klook
+    // ChicCar (เอกสารของ ChicCar โดยตรง)
     // -------------------------
     if (
-        text.includes("klook") ||
-        text.includes("booking reference") ||
-        text.includes("manage booking")
+        text.includes("vehicle details") ||
+        text.includes("reservation no.") ||
+        text.includes("booking source : chic")
     ) {
-        return "klook";
-    }
-
-    // -------------------------
-    // Reservation
-    // -------------------------
-    if (
-        text.includes("driver's name") ||
-        text.includes("vehicle name") ||
-        text.includes("reservation ref. number")
-    ) {
-        return "reservation";
+        return "chiccar";
     }
 
     return "unknown";
-
 }
 
 module.exports = detectCompany;
