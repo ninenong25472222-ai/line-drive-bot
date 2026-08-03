@@ -1,10 +1,5 @@
 const Booking = require("../models/booking");
 
-function find(text, regex) {
-    const m = text.match(regex);
-    return m ? m[1].trim() : "";
-}
-
 function parseKlook(text) {
 
     const booking = Booking();
@@ -12,78 +7,136 @@ function parseKlook(text) {
     booking.company = "Klook";
     booking.rawText = text;
 
-    // Booking Reference
-    booking.bookingNo =
-        find(text, /\b([A-Z]{3}\d{6})\b/);
+    const lines = text
+        .split("\n")
+        .map(x => x.trim())
+        .filter(x => x.length > 0);
 
-    // Customer Name
-    booking.renter =
-        find(text, /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+)([A-Za-z\/ ]+)\n/)
-        || find(text, /\n([A-Za-z]+\/[A-Za-z]+)\n/);
+    // -------------------------
+    // Booking No
+    // -------------------------
+    const bookingLine = lines.find(x => /^[A-Z]{3}\d{6}$/.test(x));
 
-    // Email
-    booking.email =
-        find(text, /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+    if (bookingLine) {
+        booking.bookingNo = bookingLine;
+    }
 
+    // -------------------------
+    // Customer Email
+    // -------------------------
+    const email = lines.find(x =>
+        x.includes("@") &&
+        !x.includes("operator@klook.com") &&
+        !x.includes("merchant@klook.com") &&
+        !x.includes("reservations.c@") &&
+        !x.includes("reservations@")
+    );
+
+    if (email) {
+        booking.email = email;
+    }
+
+    // -------------------------
     // Phone
-    booking.phone =
-        find(text, /(\d{2}-\d{9}|\+\d+\s?\d+)/);
+    // -------------------------
+    const phone = lines.find(x =>
+        /^(\+?\d{2,4}[- ]?)?\d{8,12}$/.test(x.replace(/-/g, ""))
+        || /^\d{2}-\d{10}$/.test(x)
+        || /^\d{2}-\d{9}$/.test(x)
+    );
 
-    // Pickup
+    if (phone) {
+        booking.phone = phone;
+    }
 
-    const pickup =
-        text.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+    // -------------------------
+    // Customer Name
+    // -------------------------
+    const nameIndex = lines.findIndex(x => x === booking.phone);
 
-    if (pickup) {
+    if (nameIndex > 0) {
 
-        booking.pickupDate = pickup[1];
-        booking.pickupTime = pickup[2];
+        const name = lines[nameIndex - 2];
+
+        if (
+            name &&
+            !name.includes("2026") &&
+            !name.includes("@")
+        ) {
+            booking.renter = name;
+        }
 
     }
 
-    // Return
+    // -------------------------
+    // Dates
+    // -------------------------
+    const dates = [];
 
-    const dates =
-        [...text.matchAll(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/g)];
+    for (const line of lines) {
 
-    if (dates.length >= 2) {
+        const m = line.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$/);
 
-        booking.returnDate = dates[1][1];
-        booking.returnTime = dates[1][2];
-
-    }
-
-    // Location
-
-    const location =
-        text.match(/Chic Network[^\n]+/);
-
-    if (location) {
-
-        booking.pickupLocation = location[0];
-        booking.returnLocation = location[0];
+        if (m) {
+            dates.push({
+                date: m[1],
+                time: m[2]
+            });
+        }
 
     }
 
+    if (dates.length >= 3) {
+
+        booking.pickupDate = dates[1].date;
+        booking.pickupTime = dates[1].time;
+
+        booking.returnDate = dates[2].date;
+        booking.returnTime = dates[2].time;
+
+    }
+
+    // -------------------------
+    // Locations
+    // -------------------------
+    const locations = lines.filter(x =>
+        x.startsWith("Chic Network")
+    );
+
+    if (locations.length >= 2) {
+
+        booking.pickupLocation = locations[0];
+        booking.returnLocation = locations[1];
+
+    }
+
+    // -------------------------
     // Car
-
-    const car =
-        text.match(/Toyota[^\n]+/);
+    // -------------------------
+    const car = lines.find(x =>
+        x.includes("Toyota") ||
+        x.includes("Honda") ||
+        x.includes("Nissan") ||
+        x.includes("Ativ") ||
+        x.includes("Yaris")
+    );
 
     if (car) {
-
-        booking.car = car[0];
-
+        booking.car = car;
     }
 
+    // -------------------------
     // Amount
-
-    const amount =
-        text.match(/([\d,.]+)\s*THB/);
+    // -------------------------
+    const amount = lines.find(x =>
+        /^[\d,.]+\s*THB$/.test(x)
+    );
 
     if (amount) {
 
-        booking.amount = amount[1].replace(/,/g, "");
+        booking.amount =
+            amount.replace("THB", "").trim();
+
         booking.currency = "THB";
 
     }
