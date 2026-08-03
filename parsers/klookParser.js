@@ -1,124 +1,91 @@
 const Booking = require("../models/booking");
 
-function parseKlook(text) {
+function find(text, regex) {
+    const m = text.match(regex);
+    return m ? m[1].trim() : "";
+}
 
-    text = text
-        .replace(/\r/g, "")
-        .replace(/\u00A0/g, " ")
-        .replace(/[ \t]+/g, " ")
-        .replace(/\n{2,}/g, "\n")
-        .trim();
+function parseKlook(text) {
 
     const booking = Booking();
 
     booking.company = "Klook";
     booking.rawText = text;
 
-    // -----------------------------
-    // Booking No.
-    // -----------------------------
-    const bookingNo = text.match(
-        /หมายเลขอ้างอิงการจอง\s*([A-Z0-9]+)/i
-    );
+    // Booking Reference
+    booking.bookingNo =
+        find(text, /\b([A-Z]{3}\d{6})\b/);
 
-    if (bookingNo) {
-        booking.bookingNo = bookingNo[1].trim();
-    }
-
-    // -----------------------------
     // Customer Name
-    // -----------------------------
-    const customer = text.match(
-        /ชื่อพนักงานขับรถ\s*([^\n]+)/i
-    );
+    booking.renter =
+        find(text, /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+)([A-Za-z\/ ]+)\n/)
+        || find(text, /\n([A-Za-z]+\/[A-Za-z]+)\n/);
 
-    if (customer) {
-        booking.customerName = customer[1].trim();
-    }
-
-    // -----------------------------
     // Email
-    // -----------------------------
-    const email = text.match(
-        /อีเมล\s*([^\s]+)/i
-    );
+    booking.email =
+        find(text, /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
 
-    if (email) {
-        booking.customerEmail = email[1].trim();
-    }
-
-    // -----------------------------
     // Phone
-    // -----------------------------
-    const phone = text.match(
-        /หมายเลขโทรศัพท์\s*([+\d-]+)/i
-    );
+    booking.phone =
+        find(text, /(\d{2}-\d{9}|\+\d+\s?\d+)/);
 
-    if (phone) {
-        booking.customerPhone = phone[1].trim();
-    }
-
-    // -----------------------------
     // Pickup
-    // -----------------------------
-    const pickupLocation = text.match(
-        /สถานที่นัดรับ\s*([^\n]+)/i
-    );
 
-    if (pickupLocation) {
-        booking.pickupLocation = pickupLocation[1].trim();
+    const pickup =
+        text.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+
+    if (pickup) {
+
+        booking.pickupDate = pickup[1];
+        booking.pickupTime = pickup[2];
+
     }
 
-    const pickupDate = text.match(
-        /เวลานัดรับ\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/i
-    );
-
-    if (pickupDate) {
-        booking.pickupDate = pickupDate[1];
-        booking.pickupTime = pickupDate[2];
-    }
-
-    // -----------------------------
     // Return
-    // -----------------------------
-    const returnLocation = text.match(
-        /สถานที่ส่งคืน\s*([^\n]+)/i
-    );
 
-    if (returnLocation) {
-        booking.returnLocation = returnLocation[1].trim();
+    const dates =
+        [...text.matchAll(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/g)];
+
+    if (dates.length >= 2) {
+
+        booking.returnDate = dates[1][1];
+        booking.returnTime = dates[1][2];
+
     }
 
-    const returnDate = text.match(
-        /ข้อมูลการส่งกลับ\s*(\d{4}-\d{2}-\d{2})\s*(\d{2}:\d{2})/i
-    );
+    // Location
 
-    if (returnDate) {
-        booking.returnDate = returnDate[1];
-        booking.returnTime = returnDate[2];
+    const location =
+        text.match(/Chic Network[^\n]+/);
+
+    if (location) {
+
+        booking.pickupLocation = location[0];
+        booking.returnLocation = location[0];
+
     }
 
-    // -----------------------------
-    // Vehicle
-    // -----------------------------
-    const car = text.match(
-        /ยานพาหนะ\s*([^\n]+)/i
-    );
+    // Car
+
+    const car =
+        text.match(/Toyota[^\n]+/);
 
     if (car) {
-        booking.car = car[1].trim();
+
+        booking.car = car[0];
+
     }
 
-    // -----------------------------
     // Amount
-    // -----------------------------
-    const amount = text.match(
-        /จำนวนเงินทั้งหมด\s*([\d,.]+)\s*THB/i
-    );
+
+    const amount =
+        text.match(/([\d,.]+)\s*THB/);
 
     if (amount) {
+
         booking.amount = amount[1].replace(/,/g, "");
         booking.currency = "THB";
+
     }
 
     return booking;

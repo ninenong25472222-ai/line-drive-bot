@@ -183,6 +183,9 @@ if(fileName.toLowerCase().endsWith(".pdf")){
 
     console.log("----------------------------");
 
+    console.log("===== BOOKING =====");
+    console.log(booking);
+    console.log("===================");
 }
 
 
@@ -299,7 +302,7 @@ if (booking) {
       process.env.GOOGLE_SHEET_ID,
 
 
-    range:"Sheet!A:D",
+    range:"Sheet!A:K",
 
 
     valueInputOption:"USER_ENTERED",

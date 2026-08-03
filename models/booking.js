@@ -1,23 +1,32 @@
 module.exports = function () {
     return {
+
         company: "",
+
         bookingNo: "",
-        customerName: "",
-        customerEmail: "",
-        customerPhone: "",
+
+        renter: "",
+
+        email: "",
+
+        phone: "",
 
         pickupDate: "",
+
         pickupTime: "",
 
         returnDate: "",
+
         returnTime: "",
 
         pickupLocation: "",
+
         returnLocation: "",
 
         car: "",
 
         amount: "",
+
         currency: "",
 
         pdfLink: "",
@@ -27,5 +36,6 @@ module.exports = function () {
         fileName: "",
 
         rawText: ""
+
     };
 };
