@@ -63,45 +63,38 @@ function parseChicCar(text) {
     // -----------------------------
     // Pickup Date / Return Date
     // -----------------------------
-    const dates = text.match(
-        /Date\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4}).*?Date\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/is
-    );
+    const dates = [...text.matchAll(/\d{1,2}\/\d{1,2}\/\d{4}/g)];
 
-    if (dates) {
+if(dates.length >= 2){
 
-        booking.pickupDate =
-            `${dates[1]}/${dates[2]}/${dates[3]}`;
-
-        booking.returnDate =
-            `${dates[4]}/${dates[5]}/${dates[6]}`;
+    booking.pickupDate = dates[0][0];
+    booking.returnDate = dates[1][0];
 
     }
 
     // -----------------------------
     // Pickup Time / Return Time
     // -----------------------------
-    const times = text.match(
-        /(\d{2}:\d{2})\s*(\d{2}:\d{2})/
-    );
+    const times = [...text.matchAll(/\d{2}:\d{2}/g)];
 
-    if (times) {
+if(times.length >= 2){
 
-        booking.pickupTime = times[1];
-        booking.returnTime = times[2];
+    booking.pickupTime = times[0][0];
+    booking.returnTime = times[1][0];
 
     }
 
     // -----------------------------
     // Pickup / Return Location
     // -----------------------------
-    const locations = text.match(
-        /(SURAT THANI AIRPORT)\s+(SURAT THANI AIRPORT)/i
-    );
+    const airport = text.match(
+    /(Surat Thani Airport|SURAT THANI AIRPORT)/i
+);
 
-    if (locations) {
+if(airport){
 
-        booking.pickupLocation = locations[1].trim();
-        booking.returnLocation = locations[2].trim();
+    booking.pickupLocation = airport[1];
+    booking.returnLocation = airport[1];
 
     }
 
@@ -109,16 +102,15 @@ function parseChicCar(text) {
     // Vehicle
     // -----------------------------
     const car = text.match(
-        /Vehicle Details([\s\S]*?)Or Similar/i
-    );
+    /(TOYOTA|HONDA|MITSUBISHI|NISSAN|MAZDA|ISUZU|SUZUKI|MG|BYD)[\s\S]{0,80}/i
+);
 
-    if (car) {
+if(car){
 
-        booking.car = car[1]
-            .replace(/\n/g, " ")
-            .replace(/\s+/g, " ")
-            .replace(/^-/, "")
-            .trim();
+    booking.car = car[0]
+        .replace(/\n/g," ")
+        .replace(/\s+/g," ")
+        .trim();
 
     }
 
@@ -126,13 +118,13 @@ function parseChicCar(text) {
     // Total Amount
     // -----------------------------
     const amount = text.match(
-        /Total\s*([\d,]+\.\d{2})/i
-    );
+    /Total[\s:]*([\d,]+\.\d{2})/i
+);
 
-    if (amount) {
+if(amount){
 
-        booking.amount = amount[1].replace(/,/g, "");
-        booking.currency = "THB";
+    booking.amount = amount[1].replace(/,/g,"");
+    booking.currency = "THB";
 
     }
 

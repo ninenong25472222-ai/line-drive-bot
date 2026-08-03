@@ -28,7 +28,27 @@ function parseReservation(text){
         booking.customerName = driver[1].trim();
     }
 
+    // -----------------------------
+// Email
+// -----------------------------
+const email = text.match(
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+);
 
+if(email){
+    booking.customerEmail = email[0];
+}
+
+// -----------------------------
+// Phone
+// -----------------------------
+const phone = text.match(
+    /\+66\d+|0\d{9}/
+);
+
+if(phone){
+    booking.customerPhone = phone[0];
+}
     // วันที่รับ
     const pickupDate = text.match(
         /Pick-up date\s*(\d{2}\.\d{2}\.\d{4})/i

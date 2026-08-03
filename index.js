@@ -339,8 +339,8 @@ values: [
     new Date(),
     fileName,
 
-    booking?.renter || "",
-    booking?.phone || "",
+    booking?.customerName || "",
+    booking?.customerPhone || "", 
 
     booking?.bookingNo || "",
 
@@ -381,27 +381,21 @@ await client.replyMessage({
 
             type: "text",
 
-            text:
+           text:
 `✅ บันทึกไฟล์แล้ว ${booking?.company || ""}
-
-👤 ${booking?.renter || "-"}
-
-📞 ${booking?.phone || "-"}
+👤 ${booking?.customerName || "-"}
+📞 ${booking?.customerPhone || "-"}
 
 🚗 รับรถ
 ${formatDate(booking?.pickupDate)} ${booking?.pickupTime || "-"}
 ${booking?.pickupLocation || "-"}
-
 🔄 คืนรถ
 ${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
 ${booking?.returnLocation || "-"}
 
 🚙 ${booking?.car || "-"}
 
-💰 ${booking?.amount || "-"} ${booking?.currency || ""}
-
 📄 ${fileName}
-
 📂 เปิดไฟล์
 ${link}`
 

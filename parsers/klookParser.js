@@ -22,7 +22,7 @@ function parseKlook(text) {
         [...text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)]
         .map(x => x[0]);
 
-    booking.email =
+    booking.customerEmail =
         emails.find(e =>
             !e.includes("klook.com") &&
             !e.includes("chiccarrent.com")
@@ -31,7 +31,7 @@ function parseKlook(text) {
     // -----------------------------
     // Phone
     // -----------------------------
-    booking.phone =
+    booking.customerPhone =
         text.match(/66-\d{10}|\+66-\d{9,10}|0\d{9}/)?.[0] || "";
 
     // -----------------------------
@@ -44,7 +44,7 @@ function parseKlook(text) {
 
     if (emailIndex > 1) {
 
-        booking.renter =
+        booking.customerName =
             lines[emailIndex - 2];
 
     }
