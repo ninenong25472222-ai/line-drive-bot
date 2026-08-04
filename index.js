@@ -184,21 +184,13 @@ async function handleEvent(event){
 
   const buffer =
     Buffer.from(response.data);
-let booking = {};
+let booking={};
 
 if(fileName.toLowerCase().endsWith(".pdf")){
 
     const text=await readPDF(buffer);
 
-    booking=parserService.parse(text);
-
-    if(!text){
-    booking = { company:"Unknown" };
-}
-
-    console.log("รับไฟล์ :", fileName);
-    console.log("Company :", booking.company);
-    console.log("Booking :", booking.bookingNo);
+    booking=parserService.parse(text) || { company:"Unknown" };
 }
 
 
@@ -308,7 +300,21 @@ if (booking) {
     booking.phone ??
     "";
 
-  const sheetName = "Booking";
+  booking.company = booking.company || "Other";
+
+  let sheetName = "Other";
+
+  switch(booking.company){
+      case "Trip":
+          sheetName = "Trip";
+          break;
+      case "Reservation":
+          sheetName = "Reservation";
+          break;
+      case "Klook":
+          sheetName = "Klook";
+          break;
+  }
 
   const sheets = google.sheets({
 
@@ -352,6 +358,7 @@ values: [
     booking.returnTime,
     booking.returnLocation,
     booking.car,
+    booking.amount,
     fileName,
     link
 ]
@@ -363,9 +370,7 @@ values: [
   });
 
 
-  console.log("LINK =", link);
-  console.log("CAR =", booking.car || "");
-  console.log("CAR LENGTH =", (booking.car || "").length);
+    console.log(booking.company, booking.bookingNo);
 // -------------------------------
 // ตอบกลับ LINE
 // -------------------------------
@@ -393,7 +398,7 @@ ${booking?.pickupLocation || "-"}
 ${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
 ${booking?.returnLocation || "-"}
 
-🚙 ${(booking.car || "-").substring(0,40)}
+🚙 ${booking.car || "-"}
 
 📄 ${fileName}
 
@@ -410,17 +415,22 @@ ${link}`
 
     }catch(err){
         console.error(err);
-        await client.replyMessage({
-            replyToken:event.replyToken,
-            messages:[
-                {
-                    type:"text",
-                    text:"❌ ไม่สามารถประมวลผลไฟล์ได้"
-                }
-            ]
-        });
+        if(event.replyToken){
+            try{
+                await client.replyMessage({
+                    replyToken:event.replyToken,
+                    messages:[
+                        {
+                            type:"text",
+                            text:"❌ ไม่สามารถประมวลผลไฟล์ได้"
+                        }
+                    ]
+                });
+            }catch{}
+        }
     }
-  }
+}
+
 
 
 
