@@ -109,8 +109,8 @@ function parseTrip(text) {
     // Pickup
     // -----------------------------
     const pickup = text.match(
-/(?:จุดรับรถ|Pick-up)[\s\S]*?\n([^\n]+)\n([^\n]+)/i
-);
+        /(?:จุดรับรถ|Pick-up)[\s\S]*?\n\s*(?!#)([^\n]+?)\s*\n\s*([^\n]*\d{4}[^\n]*)/i
+    );
 
     if (pickup) {
         booking.pickupLocation = pickup[1].trim();
@@ -123,8 +123,8 @@ function parseTrip(text) {
     // Return
     // -----------------------------
     const dropoff = text.match(
-/(?:จุดคืนรถ|Drop-off)[\s\S]*?\n([^\n]+)\n([^\n]+)/i
-);
+        /(?:จุดคืนรถ|Drop-off)[\s\S]*?\n\s*(?!#)([^\n]+?)\s*\n\s*([^\n]*\d{4}[^\n]*)/i
+    );
 
     if (dropoff) {
         booking.returnLocation = dropoff[1].trim();
