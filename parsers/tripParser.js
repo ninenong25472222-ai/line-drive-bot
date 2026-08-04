@@ -28,16 +28,36 @@ function parseTrip(text) {
     // -----------------------------
     // Customer Name
     // -----------------------------
-    const customer = text.match(
-        /ชื่อผู้ขับ[\s\S]{0,80}\n([A-Z\n ]{5,80})รายละเอียดรถ/i
-    );
+const lines = text
+    .split("\n")
+    .map(x => x.trim())
+    .filter(Boolean);
 
-    if(customer){
+const detailIndex = lines.findIndex(
+    x =>
+        x.includes("รายละเอียดรถ") ||
+        x.includes("รายละเอียด รถ")
+);
 
-        booking.renter = customer[1]
-            .replace(/\n/g," ")
-            .replace(/\s+/g," ")
-            .trim();
+if (detailIndex > 0) {
+
+    const names = [];
+
+    for (let i = detailIndex - 1; i >= 0; i--) {
+
+        if (/^[A-Z ]+$/.test(lines[i])) {
+
+            names.unshift(lines[i]);
+
+        } else {
+
+            break;
+
+        }
+
+    }
+
+    booking.customerName = names.join(" ");
 
 
     }
@@ -46,17 +66,18 @@ function parseTrip(text) {
     // Vehicle
     // -----------------------------
     const car = text.match(
-        /รายละเอียดรถ[\s\S]*?ประเภทรถ\s*([\s\S]*?)ระบบเกียร์/i
-    );
+    /ประเภทรถ\s*([\s\S]*?)ระบบเกียร์/i
+);
 
-    if (car) {
+if (car) {
 
-        booking.car = car[1]
-            .replace(/\n/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
+    booking.car = car[1]
+        .replace(/\n/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/หรือรุ่นที.*/i, "")
+        .trim();
 
-    }
+}
 
     // -----------------------------
     // Total Amount

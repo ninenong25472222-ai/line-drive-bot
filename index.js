@@ -375,7 +375,9 @@ values: [
   });
 
 
-
+  console.log("LINK =", link);
+  console.log("CAR =", booking.car || "");
+  console.log("CAR LENGTH =", (booking.car || "").length);
 // -------------------------------
 // ตอบกลับ LINE
 // -------------------------------
@@ -391,6 +393,7 @@ await client.replyMessage({
             type: "text",
 
            text:
+
 `✅ บันทึกไฟล์แล้ว ${booking?.company || ""}
 👤 ${booking.customerName || "-"}
 📞 ${booking.customerPhone || "-"}
@@ -402,9 +405,10 @@ ${booking?.pickupLocation || "-"}
 ${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
 ${booking?.returnLocation || "-"}
 
-🚙 ${booking?.car || "-"}
+🚙 ${(booking.car || "").substring(0,30)}
 
 📄 ${fileName}
+
 📂 เปิดไฟล์
 ${link}`
 
