@@ -305,6 +305,16 @@ if (booking) {
 
 }
 
+    booking.customerName =
+    booking.customerName ||
+    booking.renter ||
+    "";
+
+    booking.customerPhone =
+    booking.customerPhone ||
+    booking.phone ||
+    "";
+
   const sheets = google.sheets({
 
     version:"v4",
@@ -315,19 +325,9 @@ if (booking) {
 
 
 
-
-
   await sheets.spreadsheets.values.append({
 
-    booking.customerName =
-    booking.customerName ||
-    booking.renter ||
-    "";
 
-booking.customerPhone =
-    booking.customerPhone ||
-    booking.phone ||
-    "";
 
     spreadsheetId:
 
@@ -348,8 +348,8 @@ values: [
     new Date(),
     fileName,
 
-    booking?.customerName || "",
-    booking?.customerPhone || "", 
+    booking.customerName || "",
+    booking.customerPhone || "", 
 
     booking?.bookingNo || "",
 
