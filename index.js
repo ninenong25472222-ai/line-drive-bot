@@ -54,10 +54,12 @@ function formatDate(date) {
 
     if (!date) return "-";
 
+    if(typeof date === "string") return date;
+
     const d = new Date(date);
 
     if (isNaN(d.getTime())) {
-        return date;
+        return "-";
     }
 
     const day = String(d.getDate()).padStart(2, "0");
@@ -118,9 +120,7 @@ app.post(
 
 
 async function handleEvent(event){
-
-  console.log("====== EVENT ======");
-  console.log(JSON.stringify(event, null, 2));
+    try{
 
   if(
 
@@ -184,31 +184,21 @@ async function handleEvent(event){
 
   const buffer =
     Buffer.from(response.data);
-let booking=null;
+let booking = {};
 
 if(fileName.toLowerCase().endsWith(".pdf")){
 
     const text=await readPDF(buffer);
 
-    console.log("===== PDF TEXT =====");
-    console.log(text);
-    console.log("====================");
-
     booking=parserService.parse(text);
 
-    console.log("----------------------------");
-
-    console.log("Company :",booking.company);
-
-    console.log("----------------------------");
-
-    console.log("===== BOOKING =====");
-    console.log(booking);
-    console.log("===================");
+    if(!text){
+    booking = { company:"Unknown" };
 }
 
-if (!booking) {
-    booking = {};
+    console.log("รับไฟล์ :", fileName);
+    console.log("Company :", booking.company);
+    console.log("Booking :", booking.bookingNo);
 }
 
 
@@ -251,7 +241,10 @@ if (!booking) {
       stream.Readable.from(buffer)
 
 
-    }
+    },
+
+
+    fields:"id"
 
 
   });
@@ -306,14 +299,28 @@ if (booking) {
 }
 
     booking.customerName =
-    booking.customerName ||
-    booking.renter ||
+    booking.customerName ??
+    booking.renter ??
     "";
 
     booking.customerPhone =
-    booking.customerPhone ||
-    booking.phone ||
+    booking.customerPhone ??
+    booking.phone ??
     "";
+
+  let sheetName = "Other";
+
+  switch(booking.company){
+      case "Trip":
+          sheetName = "Trip";
+          break;
+      case "Reservation":
+          sheetName = "Reservation";
+          break;
+      case "Klook":
+          sheetName = "Klook";
+          break;
+  }
 
   const sheets = google.sheets({
 
@@ -334,7 +341,7 @@ if (booking) {
       process.env.GOOGLE_SHEET_ID,
 
 
-    range:"Sheet!A:N",
+    range:`${sheetName}!A:N`,
 
 
     valueInputOption:"USER_ENTERED",
@@ -343,31 +350,23 @@ if (booking) {
     requestBody:{
 
 
-values: [
-  [
-    new Date(),
-    fileName,
-
-    booking.customerName || "",
-    booking.customerPhone || "", 
-
-    booking?.bookingNo || "",
-
-    booking?.pickupDate || "",
-    booking?.pickupTime || "",
-    booking?.pickupLocation || "",
-
-    booking?.returnDate || "",
-    booking?.returnTime || "",
-    booking?.returnLocation || "",
-
-    booking?.car || "",
-
-    booking?.company || "",
-
-    link
-  ]
-]
+values:[[
+new Date(),
+  booking.company || "",
+  booking.bookingNo || "",
+  booking.customerName || "",
+  booking.customerPhone || "",
+  booking.pickupDate || "",
+  booking.pickupTime || "",
+  booking.pickupLocation || "",
+  booking.returnDate || "",
+  booking.returnTime || "",
+  booking.returnLocation || "",
+  booking.car || "",
+  booking.amount || "",
+fileName,
+link
+]]
 
     }
 
@@ -405,7 +404,7 @@ ${booking?.pickupLocation || "-"}
 ${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
 ${booking?.returnLocation || "-"}
 
-🚙 ${(booking.car || "").substring(0,30)}
+🚙 ${(booking.car || "-").substring(0,40)}
 
 📄 ${fileName}
 
@@ -420,8 +419,19 @@ ${link}`
 
 
 
-}
-
+    }catch(err){
+        console.error(err);
+        await client.replyMessage({
+            replyToken:event.replyToken,
+            messages:[
+                {
+                    type:"text",
+                    text:"❌ ไม่สามารถประมวลผลไฟล์ได้"
+                }
+            ]
+        });
+    }
+  }
 
 
 

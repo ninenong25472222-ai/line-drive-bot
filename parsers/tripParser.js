@@ -18,7 +18,7 @@ function parseTrip(text) {
     // Booking Number
     // -----------------------------
     const bookingNo = text.match(
-        /หมายเลขการจอง[:\s]*([A-Z0-9]+)/i
+        /(?:หมายเลขการจอง|Booking\s*(?:No\.?|Number)|Confirmation\s*(?:No\.?|Number))[:\s]*([A-Za-z0-9]+)/i
     );
 
     if (bookingNo) {
@@ -28,99 +28,123 @@ function parseTrip(text) {
     // -----------------------------
     // Customer Name
     // -----------------------------
-const lines = text
-    .split("\n")
-    .map(x => x.trim())
-    .filter(Boolean);
+    let customerName = null;
 
-const detailIndex = lines.findIndex(
-    x =>
-        x.includes("รายละเอียดรถ") ||
-        x.includes("รายละเอียด รถ")
-);
+    // English PDFs: name sits right under "Main Driver Name"
+    const mainDriver = text.match(
+        /(?:ชื่อผู้ขับขี่หลัก|Main Driver Name)\s*\n\s*([^\n]+)/i
+    );
 
-if (detailIndex > 0) {
+    if (mainDriver) {
+        customerName = mainDriver[1].trim();
+    } else {
+        // Fallback: Thai PDFs list the name(s) as ALL-CAPS lines right before "รายละเอียดรถ"
+        const lines = text
+            .split("\n")
+            .map(x => x.trim())
+            .filter(Boolean);
 
-    const names = [];
+        const detailIndex = lines.findIndex(
+            x =>
+                x.includes("รายละเอียดรถ") ||
+                x.includes("รายละเอียด รถ") ||
+                /vehicle\s*details/i.test(x) ||
+                /car\s*details/i.test(x)
+        );
 
-    for (let i = detailIndex - 1; i >= 0; i--) {
-
-        if (/^[A-Z ]+$/.test(lines[i])) {
-
-            names.unshift(lines[i]);
-
-        } else {
-
-            break;
-
+        if (detailIndex > 0) {
+            const names = [];
+            for (let i = detailIndex - 1; i >= 0; i--) {
+                if (/^[A-Zก-๙ ]+$/.test(lines[i])) {
+                    names.unshift(lines[i]);
+                } else {
+                    break;
+                }
+            }
+            customerName = names.join(" ");
         }
-
     }
 
-    booking.customerName = names.join(" ");
-
-
-    }
+    booking.customerName = customerName || "";
+    booking.renter = booking.customerName;
 
     // -----------------------------
     // Vehicle
     // -----------------------------
     const car = text.match(
-    /ประเภทรถ\s*([\s\S]*?)ระบบเกียร์/i
-);
+        /(?:ประเภทรถ|Vehicle\s*Type|Car\s*Type)\s*([\s\S]*?)(?:ระบบเกียร์|Transmission)/i
+    );
 
-if (car) {
-
-    booking.car = car[1]
-        .replace(/\n/g, " ")
-        .replace(/\s+/g, " ")
-        .replace(/หรือรุ่นที.*/i, "")
-        .trim();
-
-}
+    if (car) {
+        booking.car = car[1]
+            .replace(/\n/g, " ")
+            .replace(/\s+/g, " ")
+            .replace(/หรือรุ่น[\s\S]*/i, "")
+            .replace(/or\s+similar[\s\S]*/i, "")
+            .trim();
+    }
 
     // -----------------------------
     // Total Amount
     // -----------------------------
-    const total = text.match(
-        /ทั้งหมด\s*THB\s*([\d,.]+)/i
-    );
+    // \b + \s+THB (not [^\d]*THB) so "Booking total" heading doesn't
+    // false-match the "Total THB xxxx" line further down.
+    const total =
+        text.match(/Total\s*THB\s*([\d,.]+)/i) ||
+        text.match(/ทั้งหมด\s*THB\s*([\d,.]+)/i);
 
     if (total) {
-
         booking.amount = total[1].replace(/,/g, "");
         booking.currency = "THB";
+    }
 
+    // -----------------------------
+    // Pickup / Return date-time parsing
+    // -----------------------------
+    // Handles both:
+    //   Thai style:    "5 สิงหาคม 2026" + "18:30"
+    //   English style: "6:30 PM, Aug 5, 2026"
+    function parseDateTimeLine(line) {
+        let date = null, time = null;
+
+        const timeMatch = line.match(/(\d{1,2}:\d{2}\s*(?:[AP]M)?)/i);
+        if (timeMatch) time = timeMatch[1].trim();
+
+        let dateMatch = line.match(/(\d{1,2}\s+[A-Za-zก-๙\.]+\s+\d{4})/); // "5 August 2026"
+        if (!dateMatch) {
+            dateMatch = line.match(/([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/); // "Aug 5, 2026"
+        }
+        if (dateMatch) date = dateMatch[1].trim();
+
+        return { date, time };
     }
 
     // -----------------------------
     // Pickup
     // -----------------------------
     const pickup = text.match(
-        /จุดรับรถ[\s\S]*?\n([^\n]+)\n\s*(\d{1,2}\s+\S+\s+\d{4})\s+(\d{2}:\d{2})/i
-    );
+/(?:จุดรับรถ|Pick-up)[\s\S]*?\n([^\n]+)\n([^\n]+)/i
+);
 
     if (pickup) {
-
         booking.pickupLocation = pickup[1].trim();
-        booking.pickupDate = pickup[2].trim();
-        booking.pickupTime = pickup[3].trim();
-
+        const { date, time } = parseDateTimeLine(pickup[2]);
+        booking.pickupDate = date;
+        booking.pickupTime = time;
     }
 
     // -----------------------------
     // Return
     // -----------------------------
     const dropoff = text.match(
-        /จุดคืนรถ[\s\S]*?\n([^\n]+)\n\s*(\d{1,2}\s+\S+\s+\d{4})\s+(\d{2}:\d{2})/i
-    );
+/(?:จุดคืนรถ|Drop-off)[\s\S]*?\n([^\n]+)\n([^\n]+)/i
+);
 
     if (dropoff) {
-
         booking.returnLocation = dropoff[1].trim();
-        booking.returnDate = dropoff[2].trim();
-        booking.returnTime = dropoff[3].trim();
-
+        const { date, time } = parseDateTimeLine(dropoff[2]);
+        booking.returnDate = date;
+        booking.returnTime = time;
     }
 
     // -----------------------------
@@ -129,23 +153,19 @@ if (car) {
     booking.customerEmail = "";
 
     // -----------------------------
-    // Phone (ไม่มีใน PDF)
+    // Phone
     // -----------------------------
-    // -----------------------------
-// Phone
-// -----------------------------
-const phone = text.match(
-    /\+66\d+|0\d{9}/
-);
+    // Prefer +66 international format first; fall back to local 0XXXXXXXXX
+    // with digit-boundary guards so it never grabs part of a longer number
+    // (e.g. the Pick-up Voucher No. "009990301967").
+    let phone = text.match(/\+66[\s-]?\d[\d\s-]{6,}\d/);
+    if (!phone) phone = text.match(/(?<!\d)0\d{9}(?!\d)/);
 
-if(phone){
-
-    booking.customerPhone = phone[0];
-
-}
+    if (phone) {
+        booking.customerPhone = phone[0].replace(/[\s-]/g, "");
+    }
 
     return booking;
-
 }
 
 module.exports = parseTrip;
