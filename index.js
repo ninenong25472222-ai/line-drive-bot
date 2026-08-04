@@ -329,7 +329,7 @@ if (booking) {
       process.env.GOOGLE_SHEET_ID,
 
 
-    range:`${sheetName}!A:O`,
+    range:`${sheetName}!A:N`,
 
 
     valueInputOption:"USER_ENTERED",
@@ -338,23 +338,24 @@ if (booking) {
     requestBody:{
 
 
-values:[[
-new Date(),
-  booking.company || "",
-  booking.bookingNo || "",
-  booking.customerName || "",
-  booking.customerPhone || "",
-  booking.pickupDate || "",
-  booking.pickupTime || "",
-  booking.pickupLocation || "",
-  booking.returnDate || "",
-  booking.returnTime || "",
-  booking.returnLocation || "",
-  booking.car || "",
-  booking.amount || "",
-fileName,
-link
-]]
+values: [
+[
+    new Date(),
+    booking.company,
+    booking.bookingNo,
+    booking.customerName,
+    booking.customerPhone,
+    booking.pickupDate,
+    booking.pickupTime,
+    booking.pickupLocation,
+    booking.returnDate,
+    booking.returnTime,
+    booking.returnLocation,
+    booking.car,
+    fileName,
+    link
+]
+]
 
     }
 

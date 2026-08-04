@@ -85,20 +85,6 @@ function parseTrip(text) {
     }
 
     // -----------------------------
-    // Total Amount
-    // -----------------------------
-    // \b + \s+THB (not [^\d]*THB) so "Booking total" heading doesn't
-    // false-match the "Total THB xxxx" line further down.
-    const total =
-        text.match(/Total\s*THB\s*([\d,.]+)/i) ||
-        text.match(/ทั้งหมด\s*THB\s*([\d,.]+)/i);
-
-    if (total) {
-        booking.amount = total[1].replace(/,/g, "");
-        booking.currency = "THB";
-    }
-
-    // -----------------------------
     // Pickup / Return date-time parsing
     // -----------------------------
     // Handles both:
