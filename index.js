@@ -319,6 +319,15 @@ if (booking) {
 
   await sheets.spreadsheets.values.append({
 
+    booking.customerName =
+    booking.customerName ||
+    booking.renter ||
+    "";
+
+booking.customerPhone =
+    booking.customerPhone ||
+    booking.phone ||
+    "";
 
     spreadsheetId:
 
@@ -383,8 +392,8 @@ await client.replyMessage({
 
            text:
 `✅ บันทึกไฟล์แล้ว ${booking?.company || ""}
-👤 ${booking?.customerName || "-"}
-📞 ${booking?.customerPhone || "-"}
+👤 ${booking.customerName || "-"}
+📞 ${booking.customerPhone || "-"}
 
 🚗 รับรถ
 ${formatDate(booking?.pickupDate)} ${booking?.pickupTime || "-"}

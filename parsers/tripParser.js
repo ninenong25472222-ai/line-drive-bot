@@ -29,15 +29,16 @@ function parseTrip(text) {
     // Customer Name
     // -----------------------------
     const customer = text.match(
-        /ผู้ขับขี่หลัก\s*([\s\S]*?)รายละเอีย/i
+        /ชื่อผู้ขับ[\s\S]{0,80}\n([A-Z\n ]{5,80})รายละเอียดรถ/i
     );
 
-    if (customer) {
+    if(customer){
 
-        booking.customerName = customer[1]
-            .replace(/\n/g, " ")
-            .replace(/\s+/g, " ")
+        booking.renter = customer[1]
+            .replace(/\n/g," ")
+            .replace(/\s+/g," ")
             .trim();
+
 
     }
 
@@ -109,7 +110,18 @@ function parseTrip(text) {
     // -----------------------------
     // Phone (ไม่มีใน PDF)
     // -----------------------------
-    booking.customerPhone = "";
+    // -----------------------------
+// Phone
+// -----------------------------
+const phone = text.match(
+    /\+66\d+|0\d{9}/
+);
+
+if(phone){
+
+    booking.customerPhone = phone[0];
+
+}
 
     return booking;
 
