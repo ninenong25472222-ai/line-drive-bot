@@ -308,19 +308,7 @@ if (booking) {
     booking.phone ??
     "";
 
-  let sheetName = "Other";
-
-  switch(booking.company){
-      case "Trip":
-          sheetName = "Trip";
-          break;
-      case "Reservation":
-          sheetName = "Reservation";
-          break;
-      case "Klook":
-          sheetName = "Klook";
-          break;
-  }
+  const sheetName = "Booking";
 
   const sheets = google.sheets({
 
@@ -341,7 +329,7 @@ if (booking) {
       process.env.GOOGLE_SHEET_ID,
 
 
-    range:`${sheetName}!A:N`,
+    range:`${sheetName}!A:O`,
 
 
     valueInputOption:"USER_ENTERED",
