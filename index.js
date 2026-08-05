@@ -501,15 +501,6 @@ console.log("Drive upload result:", {
         )
 });
 
-        const fileId =
-            upload.data.id;
-
-        if (!fileId) {
-            throw new Error(
-                "GOOGLE_DRIVE_FILE_ID_EMPTY"
-            );
-        }
-
         // ============================
         // MAKE FILE PUBLIC
         // ============================
