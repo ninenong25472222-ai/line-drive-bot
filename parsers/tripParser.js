@@ -220,67 +220,135 @@ function findAirportNearDate(text, dateIndex) {
     return lastLocation;
 }
 
-function extractBookingNumber(text) {
-    const labelled = text.match(
-        /(?:Booking\s*(?:No\.?|Number)|Confirmation\s*(?:No\.?|Number))\s*[:#-]?\s*([A-Z0-9-]{6,})/i
-    );
-
-    if (labelled) return labelled[1];
-
-    const longNumber = text.match(/(?<![A-Z0-9])\d{12,20}(?!\d)/);
-    return longNumber ? longNumber[0] : "";
-}
-
 function extractCustomerName(lines, text) {
-    const direct = text.match(
-        /(?:Main\s+Driver(?:\s+Name)?|Driver(?:'s)?\s+Name)\s*:?\s*([A-Z][A-Z' -]{3,80})/i
-    );
+    const source = toOneLine(text || "");
 
-    if (direct) {
-        return toOneLine(direct[1]);
+    // หาชื่อที่อยู่หลังหัวข้อ Main Driver / Driver Name
+    const driverLabels = [
+        /Main\s+Driver(?:\s+Name)?\s*:?\s*/i,
+        /Primary\s+Driver(?:\s+Name)?\s*:?\s*/i,
+        /Driver(?:'s)?\s+Name\s*:?\s*/i
+    ];
+
+    for (const labelPattern of driverLabels) {
+        const labelMatch = labelPattern.exec(source);
+
+        if (!labelMatch || typeof labelMatch.index !== "number") {
+            continue;
+        }
+
+        const start =
+            labelMatch.index + labelMatch[0].length;
+
+        let afterLabel = source
+            .slice(start, start + 200)
+            .trim();
+
+        // ตัดข้อความตั้งแต่หัวข้อข้อมูลรถเป็นต้นไป
+        afterLabel = afterLabel
+            .split(
+                /\b(?:Car\s+details|Car\s+type|Transmission|Automatic|Manual|Phone|Mobile|Contact|Pick-up|Pickup|Drop-off|Dropoff)\b/i
+            )[0]
+            .trim();
+
+        // รับเฉพาะคำภาษาอังกฤษตัวพิมพ์ใหญ่ 2-4 คำ
+        const nameMatch = afterLabel.match(
+            /^([A-Z][A-Z'-]{1,39}(?:\s+[A-Z][A-Z'-]{1,39}){1,3})\b/
+        );
+
+        if (nameMatch) {
+            return toOneLine(nameMatch[1]);
+        }
     }
 
-    const blocked = new Set([
+    // กรณีชื่ออยู่ก่อนคำว่า Car details หรือ Car type
+    const beforeCarSection = source.match(
+        /\b([A-Z][A-Z'-]{1,39}(?:\s+[A-Z][A-Z'-]{1,39}){1,3})\s+(?=Car\s+(?:details|type)\b)/
+    );
+
+    if (beforeCarSection) {
+        return toOneLine(beforeCarSection[1]);
+    }
+
+    // คำที่ห้ามนำมาเป็นชื่อ
+    const blockedWords = new Set([
         "TRIP",
         "COM",
         "TRAVEL",
         "SINGAPORE",
         "PTE",
         "LTD",
-        "THB",
         "CHIC",
         "CAR",
         "RENT",
         "AIRPORT",
+        "SURAT",
+        "THANI",
+        "THAILAND",
         "ARRIVAL",
-        "HALL"
+        "HALL",
+        "BOOKING",
+        "VOUCHER",
+        "DRIVER",
+        "MAIN",
+        "DETAILS",
+        "TYPE",
+        "AUTOMATIC",
+        "MANUAL"
     ]);
 
-    for (let i = 0; i < Math.min(lines.length, 180); i++) {
-        const first = lines[i];
-        const second = lines[i + 1] || "";
-
-        const firstIsName = /^[A-Z][A-Z'-]{2,40}$/.test(first);
-        const secondIsName = /^[A-Z][A-Z'-]{2,40}$/.test(second);
+    // ค้นจากแต่ละบรรทัด
+    for (const originalLine of lines) {
+        const line = toOneLine(originalLine);
 
         if (
-            firstIsName &&
-            secondIsName &&
-            !blocked.has(first) &&
-            !blocked.has(second)
+            !line ||
+            /Airport|Trip\.com|Car\s+details|Car\s+type|Transmission/i.test(
+                line
+            )
         ) {
-            return `${first} ${second}`;
+            continue;
+        }
+
+        // ดึงเฉพาะคำตัวพิมพ์ใหญ่ช่วงต้นบรรทัด
+        const leadingName = line.match(
+            /^([A-Z][A-Z'-]{1,39}(?:\s+[A-Z][A-Z'-]{1,39}){1,3})\b/
+        );
+
+        if (!leadingName) {
+            continue;
+        }
+
+        const candidate = toOneLine(leadingName[1]);
+        const words = candidate.split(/\s+/);
+
+        if (
+            words.length >= 2 &&
+            words.length <= 4 &&
+            words.every(word => !blockedWords.has(word))
+        ) {
+            return candidate;
         }
     }
 
-    const fullName = text.match(/\b[A-Z]{2,}(?:\s+[A-Z]{2,}){1,3}\b/g);
+    // กรณีชื่อถูกแยกเป็นสองบรรทัด
+    for (let i = 0; i < lines.length - 1; i++) {
+        const firstName = toOneLine(lines[i]);
+        const lastName = toOneLine(lines[i + 1]);
 
-    if (fullName) {
-        for (const candidate of fullName) {
-            const words = candidate.split(/\s+/);
-            const valid = words.every(word => !blocked.has(word));
+        const firstValid =
+            /^[A-Z][A-Z'-]{2,39}$/.test(firstName);
 
-            if (valid) return toOneLine(candidate);
+        const lastValid =
+            /^[A-Z][A-Z'-]{2,39}$/.test(lastName);
+
+        if (
+            firstValid &&
+            lastValid &&
+            !blockedWords.has(firstName) &&
+            !blockedWords.has(lastName)
+        ) {
+            return `${firstName} ${lastName}`;
         }
     }
 
