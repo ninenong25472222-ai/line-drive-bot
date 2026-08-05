@@ -1,52 +1,39 @@
-const pdf = require("pdf-parse");
-const fs = require("fs");
-const { readByOCR } = require("./ocrService");
+const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.mjs");
 
 async function readPDF(buffer) {
 
-    // =========================
-    // ลองอ่านด้วย pdf-parse
-    // =========================
+    const loadingTask = pdfjsLib.getDocument({
+        data: new Uint8Array(buffer)
+    });
 
-    const result = await pdf(buffer);
+    const pdf = await loadingTask.promise;
 
-    let text = (result.text || "")
+    let text = "";
+
+    for (let page = 1; page <= pdf.numPages; page++) {
+
+        const p = await pdf.getPage(page);
+
+        const content = await p.getTextContent();
+
+        text += content.items
+            .map(item => item.str)
+            .join("\n");
+
+        text += "\n";
+    }
+
+    text = text
+        .replace(/\u0000/g, "")
         .replace(/\r/g, "")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{2,}/g, "\n")
         .trim();
 
+    console.log("อ่านด้วย pdfjs-dist สำเร็จ");
     console.log("Text Length:", text.length);
 
-    // =========================
-    // ถ้า PDF มี Text Layer
-    // =========================
-
-    if (text.length > 20) {
-
-        console.log("อ่านด้วย pdf-parse สำเร็จ");
-
-        fs.writeFileSync("debug.txt", text, "utf8");
-
-        return text;
-
-    }
-
-    // =========================
-    // ไม่มีข้อความ ใช้ OCR.Space
-    // =========================
-
-    console.log("ไม่พบ Text Layer");
-    console.log("กำลังใช้ OCR.Space...");
-
-    text = await readByOCR(buffer);
-
-    console.log("OCR Length:", text.length);
-
-    fs.writeFileSync("debug.txt", text, "utf8");
-
     return text;
-
 }
 
 module.exports = {

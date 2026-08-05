@@ -1,5 +1,5 @@
-const {readPDF}=require("./services/pdfReader");
-const parserService=require("./services/parserService");
+const { readPDF } = require("./services/pdfReader");
+const parserService = require("./services/parserService");
 require("dotenv").config();
 
 const express = require("express");
@@ -10,420 +10,430 @@ const stream = require("stream");
 
 const app = express();
 
-
-// LINE CONFIG
+// ============================
+// LINE
+// ============================
 
 const lineConfig = {
-  channelSecret: process.env.CHANNEL_SECRET
+    channelSecret: process.env.CHANNEL_SECRET
 };
 
-
 const client = new messagingApi.MessagingApiClient({
-
-  channelAccessToken:
-    process.env.CHANNEL_ACCESS_TOKEN
-
+    channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN
 });
 
-
-
-// GOOGLE OAUTH
+// ============================
+// GOOGLE
+// ============================
 
 const auth = new google.auth.OAuth2(
-
-  process.env.GOOGLE_CLIENT_ID,
-
-  process.env.GOOGLE_CLIENT_SECRET
-
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
 );
 
-
 auth.setCredentials({
-
-  refresh_token:
-    process.env.GOOGLE_REFRESH_TOKEN
-
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
 });
 
+// ============================
+// Helper
+// ============================
 
-// -------------------------------
-// Helpers
-// -------------------------------
+function cleanText(str = "") {
+    return String(str)
+        .replace(/\u0000/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
 
 function formatDate(date) {
 
     if (!date) return "-";
 
-    if(typeof date === "string") return date;
+    if (typeof date === "string")
+        return cleanText(date);
 
     const d = new Date(date);
 
-    if (isNaN(d.getTime())) {
+    if (isNaN(d.getTime()))
         return "-";
-    }
 
     const day = String(d.getDate()).padStart(2, "0");
     const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = String(d.getFullYear()).slice(-2);
+    const year = d.getFullYear();
 
     return `${day}/${month}/${year}`;
 }
 
-
+// ============================
 // WEBHOOK
+// ============================
 
 app.post(
+    "/webhook",
+    middleware(lineConfig),
+    async (req, res) => {
 
-  "/webhook",
+        try {
 
-    (req,res,next)=>{
-    console.log("WEBHOOK HIT");
-    next();
-  },
+            await Promise.all(
+                req.body.events.map(handleEvent)
+            );
 
-  middleware(lineConfig),
+            res.sendStatus(200);
 
-  async(req,res)=>{
+        } catch (err) {
 
+            console.error(err);
 
-    try{
+            res.sendStatus(500);
 
-
-      await Promise.all(
-
-        req.body.events.map(handleEvent)
-
-      );
-
-
-      res.sendStatus(200);
-
-
-    }catch(err){
-
-
-      console.log(err);
-
-      res.sendStatus(500);
-
+        }
 
     }
-
-
-  }
-
 );
+// ============================
+// Handle Event
+// ============================
 
+async function handleEvent(event) {
 
+    try {
 
+        if (
+            event.type !== "message" ||
+            event.message.type !== "file"
+        ) {
+            return;
+        }
 
+        const messageId = event.message.id;
+        const fileName = event.message.fileName;
 
+        console.log("รับไฟล์ :", fileName);
 
-async function handleEvent(event){
-    try{
+        // ============================
+        // Download file from LINE
+        // ============================
 
-  if(
+        const response = await axios({
 
-    event.type !== "message" ||
+            method: "get",
 
-    event.message.type !== "file"
+            url:
+                `https://api-data.line.me/v2/bot/message/${messageId}/content`,
 
-  ){
+            responseType: "arraybuffer",
 
-    return;
+            headers: {
+                Authorization:
+                    `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
+            }
 
-  }
+        });
 
+        const buffer = Buffer.from(response.data);
 
+        // ============================
+        // Read PDF
+        // ============================
 
+        let booking = {};
 
-  const messageId =
-    event.message.id;
+        if (fileName.toLowerCase().endsWith(".pdf")) {
 
+            const text = await readPDF(buffer);
 
-  const fileName =
-    event.message.fileName;
+            booking = parserService.parse(text) || {};
 
+            console.log("============== PDF TEXT ==============");
+            console.log(text.substring(0, 1000));
+            console.log("======================================");
 
+            console.log("============== BOOKING ===============");
+            console.log(booking);
+            console.log("======================================");
 
-  console.log(
-    "รับไฟล์:",
-    fileName
-  );
+        }
 
+        booking.company = booking.company || "Other";
 
+        booking.customerName =
+            cleanText(
+                booking.customerName ||
+                booking.renter ||
+                ""
+            );
 
+        booking.customerPhone =
+            cleanText(
+                booking.customerPhone ||
+                booking.phone ||
+                ""
+            );
 
-  // โหลดไฟล์จาก LINE
+        booking.car =
+            cleanText(booking.car);
 
+        booking.pickupLocation =
+            cleanText(booking.pickupLocation);
 
-  const response = await axios({
+        booking.returnLocation =
+            cleanText(booking.returnLocation);
 
-    method:"get",
+        booking.pickupTime =
+            cleanText(booking.pickupTime);
 
-    url:
+        booking.returnTime =
+            cleanText(booking.returnTime);
 
-    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+        booking.pickupDate =
+            cleanText(booking.pickupDate);
 
-    responseType:"arraybuffer",
+        booking.returnDate =
+            cleanText(booking.returnDate);
+        // ============================
+        // Upload to Google Drive
+        // ============================
 
-    headers:{
+        const drive = google.drive({
 
+            version: "v3",
 
-      Authorization:
+            auth
 
-      `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
+        });
 
+        const upload = await drive.files.create({
 
-    }
+            requestBody: {
 
+                name: fileName,
 
-  });
+                parents: [
+                    process.env.GOOGLE_DRIVE_FOLDER_ID
+                ]
 
+            },
 
+            media: {
 
-  const buffer =
-    Buffer.from(response.data);
-let booking={};
+                body: stream.Readable.from(buffer)
 
-if(fileName.toLowerCase().endsWith(".pdf")){
+            },
 
-    const text = await readPDF(buffer);
+            fields: "id"
 
-    booking = parserService.parse(text) || {};
+        });
 
-    console.log(text.substring(0,500));
+        const fileId = upload.data.id;
 
-}
+        // ============================
+        // Make Public
+        // ============================
 
-booking.company = booking.company || "Other";
+        await drive.permissions.create({
 
-// เริ่ม Google Drive
-const drive = google.drive({
+            fileId,
 
-    version:"v3",
+            requestBody: {
 
-    auth
+                role: "reader",
 
-  });
+                type: "anyone"
 
+            }
 
+        });
 
+        const link =
+            `https://drive.google.com/file/d/${fileId}/view`;
 
-  const upload =
-  await drive.files.create({
+        booking.driveFileId = fileId;
+        booking.fileName = fileName;
+        booking.pdfLink = link;
 
+        // ============================
+        // Google Sheet
+        // ============================
 
-    requestBody:{
+        const sheets = google.sheets({
 
+            version: "v4",
 
-      name:fileName,
+            auth
 
+        });
 
-      parents:[
+        await sheets.spreadsheets.values.append({
 
-        process.env.GOOGLE_DRIVE_FOLDER_ID
+            spreadsheetId:
+                process.env.GOOGLE_SHEET_ID,
 
-      ]
+            range: "Booking!A:N",
 
+            valueInputOption: "USER_ENTERED",
 
-    },
+            requestBody: {
 
+                values: [[
 
-    media:{
+                    new Date(),
 
+                    booking.company,
 
-      body:
+                    booking.bookingNo,
 
-      stream.Readable.from(buffer)
+                    booking.customerName,
 
+                    booking.customerPhone,
 
-    },
+                    booking.pickupDate,
 
+                    booking.pickupTime,
 
-    fields:"id"
+                    booking.pickupLocation,
 
+                    booking.returnDate,
 
-  });
+                    booking.returnTime,
 
+                    booking.returnLocation,
 
+                    booking.car,
 
+                    fileName,
 
-  const fileId =
-    upload.data.id;
+                    link
 
+                ]]
 
+            }
 
+        });
 
-  // เปิดสิทธิ์ดูไฟล์
+        console.log("Saved :", booking.bookingNo);
 
+        // ============================
+        // Reply LINE
+        // ============================
 
-  await drive.permissions.create({
+        const reply1 =
+`✅ บันทึกไฟล์แล้ว ${booking.company}
 
-
-    fileId:fileId,
-
-
-    requestBody:{
-
-
-      role:"reader",
-
-      type:"anyone"
-
-
-    }
-
-
-  });
-
-
-
-
-
-  const link =
-
-  `https://drive.google.com/file/d/${fileId}/view`;
-
-if (booking) {
-
-    booking.driveFileId = fileId;
-
-    booking.fileName = fileName;
-
-    booking.pdfLink = link;
-
-}
-
-    booking.customerName =
-    booking.customerName ||
-    booking.renter ||
-    "";
-
-    booking.customerPhone =
-    booking.customerPhone ||
-    booking.phone ||
-    "";
-
-const sheets = google.sheets({
-    version: "v4",
-    auth
-});
-
-await sheets.spreadsheets.values.append({
-
-    spreadsheetId: process.env.GOOGLE_SHEET_ID,
-
-    range: "Booking!A:N",
-
-    valueInputOption: "USER_ENTERED",
-
-    requestBody: {
-
-        values: [
-            [
-                new Date(),
-                booking.company || "",
-                booking.bookingNo || "",
-                booking.customerName || "",
-                booking.customerPhone || "",
-                formatDate(booking.pickupDate || ""),
-                booking.pickupTime || "",
-                booking.pickupLocation || "",
-
-                formatDate(booking.returnDate || ""),
-                booking.returnTime || "",
-                booking.returnLocation || "",
-                booking.car || "",
-                fileName,
-                link
-            ]
-        ]
-
-    }
-
-});
-
-
-    console.log(booking.company, booking.bookingNo);
-    console.log(booking);
-// -------------------------------
-// ตอบกลับ LINE
-// -------------------------------
-
-await client.replyMessage({
-
-    replyToken: event.replyToken,
-
-    messages: [
-
-        {
-
-            type: "text",
-
-           text:
-
-`✅ บันทึกไฟล์แล้ว ${booking?.company || ""}
 👤 ${booking.customerName || "-"}
 📞 ${booking.customerPhone || "-"}
 
 🚗 รับรถ
-${formatDate(booking?.pickupDate)} ${booking?.pickupTime || "-"}
-${booking?.pickupLocation || "-"}
+${booking.pickupDate || "-"} ${booking.pickupTime || ""}
+${booking.pickupLocation || "-"}
+
 🔄 คืนรถ
-${formatDate(booking?.returnDate)} ${booking?.returnTime || "-"}
-${booking?.returnLocation || "-"}
+${booking.returnDate || "-"} ${booking.returnTime || ""}
+${booking.returnLocation || "-"}
 
-🚙 ${booking.car || "-"}
+🚙 ${(booking.car || "-").substring(0,50)}`;
 
-📄 ${fileName}
+        const reply2 =
+`📄 ${fileName}
 
 📂 เปิดไฟล์
-${link}`
+${link}`;
 
-        }
+        console.log("Reply1 Length :", reply1.length);
+        console.log("Reply2 Length :", reply2.length);
 
-    ]
+        await client.replyMessage({
 
-});
+            replyToken: event.replyToken,
 
+            messages: [
 
+                {
+                    type: "text",
+                    text: reply1
+                },
 
-    }catch(err){
+                {
+                    type: "text",
+                    text: reply2
+                }
+
+            ]
+
+        });
+
+    } catch (err) {
+
+        console.error("============= ERROR =============");
         console.error(err);
-        if(event.replyToken){
-            try{
+        console.error("================================");
+
+        if (event.replyToken) {
+
+            try {
+
                 await client.replyMessage({
-                    replyToken:event.replyToken,
-                    messages:[
+
+                    replyToken: event.replyToken,
+
+                    messages: [
+
                         {
-                            type:"text",
-                            text:"❌ ไม่สามารถประมวลผลไฟล์ได้"
+                            type: "text",
+                            text: "❌ ไม่สามารถประมวลผลไฟล์ได้"
                         }
+
                     ]
+
                 });
-            }catch{}
+
+            } catch (e) {
+
+                console.error(e);
+
+            }
+
         }
+
     }
+
 }
 
+// ============================
+// Home
+// ============================
 
+app.get("/", (req, res) => {
 
-
-
-
-app.get("/", (req,res)=>{
     res.send("LINE Drive Bot Running");
+
 });
 
-app.use((err,req,res,next)=>{
+// ============================
+// Error
+// ============================
+
+app.use((err, req, res, next) => {
+
     console.error(err);
+
     res.sendStatus(500);
+
 });
+
+// ============================
+// Start
+// ============================
 
 app.listen(
+
     process.env.PORT || 3000,
-    ()=>{
+
+    () => {
+
         console.log("Bot Started");
+
     }
+
 );
