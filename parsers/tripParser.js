@@ -1,110 +1,103 @@
-function parseTrip(text) {
-    text = text
-        .replace(/\r/g, "")
-        .replace(/\u0000/g, "")
-        .replace(/[ \t]+/g, " ")
-        .replace(/\n{2,}/g, "\n")
-        .trim();
+function fixBrokenText(rawText) {
+    // รวมบรรทัดสั้น ๆ ที่ขาดตกบกพร่องกับบรรทัดถัดไป
+    let lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+    let fixed = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length <= 3 && i + 1 < lines.length) {
+            // รวมบรรทัดสั้นกับบรรทัดถัดไป
+            if(fixed.length > 0) {
+                fixed[fixed.length -1] += line;
+            } else {
+                fixed.push(line);
+            }
+        } else {
+            fixed.push(line);
+        }
+    }
+    return fixed.join(" ");
+}
 
-    const booking = {};
+function parseTrip(rawText) {
+    const text = fixBrokenText(rawText);
 
-    booking.company = "Trip";
-    booking.rawText = text;
+    const booking = { company: "Trip", rawText: text };
 
-    // Booking No
-    let m =
-        text.match(/Booking no\.?\s*:?\s*([A-Z0-9]+)/i) ||
-        text.match(/หมายเลขการจอง\s*:?\s*([A-Z0-9]+)/i);
-
+    // หมายเลขการจอง
+    let m = text.match(/หมายเลขการจอง\s*:?\s*([A-Z0-9]+)/i);
+    if (!m) m = text.match(/Booking no\.?\s*:?\s*([A-Z0-9]+)/i);
     if (m) booking.bookingNo = m[1].trim();
 
-    // Customer Phone (เบอร์โทร +66...)
+    // ชื่อผู้ขับขี่ (ใช้คำว่า "ชื่", "ชื่อผู้ขับขี่", "ชื่อผู้โดยสาร" เป็นหลัก)
+    m = text.match(/ชื่อ[^\s]{0,10}\s*[:：]?\s*([^\d\n,]+)/i);
+    if (m) {
+        booking.customerName = m[1].trim();
+        booking.renter = booking.customerName;
+    }
+
+    // เบอร์โทรศัพท์ +66...
     m = text.match(/\+66[- ]?\d[\d -]{7,}/);
-    if (m) booking.customerPhone = m[0].replace(/[ -]/g, "");
+    if (m) booking.customerPhone = m[0].replace(/[\s-]/g, "");
 
-    // Customer Name ภาษาอังกฤษ (แบบตัวพิมพ์ใหญ่เต็มบรรทัด หรือ 2 บรรทัด)
-    const lines = text.split("\n").map(line => line.trim()).filter(Boolean);
-
-    for (let i = 0; i < lines.length - 1; i++) {
-        if (/^[A-Z]+$/.test(lines[i]) && /^[A-Z]+$/.test(lines[i + 1])) {
-            const fullname = `${lines[i]} ${lines[i + 1]}`;
-            if (fullname.length > 5 && !fullname.includes("AIRPORT") && !fullname.includes("BOOKING")) {
-                booking.customerName = fullname;
-                booking.renter = fullname;
-                break;
-            }
-        }
-        if (/^[A-Z ]{6,}$/.test(lines[i]) && !lines[i].includes("AIRPORT") && !lines[i].includes("BOOKING")) {
-            booking.customerName = lines[i];
-            booking.renter = lines[i];
-            break;
-        }
-    }
-
-    // Customer Name ภาษาไทย (ค้นหาจากคำว่า "ชื่อผู้ขับขี" หรือ "ชื่อผู้โดยสาร")
-    if (!booking.customerName) {
-        m = text.match(/(ชื่อผู้ขับขี|ชื่อผู้โดยสาร)\s*[:：]?\s*(\S.{1,50})/i);
-        if (m) {
-            booking.customerName = m[2].trim();
-            booking.renter = booking.customerName;
-        }
-    }
-
-    // Car Type (อังกฤษและไทย)
-    m = text.match(/Car type\s*([\s\S]*?)Transmission/i) || text.match(/ประเภทรถ\s*[:：]?\s*([\s\S]*?)ระบบเกียร์/i);
+    // ประเภทรถ
+    m = text.match(/ประเภทรถ\s*[:：]?\s*([\w\sก-๙]+)(?:หรือรุ่น|\sหรือรุ่น)?/i);
+    if (!m) m = text.match(/Car type\s*([\s\S]*?)Transmission/i);
     if (m) {
         booking.car = m[1]
             .replace(/or similar/i, "")
-            .replace(/หรือรุ่นที.*/i, "")
-            .replace(/\u0000/g, "")
-            .replace(/\n/g, " ")
+            .replace(/หรือรุ่น.*/i, "")
             .replace(/\s+/g, " ")
-            .replace("มิตซูบิช ิ", "มิตซูบิชิ")
             .trim();
     }
 
-    // Pickup location and datetime (อังกฤษและไทย)
-    m = text.match(/Pick-up([\s\S]*?)Drop-off/i) || text.match(/จุดรับรถ\s*[:：]?([\s\S]*?)จุดคืนรถ/i);
+    // จุดรับรถ และวันเวลา (ไทย/อังกฤษ)
+    m = text.match(/จุดรับรถ\s*[:：]?\s*([\s\S]*?)หมายเลขติดต่อ/i);
+    if (!m) m = text.match(/Pick-up([\s\S]*?)Drop-off/i);
     if (m) {
-        const sec = m[1];
+        let sec = m[1];
 
-        let airport = sec.match(/([A-Za-z ]+Airport)/);
-        if (airport) booking.pickupLocation = airport[1].trim();
+        // ตำแหน่งรับรถ
+        let loc = sec.match(/([A-Za-z\s]+Airport|[^\d]+\d{5})/i);
+        if (!loc) loc = sec.match(/Surat Thani Airport/i);  // ตัวอย่างเฉพาะ
+        if (loc) booking.pickupLocation = loc[0].trim();
 
-        // อังกฤษ (เช่น 08:30 AM Jan 1, 2024)
-        let date = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)).*?([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})/i);
-        if (date) {
-            booking.pickupTime = date[1];
-            booking.pickupDate = date[2];
+        // วันที่เวลา ภาษาอังกฤษ
+        let dt = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?).{0,10}([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i);
+        if (dt) {
+            booking.pickupTime = dt[1];
+            booking.pickupDate = dt[2];
         } else {
-            // ไทย (เช่น 2 ส.ค. 2026 08:30 น.)
-            date = sec.match(/(\d{1,2}\s+\S+\s+\d{4}).*?(\d{1,2}:\d{2})/);
-            if (date) {
-                booking.pickupDate = date[1];
-                booking.pickupTime = date[2];
+            // ภาษาไทย เช่น 1 ส.ค. 2026 08:30 น.
+            dt = sec.match(/(\d{1,2}\s+\S+\s+\d{4})\s+(\d{1,2}:\d{2})/);
+            if (dt) {
+                booking.pickupDate = dt[1];
+                booking.pickupTime = dt[2];
             }
         }
     }
 
-    // Return location and datetime (อังกฤษและไทย)
-    m = text.match(/Drop-off([\s\S]*?)Pick-up Guide/i) || text.match(/จุดคืนรถ\s*[:：]?([\s\S]*?)วิธีการคืนรถ/i);
+    // จุดคืนรถ และวันเวลา (ไทย/อังกฤษ)
+    m = text.match(/จุดคืนรถ\s*[:：]?\s*([\s\S]*?)หมายเลขติดต่อ/i);
+    if (!m) m = text.match(/Drop-off([\s\S]*?)Pick-up Guide/i);
     if (m) {
-        const sec = m[1];
+        let sec = m[1];
 
-        let airport = sec.match(/([A-Za-z ]+Airport)/);
-        if (airport) booking.returnLocation = airport[1].trim();
+        // ตำแหน่งคืนรถ
+        let loc = sec.match(/([A-Za-z\s]+Airport|[^\d]+\d{5})/i);
+        if (!loc) loc = sec.match(/Surat Thani Airport/i);
+        if (loc) booking.returnLocation = loc[0].trim();
 
-        // อังกฤษ
-        let date = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)).*?([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})/i);
-        if (date) {
-            booking.returnTime = date[1];
-            booking.returnDate = date[2];
+        // วันที่เวลา ภาษาอังกฤษ
+        let dt = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?).{0,10}([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i);
+        if (dt) {
+            booking.returnTime = dt[1];
+            booking.returnDate = dt[2];
         } else {
-            // ไทย
-            date = sec.match(/(\d{1,2}\s+\S+\s+\d{4}).*?(\d{1,2}:\d{2})/);
-            if (date) {
-                booking.returnDate = date[1];
-                booking.returnTime = date[2];
+            // ภาษาไทย
+            dt = sec.match(/(\d{1,2}\s+\S+\s+\d{4})\s+(\d{1,2}:\d{2})/);
+            if (dt) {
+                booking.returnDate = dt[1];
+                booking.returnTime = dt[2];
             }
         }
     }
