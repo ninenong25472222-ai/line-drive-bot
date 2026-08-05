@@ -6,35 +6,28 @@ const parseReservation = require("../parsers/reservationParser");
 const parseChicCar = require("../parsers/chicCarParser");
 
 function parse(text) {
-
     const company = detectCompany(text);
 
-    console.log("===== DETECT COMPANY =====");
-    console.log(company);
-    console.log("==========================");
+    console.log("Detected company:", company);
 
     switch (company) {
-
         case "trip":
             return parseTrip(text);
 
-        case "reservation":
-            return parseReservation(text);
-
         case "klook":
             return parseKlook(text);
+
+        case "reservation":
+            return parseReservation(text);
 
         case "chiccar":
             return parseChicCar(text);
 
         default:
             return {
-                company: "Other",
-                rawText: text
+                company: "Other"
             };
-
     }
-
 }
 
 module.exports = {

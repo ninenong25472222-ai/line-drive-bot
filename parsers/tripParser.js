@@ -1,510 +1,363 @@
 const Booking = require("../models/booking");
 
-function clean(str = "") {
-    return String(str)
+const CAR_MODELS = [
+    { pattern: /\bXpander\b/i, name: "Mitsubishi Xpander" },
+    { pattern: /\bPajero(?:\s+Sport)?\b/i, name: "Mitsubishi Pajero Sport" },
+    { pattern: /\bHR\s*-?\s*V\b/i, name: "Honda HR-V" },
+    { pattern: /\bYaris\s+Ativ\b/i, name: "Toyota Yaris Ativ" },
+    { pattern: /\bYaris\b/i, name: "Toyota Yaris" },
+    { pattern: /\bVios\b/i, name: "Toyota Vios" },
+    { pattern: /\bFortuner\b/i, name: "Toyota Fortuner" },
+    { pattern: /\bCorolla(?:\s+Altis)?\b/i, name: "Toyota Corolla" },
+    { pattern: /\bCamry\b/i, name: "Toyota Camry" },
+    { pattern: /\bAlphard\b/i, name: "Toyota Alphard" },
+    { pattern: /\bHilux(?:\s+Revo)?\b/i, name: "Toyota Hilux" },
+    { pattern: /\bCity\b/i, name: "Honda City" },
+    { pattern: /\bCivic\b/i, name: "Honda Civic" },
+    { pattern: /\bAccord\b/i, name: "Honda Accord" },
+    { pattern: /\bD\s*-?\s*Max\b/i, name: "Isuzu D-Max" },
+    { pattern: /\bAtto\s*3\b/i, name: "BYD Atto 3" },
+    { pattern: /\bSeal\b/i, name: "BYD Seal" },
+    { pattern: /\bErtiga\b/i, name: "Suzuki Ertiga" },
+    { pattern: /\bSwift\b/i, name: "Suzuki Swift" }
+];
+
+const THAI_MONTHS = {
+    "ม.ค.": "ม.ค.",
+    "ก.พ.": "ก.พ.",
+    "มี.ค.": "มี.ค.",
+    "เม.ย.": "เม.ย.",
+    "พ.ค.": "พ.ค.",
+    "มิ.ย.": "มิ.ย.",
+    "ก.ค.": "ก.ค.",
+    "ส.ค.": "ส.ค.",
+    "ก.ย.": "ก.ย.",
+    "ต.ค.": "ต.ค.",
+    "พ.ย.": "พ.ย.",
+    "ธ.ค.": "ธ.ค.",
+    "มกราคม": "มกราคม",
+    "กุมภาพันธ์": "กุมภาพันธ์",
+    "มีนาคม": "มีนาคม",
+    "เมษายน": "เมษายน",
+    "พฤษภาคม": "พฤษภาคม",
+    "มิถุนายน": "มิถุนายน",
+    "กรกฎาคม": "กรกฎาคม",
+    "สิงหาคม": "สิงหาคม",
+    "กันยายน": "กันยายน",
+    "ตุลาคม": "ตุลาคม",
+    "พฤศจิกายน": "พฤศจิกายน",
+    "ธันวาคม": "ธันวาคม"
+};
+
+function cleanText(value = "") {
+    return String(value)
         .replace(/\u0000/g, "")
-        .replace(/[ ]+/g, " ")
+        .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+        .replace(/\uFFFD/g, "")
+        .replace(/[ \t]+/g, " ")
         .trim();
 }
 
-function parseTrip(text) {
+function toOneLine(value = "") {
+    return cleanText(value)
+        .replace(/\s+/g, " ")
+        .trim();
+}
 
+function normalizeThaiMonth(value = "") {
+    const compact = String(value).replace(/\s+/g, "");
+    return THAI_MONTHS[compact] || compact;
+}
+
+function pushDateTime(results, index, date, time) {
+    const cleanDate = toOneLine(date);
+    const cleanTime = toOneLine(time).toUpperCase();
+
+    if (!cleanDate || !cleanTime) return;
+
+    const duplicate = results.some(
+        item => item.date === cleanDate && item.time === cleanTime
+    );
+
+    if (!duplicate) {
+        results.push({ index, date: cleanDate, time: cleanTime });
+    }
+}
+
+function extractDateTimes(text) {
+    const results = [];
+
+    const thaiMonth = [
+        "ม\\s*\\.\\s*ค\\s*\\.",
+        "ก\\s*\\.\\s*พ\\s*\\.",
+        "มี\\s*\\.\\s*ค\\s*\\.",
+        "เม\\s*\\.\\s*ย\\s*\\.",
+        "พ\\s*\\.\\s*ค\\s*\\.",
+        "มิ\\s*\\.\\s*ย\\s*\\.",
+        "ก\\s*\\.\\s*ค\\s*\\.",
+        "ส\\s*\\.\\s*ค\\s*\\.",
+        "ก\\s*\\.\\s*ย\\s*\\.",
+        "ต\\s*\\.\\s*ค\\s*\\.",
+        "พ\\s*\\.\\s*ย\\s*\\.",
+        "ธ\\s*\\.\\s*ค\\s*\\.",
+        "มกราคม",
+        "กุมภาพันธ์",
+        "มีนาคม",
+        "เมษายน",
+        "พฤษภาคม",
+        "มิถุนายน",
+        "กรกฎาคม",
+        "สิงหาคม",
+        "กันยายน",
+        "ตุลาคม",
+        "พฤศจิกายน",
+        "ธันวาคม"
+    ].join("|");
+
+    const thaiRegex = new RegExp(
+        `(\\d{1,2})\\s*(${thaiMonth})\\s*(\\d{4})\\s*(\\d{1,2}:\\d{2})`,
+        "gi"
+    );
+
+    let match;
+
+    while ((match = thaiRegex.exec(text)) !== null) {
+        const month = normalizeThaiMonth(match[2]);
+        pushDateTime(
+            results,
+            match.index,
+            `${match[1]} ${month} ${match[3]}`,
+            match[4]
+        );
+    }
+
+    const englishMonth =
+        "Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?";
+
+    const monthFirst = new RegExp(
+        `\\b(${englishMonth})\\s+(\\d{1,2}),?\\s+(\\d{4})\\s*(?:at\\s*)?(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)`,
+        "gi"
+    );
+
+    while ((match = monthFirst.exec(text)) !== null) {
+        pushDateTime(
+            results,
+            match.index,
+            `${match[1]} ${match[2]}, ${match[3]}`,
+            match[4]
+        );
+    }
+
+    const dayFirst = new RegExp(
+        `\\b(\\d{1,2})\\s+(${englishMonth})\\s+(\\d{4})\\s*(?:at\\s*)?(\\d{1,2}:\\d{2}\\s*(?:AM|PM)?)`,
+        "gi"
+    );
+
+    while ((match = dayFirst.exec(text)) !== null) {
+        pushDateTime(
+            results,
+            match.index,
+            `${match[1]} ${match[2]} ${match[3]}`,
+            match[4]
+        );
+    }
+
+    const timeFirst = new RegExp(
+        `\\b(\\d{1,2}:\\d{2}\\s*(?:AM|PM))\\s*,?\\s*(${englishMonth})\\s+(\\d{1,2}),?\\s+(\\d{4})`,
+        "gi"
+    );
+
+    while ((match = timeFirst.exec(text)) !== null) {
+        pushDateTime(
+            results,
+            match.index,
+            `${match[2]} ${match[3]}, ${match[4]}`,
+            match[1]
+        );
+    }
+
+    const numericRegex =
+        /\b(\d{1,2}[./-]\d{1,2}[./-]\d{4})\s+(\d{1,2}:\d{2})\b/g;
+
+    while ((match = numericRegex.exec(text)) !== null) {
+        pushDateTime(results, match.index, match[1], match[2]);
+    }
+
+    return results.sort((a, b) => a.index - b.index);
+}
+
+function collectAirportLocations(text) {
+    const locations = [];
+    const airportRegex =
+        /\b([A-Z][A-Za-z'’.-]*(?:\s+[A-Z][A-Za-z'’.-]*){0,5}\s+Airport(?:\s*\([A-Z]{3}\))?)/g;
+
+    let match;
+
+    while ((match = airportRegex.exec(text)) !== null) {
+        const location = toOneLine(match[1]);
+
+        if (location && !locations.includes(location)) {
+            locations.push(location);
+        }
+    }
+
+    return locations;
+}
+
+function findAirportNearDate(text, dateIndex) {
+    const start = Math.max(0, dateIndex - 220);
+    const beforeDate = text.slice(start, dateIndex);
+    const airportRegex =
+        /\b([A-Z][A-Za-z'’.-]*(?:\s+[A-Z][A-Za-z'’.-]*){0,5}\s+Airport(?:\s*\([A-Z]{3}\))?)/g;
+
+    let match;
+    let lastLocation = "";
+
+    while ((match = airportRegex.exec(beforeDate)) !== null) {
+        lastLocation = toOneLine(match[1]);
+    }
+
+    return lastLocation;
+}
+
+function extractBookingNumber(text) {
+    const labelled = text.match(
+        /(?:Booking\s*(?:No\.?|Number)|Confirmation\s*(?:No\.?|Number))\s*[:#-]?\s*([A-Z0-9-]{6,})/i
+    );
+
+    if (labelled) return labelled[1];
+
+    const longNumber = text.match(/(?<![A-Z0-9])\d{12,20}(?!\d)/);
+    return longNumber ? longNumber[0] : "";
+}
+
+function extractCustomerName(lines, text) {
+    const direct = text.match(
+        /(?:Main\s+Driver(?:\s+Name)?|Driver(?:'s)?\s+Name)\s*:?\s*([A-Z][A-Z' -]{3,80})/i
+    );
+
+    if (direct) {
+        return toOneLine(direct[1]);
+    }
+
+    const blocked = new Set([
+        "TRIP",
+        "COM",
+        "TRAVEL",
+        "SINGAPORE",
+        "PTE",
+        "LTD",
+        "THB",
+        "CHIC",
+        "CAR",
+        "RENT",
+        "AIRPORT",
+        "ARRIVAL",
+        "HALL"
+    ]);
+
+    for (let i = 0; i < Math.min(lines.length, 180); i++) {
+        const first = lines[i];
+        const second = lines[i + 1] || "";
+
+        const firstIsName = /^[A-Z][A-Z'-]{2,40}$/.test(first);
+        const secondIsName = /^[A-Z][A-Z'-]{2,40}$/.test(second);
+
+        if (
+            firstIsName &&
+            secondIsName &&
+            !blocked.has(first) &&
+            !blocked.has(second)
+        ) {
+            return `${first} ${second}`;
+        }
+    }
+
+    const fullName = text.match(/\b[A-Z]{2,}(?:\s+[A-Z]{2,}){1,3}\b/g);
+
+    if (fullName) {
+        for (const candidate of fullName) {
+            const words = candidate.split(/\s+/);
+            const valid = words.every(word => !blocked.has(word));
+
+            if (valid) return toOneLine(candidate);
+        }
+    }
+
+    return "";
+}
+
+function extractPhone(text) {
+    let match = text.match(/\+66[\s-]?\d[\d\s-]{7,}\d/);
+
+    if (!match) {
+        match = text.match(/(?<!\d)0\d{9}(?!\d)/);
+    }
+
+    return match ? match[0].replace(/[\s-]/g, "") : "";
+}
+
+function extractCar(text) {
+    for (const car of CAR_MODELS) {
+        if (car.pattern.test(text)) return car.name;
+    }
+
+    const generic = text.match(
+        /\b(?:Toyota|Honda|Mitsubishi|Nissan|Mazda|Isuzu|Ford|MG|BYD|Suzuki|BMW|Mercedes-Benz|Hyundai|Kia)\s+[A-Za-z0-9-]+(?:\s+[A-Za-z0-9-]+)?\b/i
+    );
+
+    return generic ? toOneLine(generic[0]) : "";
+}
+
+function parseTrip(inputText) {
     const booking = Booking();
+    const rawText = cleanText(inputText || "");
+    const flatText = toOneLine(rawText);
+    const lines = rawText
+        .split(/\n+/)
+        .map(toOneLine)
+        .filter(Boolean);
 
     booking.company = "Trip";
-    booking.rawText = text;
+    booking.bookingNo = extractBookingNumber(flatText);
 
-    text = text
-        .replace(/\r/g, "")
-        .replace(/\u0000/g, "")
-        .replace(/[ \t]+/g, " ");
+    booking.customerName = extractCustomerName(lines, flatText);
+    booking.renter = booking.customerName;
 
-    const lines = text
-        .split("\n")
-        .map(x => clean(x))
-        .filter(x => x.length);
+    booking.customerPhone = extractPhone(flatText);
+    booking.phone = booking.customerPhone;
 
-    // -----------------------
-    // Booking No
-    // -----------------------
+    booking.car = extractCar(flatText);
 
-    let m =
-        text.match(/Booking\s*No\.?\s*:?\s*([A-Z0-9]+)/i) ||
-        text.match(/Booking no\.?\s*:?\s*([A-Z0-9]+)/i) ||
-        text.match(/หมายเลขการจอง\s*:?\s*([A-Z0-9]+)/i);
+    const dateTimes = extractDateTimes(flatText);
+    const airportLocations = collectAirportLocations(flatText);
 
-    if (m)
-        booking.bookingNo = clean(m[1]);
-
-    // -----------------------
-    // Phone
-    // -----------------------
-
-    m = text.match(/\+66[- ]?\d[\d -]{7,}/);
-
-    if (m)
-        booking.customerPhone =
-            m[0].replace(/[ -]/g, "");
-
-    // -----------------------
-    // Customer
-    // -----------------------
-
-    for (let i = 0; i < lines.length; i++) {
-
-        const line = lines[i];
-
-        if (
-            /Main Driver Name/i.test(line) ||
-            /ผู้ขับ/i.test(line)
-        ) {
-
-            for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
-
-                if (/^[A-Z][A-Z\s]{4,}$/.test(lines[j])) {
-
-                    booking.customerName = clean(lines[j]);
-                    booking.renter = booking.customerName;
-                    break;
-
-                }
-
-            }
-
-        }
-
+    if (dateTimes.length >= 1) {
+        booking.pickupDate = dateTimes[0].date;
+        booking.pickupTime = dateTimes[0].time;
+        booking.pickupLocation =
+            findAirportNearDate(flatText, dateTimes[0].index) ||
+            airportLocations[0] ||
+            "";
     }
 
-    // ถ้ายังหาไม่ได้
-    if (!booking.customerName) {
-
-        for (const line of lines) {
-
-            if (/^[A-Z][A-Z\s]{5,}$/.test(line)) {
-
-                if (
-                    !line.includes("TRIP") &&
-                    !line.includes("AIRPORT") &&
-                    !line.includes("THAILAND")
-                ) {
-
-                    booking.customerName = clean(line);
-                    booking.renter = booking.customerName;
-                    break;
-
-                }
-
-            }
-
-        }
-
-    }
-    // -----------------------
-    // Car
-    // -----------------------
-
-    for (let i = 0; i < lines.length; i++) {
-
-        const line = lines[i];
-
-        // English PDF
-        if (/Car type/i.test(line)) {
-
-            let car = "";
-
-            for (let j = i; j < Math.min(i + 5, lines.length); j++) {
-
-                if (
-                    lines[j].match(
-                        /(Honda|Toyota|Mitsubishi|Nissan|Mazda|Isuzu|Ford|MG|BYD|Suzuki|BMW|Mercedes|Audi|Hyundai|Kia)/i
-                    )
-                ) {
-
-                    car = lines[j];
-                    break;
-
-                }
-
-            }
-
-            booking.car = clean(
-                car
-                    .replace(/Transmission.*/i, "")
-                    .replace(/Seats.*/i, "")
-                    .replace(/or similar/i, "")
-            );
-
-        }
-
-        // Thai PDF
-        if (
-            line.includes("ประเภทรถ") ||
-            line.includes("รายละเอียดรถ")
-        ) {
-
-            for (let j = i; j < Math.min(i + 12, lines.length); j++) {
-
-                if (
-                    /(Xpander|HRV|HR-V|Yaris|Vios|City|Civic|Corolla|Fortuner|Atto|Seal|Hilux|D-Max|Accord|Camry|Alphard)/i.test(lines[j])
-                ) {
-
-                    booking.car = clean(lines[j])
-                        .replace(/หรือรุ่น.*/i, "")
-                        .replace(/\u0000/g, "");
-
-                    break;
-
-                }
-
-            }
-
-        }
-
+    if (dateTimes.length >= 2) {
+        booking.returnDate = dateTimes[1].date;
+        booking.returnTime = dateTimes[1].time;
+        booking.returnLocation =
+            findAirportNearDate(flatText, dateTimes[1].index) ||
+            airportLocations[1] ||
+            airportLocations[0] ||
+            "";
     }
 
-    // -----------------------
-    // Pickup
-    // -----------------------
-
-    for (let i = 0; i < lines.length; i++) {
-
-        const line = lines[i];
-
-        if (
-
-            line.includes("Pick-up") ||
-            line.includes("จุดรับรถ")
-
-        ) {
-
-            for (let j = i; j < Math.min(i + 20, lines.length); j++) {
-
-                // Airport
-
-                if (/Airport/i.test(lines[j])) {
-
-                    booking.pickupLocation = clean(lines[j]);
-
-                }
-
-                // English Date
-
-                let m = lines[j].match(
-
-                    /([A-Za-z]{3}\s+\d{1,2},\s+\d{4}).*?(\d{1,2}:\d{2}\s*(AM|PM))/i
-
-                );
-
-                if (m) {
-
-                    booking.pickupDate = clean(m[1]);
-                    booking.pickupTime = clean(m[2]);
-
-                }
-
-                // Thai Date
-
-                m = lines[j].match(
-
-                    /(\d{1,2}\s+\S+\s+202\d).*?(\d{2}:\d{2})/
-
-                );
-
-                if (m) {
-
-                    booking.pickupDate = clean(m[1]);
-                    booking.pickupTime = clean(m[2]);
-
-                }
-
-            }
-
-            break;
-
-        }
-
-    }
-        // -----------------------
-    // Helper: อ่านวันที่และเวลา
-    // -----------------------
-
-    function extractDateTime(value) {
-
-        const line = clean(value);
-
-        // อังกฤษ: 6:30 PM, Aug 5, 2026
-        let match = line.match(
-            /(\d{1,2}:\d{2}\s*(?:AM|PM)),?\s*([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/i
-        );
-
-        if (match) {
-            return {
-                date: clean(match[2]),
-                time: clean(match[1])
-            };
-        }
-
-        // อังกฤษ: Aug 5, 2026 6:30 PM
-        match = line.match(
-            /([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}).*?(\d{1,2}:\d{2}\s*(?:AM|PM))/i
-        );
-
-        if (match) {
-            return {
-                date: clean(match[1]),
-                time: clean(match[2])
-            };
-        }
-
-        // ไทย: 1 ส.ค. 2026 08:30 น.
-        match = line.match(
-            /(\d{1,2}\s+[ก-๙A-Za-z.]+\s+\d{4}).*?(\d{1,2}:\d{2})/
-        );
-
-        if (match) {
-            return {
-                date: clean(match[1]),
-                time: clean(match[2])
-            };
-        }
-
-        return null;
-    }
-
-    // -----------------------
-    // Return
-    // -----------------------
-
-    for (let i = 0; i < lines.length; i++) {
-
-        const line = lines[i];
-
-        if (
-            /Drop-off/i.test(line) ||
-            line.includes("จุดคืนรถ") ||
-            line.includes("จุดคืน")
-        ) {
-
-            for (
-                let j = i + 1;
-                j < Math.min(i + 20, lines.length);
-                j++
-            ) {
-
-                if (
-                    !booking.returnLocation &&
-                    /Airport/i.test(lines[j])
-                ) {
-                    booking.returnLocation = clean(lines[j]);
-                }
-
-                const result = extractDateTime(lines[j]);
-
-                if (result) {
-                    booking.returnDate = result.date;
-                    booking.returnTime = result.time;
-                }
-
-                if (
-                    booking.returnLocation &&
-                    booking.returnDate &&
-                    booking.returnTime
-                ) {
-                    break;
-                }
-            }
-
-            if (
-                booking.returnLocation &&
-                booking.returnDate &&
-                booking.returnTime
-            ) {
-                break;
-            }
-        }
-    }
-
-    // -----------------------
-    // Fallback:
-    // ใช้ Airport + วันที่บรรทัดถัดไป
-    // รองรับข้อความภาษาไทยที่หัวข้อเพี้ยน
-    // -----------------------
-
-    const rentalEvents = [];
-
-    for (let i = 0; i < lines.length; i++) {
-
-        if (!/Airport/i.test(lines[i])) {
-            continue;
-        }
-
-        for (
-            let j = i + 1;
-            j < Math.min(i + 6, lines.length);
-            j++
-        ) {
-
-            const result = extractDateTime(lines[j]);
-
-            if (result) {
-
-                rentalEvents.push({
-                    location: clean(lines[i]),
-                    date: result.date,
-                    time: result.time
-                });
-
-                break;
-            }
-        }
-    }
-
-    // ลบข้อมูลซ้ำ
-    const uniqueEvents = rentalEvents.filter(
-        (item, index, array) =>
-            index === array.findIndex(other =>
-                other.location === item.location &&
-                other.date === item.date &&
-                other.time === item.time
-            )
-    );
-
-    if (uniqueEvents.length >= 1) {
-
-        if (!booking.pickupLocation) {
-            booking.pickupLocation =
-                uniqueEvents[0].location;
-        }
-
-        if (!booking.pickupDate) {
-            booking.pickupDate =
-                uniqueEvents[0].date;
-        }
-
-        if (!booking.pickupTime) {
-            booking.pickupTime =
-                uniqueEvents[0].time;
-        }
-    }
-
-    if (uniqueEvents.length >= 2) {
-
-        if (!booking.returnLocation) {
-            booking.returnLocation =
-                uniqueEvents[1].location;
-        }
-
-        if (!booking.returnDate) {
-            booking.returnDate =
-                uniqueEvents[1].date;
-        }
-
-        if (!booking.returnTime) {
-            booking.returnTime =
-                uniqueEvents[1].time;
-        }
-    }
-
-    // -----------------------
-    // รวมชื่อที่ถูกแยกเป็น 2 บรรทัด
-    // เช่น NUTCHANAT + UDOMSEEROD
-    // -----------------------
-
-    if (
-        booking.customerName &&
-        !booking.customerName.includes(" ")
-    ) {
-
-        const nameIndex = lines.findIndex(
-            line => line === booking.customerName
-        );
-
-        const nextLine = lines[nameIndex + 1] || "";
-
-        if (/^[A-Z]{2,}$/.test(nextLine)) {
-
-            booking.customerName =
-                `${booking.customerName} ${nextLine}`;
-
-            booking.renter =
-                booking.customerName;
-        }
-    }
-
-    // -----------------------
-    // เปลี่ยนชื่อรถเป็นอังกฤษ
-    // -----------------------
-
-    const carSource =
-        `${booking.car || ""} ${text}`;
-
-    const modelMatch = carSource.match(
-        /\b(Xpander|HR-?V|Yaris\s*Ativ|Yaris|Vios|City|Civic|Corolla|Fortuner|Pajero|Atto\s*3|Seal|Hilux|D-?Max|Accord|Camry|Alphard|Ertiga|Swift)\b/i
-    );
-
-    if (modelMatch) {
-
-        const model = modelMatch[1]
-            .toLowerCase()
-            .replace(/\s+/g, " ");
-
-        const carNames = {
-            "xpander": "Mitsubishi Xpander",
-            "hrv": "Honda HR-V",
-            "hr-v": "Honda HR-V",
-            "yaris ativ": "Toyota Yaris Ativ",
-            "yaris": "Toyota Yaris",
-            "vios": "Toyota Vios",
-            "city": "Honda City",
-            "civic": "Honda Civic",
-            "corolla": "Toyota Corolla",
-            "fortuner": "Toyota Fortuner",
-            "pajero": "Mitsubishi Pajero",
-            "atto 3": "BYD Atto 3",
-            "seal": "BYD Seal",
-            "hilux": "Toyota Hilux",
-            "d-max": "Isuzu D-Max",
-            "dmax": "Isuzu D-Max",
-            "accord": "Honda Accord",
-            "camry": "Toyota Camry",
-            "alphard": "Toyota Alphard",
-            "ertiga": "Suzuki Ertiga",
-            "swift": "Suzuki Swift"
-        };
-
-        booking.car =
-            carNames[model] ||
-            clean(modelMatch[1]);
-    }
-
-    booking.company = "Trip";
-
-    booking.customerName =
-        clean(booking.customerName);
-
-    booking.customerPhone =
-        clean(booking.customerPhone);
-
-    booking.pickupLocation =
-        clean(booking.pickupLocation);
-
-    booking.returnLocation =
-        clean(booking.returnLocation);
-
-    booking.pickupDate =
-        clean(booking.pickupDate);
-
-    booking.returnDate =
-        clean(booking.returnDate);
-
-    booking.pickupTime =
-        clean(booking.pickupTime);
-
-    booking.returnTime =
-        clean(booking.returnTime);
-
-    booking.car =
-        clean(booking.car);
+    booking.pickupDate = toOneLine(booking.pickupDate || "");
+    booking.pickupTime = toOneLine(booking.pickupTime || "");
+    booking.pickupLocation = toOneLine(booking.pickupLocation || "");
+    booking.returnDate = toOneLine(booking.returnDate || "");
+    booking.returnTime = toOneLine(booking.returnTime || "");
+    booking.returnLocation = toOneLine(booking.returnLocation || "");
+    booking.customerEmail = "";
 
     return booking;
 }
