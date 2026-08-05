@@ -1,140 +1,512 @@
-function fixBrokenText(rawText) {
-  // รวมบรรทัดที่ถูกตัดแยก โดยรวมเป็นบรรทัดยาว ๆ เพื่อง่ายต่อการจับข้อมูล
-  return rawText
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .join(" ");
+const Booking = require("../models/booking");
+
+function clean(str = "") {
+    return String(str)
+        .replace(/\u0000/g, "")
+        .replace(/[ ]+/g, " ")
+        .trim();
 }
 
-// ฟังก์ชันช่วยแปลงวันที่ภาษาไทยเป็นรูปแบบมาตรฐาน (เช่น 1 ส.ค. 2566 -> 1 Aug 2023)
-// (ถ้าอยากนำไปใช้จริง อาจใช้ไลบรารีเสริม แต่ตัวอย่างนี้แปลงง่าย ๆ)
-function thaiDateToEnglish(thaiDate) {
-  const monthMap = {
-    ม.ค: "Jan",
-    มกราคม: "Jan",
-    ก.พ: "Feb",
-    กุมภาพันธ์: "Feb",
-    มี.ค: "Mar",
-    มีนาคม: "Mar",
-    เม.ย: "Apr",
-    เมษายน: "Apr",
-    พ.ค: "May",
-    พฤษภาคม: "May",
-    มิ.ย: "Jun",
-    มิถุนายน: "Jun",
-    ก.ค: "Jul",
-    กรกฎาคม: "Jul",
-    ส.ค: "Aug",
-    สิงหาคม: "Aug",
-    ก.ย: "Sep",
-    กันยายน: "Sep",
-    ต.ค: "Oct",
-    ตุลาคม: "Oct",
-    พ.ย: "Nov",
-    พฤศจิกายน: "Nov",
-    ธ.ค: "Dec",
-    ธันวาคม: "Dec",
-  };
-  // ตัวอย่างเช่น "1 ส.ค. 2566" -> แปลงปี 2566 เป็น 2023
-  const parts = thaiDate.trim().split(" ");
-  if (parts.length < 3) return thaiDate;
-  let day = parts[0];
-  let month = monthMap[parts[1].replace(".", "")] || parts[1];
-  let year = parseInt(parts[2]) - 543;
-  return `${day} ${month} ${year}`;
-}
+function parseTrip(text) {
 
-function parseTrip(rawText) {
-  const text = fixBrokenText(rawText);
+    const booking = Booking();
 
-  const booking = { company: "Trip", rawText: text };
+    booking.company = "Trip";
+    booking.rawText = text;
 
-  // Booking number
-  let m =
-    text.match(/หมายเลขการจอง\s*:?\s*([A-Z0-9]+)/i) ||
-    text.match(/Booking no\.?\s*:?\s*([A-Z0-9]+)/i);
-  if (m) booking.bookingNo = m[1].trim();
+    text = text
+        .replace(/\r/g, "")
+        .replace(/\u0000/g, "")
+        .replace(/[ \t]+/g, " ");
 
-  // Customer name (ชื่อผู้ขับขี่ / ชื่อผู้โดยสาร)
-  m =
-    text.match(/ชื่อผู้ขับขี่\s*:?\s*([^\d\n,]+)/i) ||
-    text.match(/ชื่อผู้โดยสาร\s*:?\s*([^\d\n,]+)/i);
-  if (m) {
-    booking.customerName = m[1].trim();
-    booking.renter = booking.customerName;
-  }
+    const lines = text
+        .split("\n")
+        .map(x => clean(x))
+        .filter(x => x.length);
 
-  // Customer phone (รองรับเบอร์โทร +66 ...)
-  m = text.match(/\+66[- ]?\d[\d -]{7,}/);
-  if (m) booking.customerPhone = m[0].replace(/[\s-]/g, "");
+    // -----------------------
+    // Booking No
+    // -----------------------
 
-  // Car type
-  m =
-    text.match(/ประเภทรถ\s*:?\s*([\w\sก-๙]+)(?:หรือรุ่น)?/i) ||
-    text.match(/Car type\s*([\s\S]*?)Transmission/i);
-  if (m) {
-    booking.car = m[1]
-      .replace(/or similar/i, "")
-      .replace(/หรือรุ่น.*/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
+    let m =
+        text.match(/Booking\s*No\.?\s*:?\s*([A-Z0-9]+)/i) ||
+        text.match(/Booking no\.?\s*:?\s*([A-Z0-9]+)/i) ||
+        text.match(/หมายเลขการจอง\s*:?\s*([A-Z0-9]+)/i);
 
-  // Helper function ดึงสถานที่ + วันเวลา จากบล็อกข้อความ
-  function extractLocationDateTime(section) {
-    let result = {};
+    if (m)
+        booking.bookingNo = clean(m[1]);
 
-    // ตำแหน่ง (เช่น Surat Thani Airport หรือ ข้อความไทยที่ไม่ใช่ตัวเลขยาว ๆ)
-    let loc =
-      section.match(/([A-Za-z\s]+Airport|[^\d]+\d{5}?|[^\d]{5,})/i) || null;
-    if (loc) result.location = loc[0].trim();
+    // -----------------------
+    // Phone
+    // -----------------------
 
-    // วันที่และเวลา - ภาษาอังกฤษ
-    let dt = section.match(
-      /(\d{1,2}:\d{2}\s*(?:AM|PM)?).{0,15}?([A-Za-z]{3,}\s+\d{1,2},?\s+\d{4})/i
+    m = text.match(/\+66[- ]?\d[\d -]{7,}/);
+
+    if (m)
+        booking.customerPhone =
+            m[0].replace(/[ -]/g, "");
+
+    // -----------------------
+    // Customer
+    // -----------------------
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line = lines[i];
+
+        if (
+            /Main Driver Name/i.test(line) ||
+            /ผู้ขับ/i.test(line)
+        ) {
+
+            for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
+
+                if (/^[A-Z][A-Z\s]{4,}$/.test(lines[j])) {
+
+                    booking.customerName = clean(lines[j]);
+                    booking.renter = booking.customerName;
+                    break;
+
+                }
+
+            }
+
+        }
+
+    }
+
+    // ถ้ายังหาไม่ได้
+    if (!booking.customerName) {
+
+        for (const line of lines) {
+
+            if (/^[A-Z][A-Z\s]{5,}$/.test(line)) {
+
+                if (
+                    !line.includes("TRIP") &&
+                    !line.includes("AIRPORT") &&
+                    !line.includes("THAILAND")
+                ) {
+
+                    booking.customerName = clean(line);
+                    booking.renter = booking.customerName;
+                    break;
+
+                }
+
+            }
+
+        }
+
+    }
+    // -----------------------
+    // Car
+    // -----------------------
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line = lines[i];
+
+        // English PDF
+        if (/Car type/i.test(line)) {
+
+            let car = "";
+
+            for (let j = i; j < Math.min(i + 5, lines.length); j++) {
+
+                if (
+                    lines[j].match(
+                        /(Honda|Toyota|Mitsubishi|Nissan|Mazda|Isuzu|Ford|MG|BYD|Suzuki|BMW|Mercedes|Audi|Hyundai|Kia)/i
+                    )
+                ) {
+
+                    car = lines[j];
+                    break;
+
+                }
+
+            }
+
+            booking.car = clean(
+                car
+                    .replace(/Transmission.*/i, "")
+                    .replace(/Seats.*/i, "")
+                    .replace(/or similar/i, "")
+            );
+
+        }
+
+        // Thai PDF
+        if (
+            line.includes("ประเภทรถ") ||
+            line.includes("รายละเอียดรถ")
+        ) {
+
+            for (let j = i; j < Math.min(i + 12, lines.length); j++) {
+
+                if (
+                    /(Xpander|HRV|HR-V|Yaris|Vios|City|Civic|Corolla|Fortuner|Atto|Seal|Hilux|D-Max|Accord|Camry|Alphard)/i.test(lines[j])
+                ) {
+
+                    booking.car = clean(lines[j])
+                        .replace(/หรือรุ่น.*/i, "")
+                        .replace(/\u0000/g, "");
+
+                    break;
+
+                }
+
+            }
+
+        }
+
+    }
+
+    // -----------------------
+    // Pickup
+    // -----------------------
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line = lines[i];
+
+        if (
+
+            line.includes("Pick-up") ||
+            line.includes("จุดรับรถ")
+
+        ) {
+
+            for (let j = i; j < Math.min(i + 20, lines.length); j++) {
+
+                // Airport
+
+                if (/Airport/i.test(lines[j])) {
+
+                    booking.pickupLocation = clean(lines[j]);
+
+                }
+
+                // English Date
+
+                let m = lines[j].match(
+
+                    /([A-Za-z]{3}\s+\d{1,2},\s+\d{4}).*?(\d{1,2}:\d{2}\s*(AM|PM))/i
+
+                );
+
+                if (m) {
+
+                    booking.pickupDate = clean(m[1]);
+                    booking.pickupTime = clean(m[2]);
+
+                }
+
+                // Thai Date
+
+                m = lines[j].match(
+
+                    /(\d{1,2}\s+\S+\s+202\d).*?(\d{2}:\d{2})/
+
+                );
+
+                if (m) {
+
+                    booking.pickupDate = clean(m[1]);
+                    booking.pickupTime = clean(m[2]);
+
+                }
+
+            }
+
+            break;
+
+        }
+
+    }
+        // -----------------------
+    // Helper: อ่านวันที่และเวลา
+    // -----------------------
+
+    function extractDateTime(value) {
+
+        const line = clean(value);
+
+        // อังกฤษ: 6:30 PM, Aug 5, 2026
+        let match = line.match(
+            /(\d{1,2}:\d{2}\s*(?:AM|PM)),?\s*([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/i
+        );
+
+        if (match) {
+            return {
+                date: clean(match[2]),
+                time: clean(match[1])
+            };
+        }
+
+        // อังกฤษ: Aug 5, 2026 6:30 PM
+        match = line.match(
+            /([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}).*?(\d{1,2}:\d{2}\s*(?:AM|PM))/i
+        );
+
+        if (match) {
+            return {
+                date: clean(match[1]),
+                time: clean(match[2])
+            };
+        }
+
+        // ไทย: 1 ส.ค. 2026 08:30 น.
+        match = line.match(
+            /(\d{1,2}\s+[ก-๙A-Za-z.]+\s+\d{4}).*?(\d{1,2}:\d{2})/
+        );
+
+        if (match) {
+            return {
+                date: clean(match[1]),
+                time: clean(match[2])
+            };
+        }
+
+        return null;
+    }
+
+    // -----------------------
+    // Return
+    // -----------------------
+
+    for (let i = 0; i < lines.length; i++) {
+
+        const line = lines[i];
+
+        if (
+            /Drop-off/i.test(line) ||
+            line.includes("จุดคืนรถ") ||
+            line.includes("จุดคืน")
+        ) {
+
+            for (
+                let j = i + 1;
+                j < Math.min(i + 20, lines.length);
+                j++
+            ) {
+
+                if (
+                    !booking.returnLocation &&
+                    /Airport/i.test(lines[j])
+                ) {
+                    booking.returnLocation = clean(lines[j]);
+                }
+
+                const result = extractDateTime(lines[j]);
+
+                if (result) {
+                    booking.returnDate = result.date;
+                    booking.returnTime = result.time;
+                }
+
+                if (
+                    booking.returnLocation &&
+                    booking.returnDate &&
+                    booking.returnTime
+                ) {
+                    break;
+                }
+            }
+
+            if (
+                booking.returnLocation &&
+                booking.returnDate &&
+                booking.returnTime
+            ) {
+                break;
+            }
+        }
+    }
+
+    // -----------------------
+    // Fallback:
+    // ใช้ Airport + วันที่บรรทัดถัดไป
+    // รองรับข้อความภาษาไทยที่หัวข้อเพี้ยน
+    // -----------------------
+
+    const rentalEvents = [];
+
+    for (let i = 0; i < lines.length; i++) {
+
+        if (!/Airport/i.test(lines[i])) {
+            continue;
+        }
+
+        for (
+            let j = i + 1;
+            j < Math.min(i + 6, lines.length);
+            j++
+        ) {
+
+            const result = extractDateTime(lines[j]);
+
+            if (result) {
+
+                rentalEvents.push({
+                    location: clean(lines[i]),
+                    date: result.date,
+                    time: result.time
+                });
+
+                break;
+            }
+        }
+    }
+
+    // ลบข้อมูลซ้ำ
+    const uniqueEvents = rentalEvents.filter(
+        (item, index, array) =>
+            index === array.findIndex(other =>
+                other.location === item.location &&
+                other.date === item.date &&
+                other.time === item.time
+            )
     );
-    if (dt) {
-      result.time = dt[1];
-      result.date = dt[2];
-      return result;
+
+    if (uniqueEvents.length >= 1) {
+
+        if (!booking.pickupLocation) {
+            booking.pickupLocation =
+                uniqueEvents[0].location;
+        }
+
+        if (!booking.pickupDate) {
+            booking.pickupDate =
+                uniqueEvents[0].date;
+        }
+
+        if (!booking.pickupTime) {
+            booking.pickupTime =
+                uniqueEvents[0].time;
+        }
     }
-    // วันที่และเวลา - ภาษาไทย (1 ส.ค. 2566 08:30 หรือ 1 สิงหาคม 2566 08:30 น.)
-    dt = section.match(/(\d{1,2}\s+\S+\s+\d{4})\s+(\d{1,2}:\d{2})(?:\s*น\.?)?/);
-    if (dt) {
-      result.date = thaiDateToEnglish(dt[1]);
-      result.time = dt[2];
-      return result;
+
+    if (uniqueEvents.length >= 2) {
+
+        if (!booking.returnLocation) {
+            booking.returnLocation =
+                uniqueEvents[1].location;
+        }
+
+        if (!booking.returnDate) {
+            booking.returnDate =
+                uniqueEvents[1].date;
+        }
+
+        if (!booking.returnTime) {
+            booking.returnTime =
+                uniqueEvents[1].time;
+        }
     }
 
-    return result;
-  }
+    // -----------------------
+    // รวมชื่อที่ถูกแยกเป็น 2 บรรทัด
+    // เช่น NUTCHANAT + UDOMSEEROD
+    // -----------------------
 
-  // จุดรับรถ + วัน เวลา
-  m =
-    text.match(
-      /จุดรับรถ\s*:?\s*([\s\S]*?)(?=หมายเลขติดต่อ|หมายเลขโทรศัพท์|เวลาทําการ|จุดคืนรถ|Drop-off|Pick-up|$)/i
-    ) || text.match(/Pick-up\s*([\s\S]*?)Drop-off/i);
-  if (m) {
-    const pickupInfo = extractLocationDateTime(m[1]);
-    if (pickupInfo.location) booking.pickupLocation = pickupInfo.location;
-    if (pickupInfo.date) booking.pickupDate = pickupInfo.date;
-    if (pickupInfo.time) booking.pickupTime = pickupInfo.time;
-  }
+    if (
+        booking.customerName &&
+        !booking.customerName.includes(" ")
+    ) {
 
-  // จุดคืนรถ + วัน เวลา
-  m =
-    text.match(
-      /จุดคืนรถ\s*:?\s*([\s\S]*?)(?=หมายเลขติดต่อ|หมายเลขโทรศัพท์|เวลาทําการ|วิธีการคืนรถ|Pick-up|Drop-off|$)/i
-    ) || text.match(/Drop-off\s*([\s\S]*?)Pick-up Guide/i);
-  if (m) {
-    const returnInfo = extractLocationDateTime(m[1]);
-    if (returnInfo.location) booking.returnLocation = returnInfo.location;
-    if (returnInfo.date) booking.returnDate = returnInfo.date;
-    if (returnInfo.time) booking.returnTime = returnInfo.time;
-  }
+        const nameIndex = lines.findIndex(
+            line => line === booking.customerName
+        );
 
-  return booking;
+        const nextLine = lines[nameIndex + 1] || "";
+
+        if (/^[A-Z]{2,}$/.test(nextLine)) {
+
+            booking.customerName =
+                `${booking.customerName} ${nextLine}`;
+
+            booking.renter =
+                booking.customerName;
+        }
+    }
+
+    // -----------------------
+    // เปลี่ยนชื่อรถเป็นอังกฤษ
+    // -----------------------
+
+    const carSource =
+        `${booking.car || ""} ${text}`;
+
+    const modelMatch = carSource.match(
+        /\b(Xpander|HR-?V|Yaris\s*Ativ|Yaris|Vios|City|Civic|Corolla|Fortuner|Pajero|Atto\s*3|Seal|Hilux|D-?Max|Accord|Camry|Alphard|Ertiga|Swift)\b/i
+    );
+
+    if (modelMatch) {
+
+        const model = modelMatch[1]
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
+        const carNames = {
+            "xpander": "Mitsubishi Xpander",
+            "hrv": "Honda HR-V",
+            "hr-v": "Honda HR-V",
+            "yaris ativ": "Toyota Yaris Ativ",
+            "yaris": "Toyota Yaris",
+            "vios": "Toyota Vios",
+            "city": "Honda City",
+            "civic": "Honda Civic",
+            "corolla": "Toyota Corolla",
+            "fortuner": "Toyota Fortuner",
+            "pajero": "Mitsubishi Pajero",
+            "atto 3": "BYD Atto 3",
+            "seal": "BYD Seal",
+            "hilux": "Toyota Hilux",
+            "d-max": "Isuzu D-Max",
+            "dmax": "Isuzu D-Max",
+            "accord": "Honda Accord",
+            "camry": "Toyota Camry",
+            "alphard": "Toyota Alphard",
+            "ertiga": "Suzuki Ertiga",
+            "swift": "Suzuki Swift"
+        };
+
+        booking.car =
+            carNames[model] ||
+            clean(modelMatch[1]);
+    }
+
+    booking.company = "Trip";
+
+    booking.customerName =
+        clean(booking.customerName);
+
+    booking.customerPhone =
+        clean(booking.customerPhone);
+
+    booking.pickupLocation =
+        clean(booking.pickupLocation);
+
+    booking.returnLocation =
+        clean(booking.returnLocation);
+
+    booking.pickupDate =
+        clean(booking.pickupDate);
+
+    booking.returnDate =
+        clean(booking.returnDate);
+
+    booking.pickupTime =
+        clean(booking.pickupTime);
+
+    booking.returnTime =
+        clean(booking.returnTime);
+
+    booking.car =
+        clean(booking.car);
+
+    return booking;
 }
 
 module.exports = parseTrip;
