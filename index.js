@@ -188,13 +188,18 @@ let booking={};
 
 if(fileName.toLowerCase().endsWith(".pdf")){
 
-    const text=await readPDF(buffer);
+    const text = await readPDF(buffer);
 
-    booking=parserService.parse(text) || { company:"Unknown" };
+    booking = parserService.parse(text) || {};
+
+    console.log(text.substring(0,500));
+
 }
 
+booking.company = booking.company || "Other";
 
-  const drive = google.drive({
+// เริ่ม Google Drive
+const drive = google.drive({
 
     version:"v3",
 
@@ -291,86 +296,57 @@ if (booking) {
 }
 
     booking.customerName =
-    booking.customerName ??
-    booking.renter ??
+    booking.customerName ||
+    booking.renter ||
     "";
 
     booking.customerPhone =
-    booking.customerPhone ??
-    booking.phone ??
+    booking.customerPhone ||
+    booking.phone ||
     "";
 
-  booking.company = booking.company || "Other";
-
-  let sheetName = "Other";
-
-  switch(booking.company){
-      case "Trip":
-          sheetName = "Trip";
-          break;
-      case "Reservation":
-          sheetName = "Reservation";
-          break;
-      case "Klook":
-          sheetName = "Klook";
-          break;
-  }
-
-  const sheets = google.sheets({
-
-    version:"v4",
-
+const sheets = google.sheets({
+    version: "v4",
     auth
+});
 
-  });
+await sheets.spreadsheets.values.append({
 
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
 
+    range: "Booking!A:N",
 
-  await sheets.spreadsheets.values.append({
+    valueInputOption: "USER_ENTERED",
 
+    requestBody: {
 
+        values: [
+            [
+                new Date(),
+                booking.company || "",
+                booking.bookingNo || "",
+                booking.customerName || "",
+                booking.customerPhone || "",
+                formatDate(booking.pickupDate || ""),
+                booking.pickupTime || "",
+                booking.pickupLocation || "",
 
-    spreadsheetId:
-
-      process.env.GOOGLE_SHEET_ID,
-
-
-    range:`${sheetName}!A:N`,
-
-
-    valueInputOption:"USER_ENTERED",
-
-
-    requestBody:{
-
-
-values: [
-[
-    new Date(),
-    booking.company,
-    booking.bookingNo,
-    booking.customerName,
-    booking.customerPhone,
-    booking.pickupDate,
-    booking.pickupTime,
-    booking.pickupLocation,
-    booking.returnDate,
-    booking.returnTime,
-    booking.returnLocation,
-    booking.car,
-    booking.amount,
-    fileName,
-    link
-]
-]
+                formatDate(booking.returnDate || ""),
+                booking.returnTime || "",
+                booking.returnLocation || "",
+                booking.car || "",
+                fileName,
+                link
+            ]
+        ]
 
     }
 
-
-  });
+});
 
 
     console.log(booking.company, booking.bookingNo);
+    console.log(booking);
 // -------------------------------
 // ตอบกลับ LINE
 // -------------------------------
@@ -436,42 +412,18 @@ ${link}`
 
 
 
-app.get("/",(req,res)=>{
-
-
-  res.send(
-    "LINE Drive Bot Running"
-  );
-
-
+app.get("/", (req,res)=>{
+    res.send("LINE Drive Bot Running");
 });
 
-
-
-
-app.use((err, req, res, next) => {
-
-  console.error("========== ERROR ==========");
-  console.error(err);
-  console.error("===========================");
-
-  res.sendStatus(500);
-
+app.use((err,req,res,next)=>{
+    console.error(err);
+    res.sendStatus(500);
 });
-
 
 app.listen(
-
-  process.env.PORT || 3000,
-
-  ()=>{
-
-
-    console.log(
-      "Bot Started"
-    );
-
-
-  }
-
+    process.env.PORT || 3000,
+    ()=>{
+        console.log("Bot Started");
+    }
 );

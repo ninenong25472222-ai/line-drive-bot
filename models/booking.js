@@ -1,41 +1,29 @@
-module.exports = function () {
-    return {
+module.exports=()=>({
 
-        company: "",
+company:"",
 
-        bookingNo: "",
+bookingNo:"",
 
-        renter: "",
+customerName:"",
 
-        email: "",
+customerPhone:"",
 
-        phone: "",
+pickupDate:"",
 
-        pickupDate: "",
+pickupTime:"",
 
-        pickupTime: "",
+pickupLocation:"",
 
-        returnDate: "",
+returnDate:"",
 
-        returnTime: "",
+returnTime:"",
 
-        pickupLocation: "",
+returnLocation:"",
 
-        returnLocation: "",
+car:"",
 
-        car: "",
+fileName:"",
 
-        amount: "",
+pdfLink:""
 
-        currency: "",
-
-        pdfLink: "",
-
-        driveFileId: "",
-
-        fileName: "",
-
-        rawText: ""
-
-    };
-};
+});
