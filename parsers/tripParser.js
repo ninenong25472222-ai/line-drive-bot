@@ -77,23 +77,49 @@ function parseTrip(text) {
 
     // ---------------- Car ----------------
 
-    m =
-        text.match(/Car type\s*([\s\S]*?)Transmission/i) ||
-        text.match(/ประเภทรถ([\s\S]*?)ระบบเกียร์/i);
+    // PDF ภาษาอังกฤษ
+let carMatch = text.match(
+    /Car type\s*([^\n]*?)(?:Transmission|Seats)/i
+);
 
-    if (m) {
+if (carMatch) {
 
-        booking.car = m[1]
+    booking.car = carMatch[1]
+        .replace(/or similar/i, "")
+        .replace(/\u0000/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+} else {
+
+    // PDF ภาษาไทย
+    carMatch = text.match(
+        /\b(Honda|Toyota|Mitsubishi|Nissan|Mazda|Isuzu|Ford|MG|BYD|Suzuki|BMW|Mercedes|Audi|Hyundai|Kia)\b[\s\S]{0,25}/i
+    );
+
+    if (carMatch) {
+
+        booking.car = carMatch[0]
+            .replace(/หรือรุ่น.*$/i, "")
             .replace(/or similar/i, "")
-            .replace(/หรือรุ่นที.*/i, "")
-            .replace(/[\u0000]/g, "")
-            .replace(/\n/g, " ")
+            .replace(/\u0000/g, "")
             .replace(/\s+/g, " ")
-            .replace("มิตซูบิช ิ", "มิตซูบิชิ")
             .trim();
+
+    } else {
+
+        // ถ้า OCR เหลือแต่ชื่อรุ่น
+        carMatch = text.match(
+            /\b(HRV|HR-V|Xpander|Yaris|Vios|City|Civic|Corolla|Fortuner|Atto\s*3|Seal|D-Max|Hilux|Alphard|Camry)\b/i
+        );
+
+        if (carMatch) {
+            booking.car = carMatch[0];
+        }
 
     }
 
+}
     // ---------------- Pickup ----------------
 
     m =
