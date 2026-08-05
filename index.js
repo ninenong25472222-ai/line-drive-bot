@@ -144,7 +144,19 @@ async function handleEvent(event) {
 
             const text = await readPDF(buffer);
 
-            booking = parserService.parse(text) || {};
+console.log(
+    "Final Text Length:",
+    text.length
+);
+
+if (!text || text.trim().length < 10) {
+    throw new Error(
+        "PDF_TEXT_EMPTY"
+    );
+}
+
+booking =
+    parserService.parse(text) || {};
 
             console.log("============== PDF TEXT ==============");
             console.log(text.substring(0, 1000));
