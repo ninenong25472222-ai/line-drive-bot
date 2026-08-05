@@ -1,54 +1,87 @@
-function detectCompany(text) {
+function detectCompany(inputText = "") {
+    const text = String(inputText || "")
+        .replace(/\r/g, "")
+        .replace(/\u0000/g, "")
+        .replace(/\n+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
-    text = text.toLowerCase();
+    // ============================
+    // KLOOK
+    // ต้องตรวจ Klook ก่อน ChicCar
+    // เพราะเอกสาร Klook อาจมีคำว่า Chic Network
+    // ============================
 
-    console.log("HAS KLOOK :", text.includes("klook"));
-    console.log("HAS CHIC NETWORK :", text.includes("chic network"));
-    console.log("HAS CHICCARRENT :", text.includes("chiccarrent.com"));
+    const hasKlook =
+        /\bKLOOK\b/i.test(text) ||
+        /operator@klook\.com/i.test(text) ||
+        /\bHDAV_[A-Z0-9_-]+/i.test(text) ||
+        (
+            /Chic\s+Network\s*-/i.test(text) &&
+            /\b[A-Z]{3}\d{6,12}\b/i.test(text)
+        );
 
-    if (
-        text.includes("klook") ||
-        text.includes("merchant.klook.com") ||
-        text.includes("operator@klook.com") ||
-        text.includes("klook_booking_reference")
-    ) {
+    console.log("HAS KLOOK :", hasKlook);
+
+    if (hasKlook) {
         return "klook";
     }
 
-    // -------------------------
-    // Reservation
-    // -------------------------
-    if (
-        text.includes("reservation ref. number") ||
-        text.includes("driver's name") ||
-        text.includes("vehicle name")
-    ) {
-        return "reservation";
-    }
+    // ============================
+    // TRIP.COM
+    // ============================
 
-    // -------------------------
-    // Trip.com
-    // -------------------------
-    if (
-        text.includes("trip.com") ||
-        text.includes("trip.com travel") ||
-        text.includes("หมายเลขเวาเชอร์รับรถ")
-    ) {
+    const hasTrip =
+        /\bTRIP\.?\s*COM\b/i.test(text) ||
+        /TRIP\.COM\s+TRAVEL\s+SINGAPORE/i.test(text) ||
+        /Trip\.com/i.test(text) ||
+        /\bC\d{10,20}\b/.test(text);
+
+    console.log("HAS TRIP :", hasTrip);
+
+    if (hasTrip) {
         return "trip";
     }
 
-    // -------------------------
-    // ChicCar (เอกสารของ ChicCar โดยตรง)
-    // -------------------------
-    if (
-        text.includes("vehicle details") ||
-        text.includes("reservation no.") ||
-        text.includes("booking source : chic")
-    ) {
+    // ============================
+    // RESERVATION
+    // ============================
+
+    const hasReservation =
+        /Reservation\s+(?:Confirmation|Voucher|Number|No\.?)/i.test(
+            text
+        ) ||
+        /Booking\s+Reservation/i.test(text) ||
+        /Reservation\s+Details/i.test(text);
+
+    console.log(
+        "HAS RESERVATION :",
+        hasReservation
+    );
+
+    if (hasReservation) {
+        return "reservation";
+    }
+
+    // ============================
+    // CHIC CAR
+    // ห้ามใช้ Chic Network อย่างเดียว
+    // เพราะอาจเป็นเอกสารจาก Klook
+    // ============================
+
+    const hasChicCar =
+        /CHIC\s*CAR\s*RENT/i.test(text) ||
+        /CHICCARRENT/i.test(text) ||
+        /chiccarrent\.com/i.test(text) ||
+        /Chic\s+Car\s+Rental/i.test(text);
+
+    console.log("HAS CHICCAR :", hasChicCar);
+
+    if (hasChicCar) {
         return "chiccar";
     }
 
-    return "unknown";
+    return "other";
 }
 
 module.exports = detectCompany;
