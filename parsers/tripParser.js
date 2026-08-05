@@ -12,117 +12,194 @@ function parseTrip(text) {
     booking.company = "Trip";
     booking.rawText = text;
 
-    // ---------------- Booking No ----------------
-
-   let m = text.match(/Booking\s*(?:no\.?|number)?\s*:?\s*([A-Z0-9]+)/i);
+    // -----------------------------
+    // Booking Number
+    // -----------------------------
+    let m =
+        text.match(/Booking no\.?:\s*([A-Z0-9]+)/i) ||
+        text.match(/Booking\s*No\.?\s*([A-Z0-9]+)/i) ||
+        text.match(/หมายเลขการจอง[: ]*([A-Z0-9]+)/i);
 
     if (m) {
-    booking.bookingNo = m[1].trim();
+        booking.bookingNo = m[1].trim();
     }
 
-    // ---------------- Customer ----------------
-
-    m = text.match(/Main Driver Name\s*\n([^\n]+)/i);
+    // -----------------------------
+    // Customer
+    // -----------------------------
+    m =
+        text.match(/Main Driver Name\s*\n([^\n]+)/i) ||
+        text.match(/ชื่อผู้ขับขี่หลัก\s*\n([\s\S]*?)\n(?:หมายเลขเวาเชอร์รับรถ|รายละเอียดรถ)/i);
 
     if (m) {
-    booking.customerName = m[1].trim();
+
+        booking.customerName = m[1]
+            .replace(/\n/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
     }
 
     booking.renter = booking.customerName;
 
-    // ---------------- Car ----------------
+    // -----------------------------
+    // Car
+    // -----------------------------
+    m =
+        text.match(/Car type\s*([^\n]*?)(?:Transmission|Seats)/i) ||
+        text.match(/ประเภทรถ([\s\S]*?)ระบบเกียร์/i);
 
-    m = text.match(
-    /Car\s*type\s*([^\n]+?)\s*(?:Transmission|Seats)/i
-);
+    if (m) {
 
-if (m) {
-
-    booking.car = m[1]
-        .replace(/or similar/i, "")
-        .replace(/\s+/g, " ")
-        .trim();
-
-}
-
-    // ---------------- Phone ----------------
-
-   m = text.match(/\+66[- ]?\d[\d-]{7,}/);
-
-if (m) {
-
-    booking.customerPhone =
-        m[0].replace(/-/g, "");
-
-}
-
-    // ---------------- Pickup ----------------
-
-    m = text.match(
-/Pick-up\s*\n([\s\S]*?)Drop-off/i
-);
-
-if(m){
-
-    const section = m[1];
-
-    const airport =
-        section.match(/([A-Za-z ]+Airport)/);
-
-    if(airport){
-
-        booking.pickupLocation =
-            airport[1].trim();
+        booking.car = m[1]
+            .replace(/\n/g, " ")
+            .replace(/or similar/i, "")
+            .replace(/หรือรุ่น.*$/i, "")
+            .replace(/\s+/g, " ")
+            .trim();
 
     }
 
-    const dt =
-        section.match(
-/(\d{1,2}:\d{2}\s*(?:AM|PM)),\s*([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i
-);
+    // -----------------------------
+    // Phone
+    // -----------------------------
+    m = text.match(/\+66[- ]?\d[\d -]{7,}/);
 
-    if(dt){
+    if (!m) {
+        m = text.match(/0\d{9}/);
+    }
 
-        booking.pickupTime = dt[1];
-        booking.pickupDate = dt[2];
+    if (m) {
+        booking.customerPhone = m[0].replace(/[ -]/g, "");
+    }
+
+    // -----------------------------
+    // Pickup (English)
+    // -----------------------------
+    m = text.match(/Pick-up([\s\S]*?)Drop-off/i);
+
+    if (m) {
+
+        const section = m[1];
+
+        const airport = section.match(/([A-Za-z ]+Airport)/i);
+
+        if (airport)
+            booking.pickupLocation = airport[1].trim();
+
+        const dt = section.match(
+            /(\d{1,2}:\d{2}\s*(?:AM|PM)),?\s*([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i
+        );
+
+        if (dt) {
+
+            booking.pickupTime = dt[1];
+
+            booking.pickupDate = dt[2];
+
+        }
 
     }
 
-}
-    
-    // ---------------- Return ----------------
+    // -----------------------------
+    // Pickup (Thai)
+    // -----------------------------
+    if (!booking.pickupDate) {
 
-m = text.match(
-/Drop-off\s*\n([\s\S]*)$/i
-);
+        m = text.match(
+            /จุดรับรถ([\s\S]*?)จุดคืนรถ/i
+        );
 
-if(m){
+        if (m) {
 
-    const section = m[1];
+            const section = m[1];
 
-    const airport =
-        section.match(/([A-Za-z ]+Airport)/);
+            const loc = section.match(/^([^\n]+)/m);
 
-    if(airport){
+            if (loc)
+                booking.pickupLocation = loc[1].trim();
 
-        booking.returnLocation =
-            airport[1].trim();
+            const date = section.match(
+                /(\d{1,2}\s+[ก-๙]+\s+\d{4})/
+            );
+
+            if (date)
+                booking.pickupDate = date[1];
+
+            const time = section.match(
+                /(\d{1,2}:\d{2})/
+            );
+
+            if (time)
+                booking.pickupTime = time[1];
+
+        }
 
     }
 
-    const dt =
-        section.match(
-/(\d{1,2}:\d{2}\s*(?:AM|PM)),\s*([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i
-);
+    // -----------------------------
+    // Return (English)
+    // -----------------------------
+    m = text.match(/Drop-off([\s\S]*)$/i);
 
-    if(dt){
+    if (m) {
 
-        booking.returnTime = dt[1];
-        booking.returnDate = dt[2];
+        const section = m[1];
+
+        const airport = section.match(/([A-Za-z ]+Airport)/i);
+
+        if (airport)
+            booking.returnLocation = airport[1].trim();
+
+        const dt = section.match(
+            /(\d{1,2}:\d{2}\s*(?:AM|PM)),?\s*([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i
+        );
+
+        if (dt) {
+
+            booking.returnTime = dt[1];
+
+            booking.returnDate = dt[2];
+
+        }
 
     }
 
-}
+    // -----------------------------
+    // Return (Thai)
+    // -----------------------------
+    if (!booking.returnDate) {
+
+        m = text.match(
+            /จุดคืนรถ([\s\S]*)$/i
+        );
+
+        if (m) {
+
+            const section = m[1];
+
+            const loc = section.match(/^([^\n]+)/m);
+
+            if (loc)
+                booking.returnLocation = loc[1].trim();
+
+            const date = section.match(
+                /(\d{1,2}\s+[ก-๙]+\s+\d{4})/
+            );
+
+            if (date)
+                booking.returnDate = date[1];
+
+            const time = section.match(
+                /(\d{1,2}:\d{2})/
+            );
+
+            if (time)
+                booking.returnTime = time[1];
+
+        }
+
+    }
 
     return booking;
 }
