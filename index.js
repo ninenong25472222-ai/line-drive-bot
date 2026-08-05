@@ -355,6 +355,35 @@ async function handleEvent(event) {
                 auth
             });
 
+            // ============================
+            // เลือกโฟลเดอร์ปลายทาง
+            // ============================
+
+        const isBookingFile =
+            fileName
+                .toLowerCase()
+                .endsWith(".pdf") &&
+            booking.company &&
+            booking.company !== "Other";
+
+        const targetFolderId =
+            isBookingFile
+                ? process.env.GOOGLE_DRIVE_FOLDER_ID
+                : process.env.GOOGLE_OTHER_FOLDER_ID;
+
+        if (!targetFolderId) {
+            throw new Error(
+                "GOOGLE_TARGET_FOLDER_ID_EMPTY"
+            );
+        }
+
+console.log(
+    "Drive Folder:",
+    isBookingFile
+        ? "Booking"
+        : "Other"
+);
+
         const mimeType =
             response.headers[
                 "content-type"
