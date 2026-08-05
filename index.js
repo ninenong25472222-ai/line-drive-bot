@@ -345,73 +345,161 @@ async function handleEvent(event) {
                 booking.car || ""
             );
 
-        // ============================
-        // UPLOAD TO GOOGLE DRIVE
-        // ============================
+// ============================
+// UPLOAD TO GOOGLE DRIVE
+// ============================
 
-        const drive =
-            google.drive({
-                version: "v3",
-                auth
-            });
+const drive = google.drive({
+    version: "v3",
+    auth
+});
 
-            // ============================
-            // เลือกโฟลเดอร์ปลายทาง
-            // ============================
+// อ่าน Folder ID จาก Railway
 
-        const isBookingFile =
-            fileName
-                .toLowerCase()
-                .endsWith(".pdf") &&
-            booking.company &&
-            booking.company !== "Other";
-
-        const targetFolderId =
-            isBookingFile
-                ? process.env.GOOGLE_DRIVE_FOLDER_ID
-                : process.env.GOOGLE_OTHER_FOLDER_ID;
-
-        if (!targetFolderId) {
-            throw new Error(
-                "GOOGLE_TARGET_FOLDER_ID_EMPTY"
-            );
-        }
-
-console.log(
-    "Drive Folder:",
-    isBookingFile
-        ? "Booking"
-        : "Other"
+const bookingFolderId = cleanText(
+    process.env.GOOGLE_DRIVE_FOLDER_ID || ""
 );
 
-        const mimeType =
-            response.headers[
-                "content-type"
-            ] ||
-            "application/octet-stream";
+const otherFolderId = cleanText(
+    process.env.GOOGLE_OTHER_FOLDER_ID || ""
+);
 
-        const upload =
-            await drive.files.create({
-                requestBody: {
-                    name: fileName,
+// ตรวจว่าตั้งค่าครบหรือไม่
 
-                    parents: [
-                        process.env
-                            .GOOGLE_DRIVE_FOLDER_ID
-                    ]
-                },
+if (!bookingFolderId) {
+    throw new Error(
+        "GOOGLE_DRIVE_FOLDER_ID_EMPTY"
+    );
+}
 
-                media: {
-                    mimeType,
+if (!otherFolderId) {
+    throw new Error(
+        "GOOGLE_OTHER_FOLDER_ID_EMPTY"
+    );
+}
 
-                    body:
-                        stream.Readable.from(
-                            buffer
-                        )
-                },
+// ป้องกันใส่ Folder ID เดียวกันโดยไม่ตั้งใจ
 
-                fields: "id"
-            });
+if (
+    bookingFolderId ===
+    otherFolderId
+) {
+    throw new Error(
+        "BOOKING_AND_OTHER_FOLDER_ARE_SAME"
+    );
+}
+
+// ส่งเข้าโฟลเดอร์จองรถ
+// เฉพาะ 4 บริษัทที่ระบบรู้จักเท่านั้น
+
+const companyKey = cleanText(
+    booking.company || ""
+).toLowerCase();
+
+const bookingCompanies = new Set([
+    "trip",
+    "klook",
+    "reservation",
+    "chiccar"
+]);
+
+const isBookingFile =
+    bookingCompanies.has(
+        companyKey
+    );
+
+// เลือก Folder ID
+
+const targetFolderId =
+    isBookingFile
+        ? bookingFolderId
+        : otherFolderId;
+
+const targetFolderName =
+    isBookingFile
+        ? "Booking"
+        : "Other";
+
+// แสดง Log โดยไม่เปิดเผย Folder ID เต็ม
+
+console.log("Drive destination:", {
+    fileName,
+    company:
+        booking.company || "Other",
+
+    destination:
+        targetFolderName,
+
+    bookingFolderLast6:
+        bookingFolderId.slice(-6),
+
+    otherFolderLast6:
+        otherFolderId.slice(-6),
+
+    targetFolderLast6:
+        targetFolderId.slice(-6)
+});
+
+const mimeType =
+    response.headers[
+        "content-type"
+    ] ||
+    "application/octet-stream";
+
+// อัปโหลดไฟล์
+
+const upload =
+    await drive.files.create({
+        requestBody: {
+            name: fileName,
+
+            parents: [
+                targetFolderId
+            ]
+        },
+
+        media: {
+            mimeType,
+
+            body:
+                stream.Readable.from(
+                    buffer
+                )
+        },
+
+        // ให้ Google ตอบกลับโฟลเดอร์จริง
+        fields: "id, parents"
+    });
+
+const fileId =
+    upload.data.id;
+
+if (!fileId) {
+    throw new Error(
+        "GOOGLE_DRIVE_FILE_ID_EMPTY"
+    );
+}
+
+// แสดง Parent Folder ที่ Google ใช้จริง
+
+console.log("Drive upload result:", {
+    fileId:
+        fileId.slice(-8),
+
+    uploadedParents:
+        upload.data.parents,
+
+    expectedFolder:
+        targetFolderId,
+
+    matched:
+        Array.isArray(
+            upload.data.parents
+        ) &&
+        upload.data.parents.includes(
+            targetFolderId
+        )
+});
 
         const fileId =
             upload.data.id;
