@@ -1,5 +1,6 @@
 const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
+
 require("dotenv").config();
 
 const express = require("express");
@@ -11,19 +12,21 @@ const stream = require("stream");
 const app = express();
 
 // ============================
-// LINE
+// LINE CONFIG
 // ============================
 
 const lineConfig = {
     channelSecret: process.env.CHANNEL_SECRET
 };
 
-const client = new messagingApi.MessagingApiClient({
-    channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN
-});
+const client =
+    new messagingApi.MessagingApiClient({
+        channelAccessToken:
+            process.env.CHANNEL_ACCESS_TOKEN
+    });
 
 // ============================
-// GOOGLE
+// GOOGLE CONFIG
 // ============================
 
 const auth = new google.auth.OAuth2(
@@ -32,37 +35,52 @@ const auth = new google.auth.OAuth2(
 );
 
 auth.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
+    refresh_token:
+        process.env.GOOGLE_REFRESH_TOKEN
 });
 
 // ============================
-// Helper
+// HELPER
 // ============================
 
-function cleanText(str = "") {
-    return String(str)
+function cleanText(value = "") {
+    return String(value)
         .replace(/\u0000/g, "")
-        .replace(/\s+/g, " ")
+        .replace(/\u00A0/g, " ")
+        .replace(
+            /[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+            " "
+        )
+        .replace(/\uFFFD/g, "")
+        .replace(/[\r\n]+/g, " ")
+        .replace(/[ \t]+/g, " ")
         .trim();
 }
 
-function formatDate(date) {
+function formatDate(value = "") {
+    const date = cleanText(value);
 
-    if (!date) return "-";
+    return date || "-";
+}
 
-    if (typeof date === "string")
-        return cleanText(date);
+function shortText(
+    value = "",
+    maximumLength = 80
+) {
+    const text = cleanText(value);
 
-    const d = new Date(date);
-
-    if (isNaN(d.getTime()))
+    if (!text) {
         return "-";
+    }
 
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
+    if (text.length <= maximumLength) {
+        return text;
+    }
 
-    return `${day}/${month}/${year}`;
+    return `${text.slice(
+        0,
+        maximumLength
+    )}...`;
 }
 
 // ============================
@@ -71,35 +89,42 @@ function formatDate(date) {
 
 app.post(
     "/webhook",
-    middleware(lineConfig),
-    async (req, res) => {
 
+    middleware(lineConfig),
+
+    async (req, res) => {
         try {
+            const events =
+                Array.isArray(
+                    req.body.events
+                )
+                    ? req.body.events
+                    : [];
 
             await Promise.all(
-                req.body.events.map(handleEvent)
+                events.map(handleEvent)
             );
 
             res.sendStatus(200);
-
-        } catch (err) {
-
-            console.error(err);
+        } catch (error) {
+            console.error(
+                "WEBHOOK ERROR:",
+                error?.stack || error
+            );
 
             res.sendStatus(500);
-
         }
-
     }
 );
+
 // ============================
-// Handle Event
+// HANDLE LINE EVENT
 // ============================
 
 async function handleEvent(event) {
+    let replied = false;
 
     try {
-
         if (
             event.type !== "message" ||
             event.message.type !== "file"
@@ -107,68 +132,151 @@ async function handleEvent(event) {
             return;
         }
 
-        const messageId = event.message.id;
-        const fileName = event.message.fileName;
+        const messageId =
+            event.message.id;
 
-        console.log("รับไฟล์ :", fileName);
+        const fileName =
+            cleanText(
+                event.message.fileName ||
+                `file-${messageId}`
+            );
 
-        // ============================
-        // Download file from LINE
-        // ============================
-
-        const response = await axios({
-
-            method: "get",
-
-            url:
-                `https://api-data.line.me/v2/bot/message/${messageId}/content`,
-
-            responseType: "arraybuffer",
-
-            headers: {
-                Authorization:
-                    `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
-            }
-
-        });
-
-        const buffer = Buffer.from(response.data);
+        console.log(
+            "รับไฟล์ :",
+            fileName
+        );
 
         // ============================
-        // Read PDF
+        // DOWNLOAD FILE FROM LINE
         // ============================
 
-        let booking = {};
+        const response =
+            await axios({
+                method: "get",
 
-        if (fileName.toLowerCase().endsWith(".pdf")) {
+                url:
+                    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
 
-            const text = await readPDF(buffer);
+                responseType:
+                    "arraybuffer",
 
-console.log(
-    "Final Text Length:",
-    text.length
-);
+                timeout: 120000,
 
-if (!text || text.trim().length < 10) {
-    throw new Error(
-        "PDF_TEXT_EMPTY"
-    );
-}
+                maxContentLength:
+                    Infinity,
 
-booking =
-    parserService.parse(text) || {};
+                maxBodyLength:
+                    Infinity,
 
-            console.log("============== PDF TEXT ==============");
-            console.log(text.substring(0, 1000));
-            console.log("======================================");
+                headers: {
+                    Authorization:
+                        `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
+                }
+            });
 
-            console.log("============== BOOKING ===============");
-            console.log(booking);
-            console.log("======================================");
+        const buffer =
+            Buffer.from(
+                response.data
+            );
 
+        if (!buffer.length) {
+            throw new Error(
+                "DOWNLOADED_FILE_EMPTY"
+            );
         }
 
-        booking.company = booking.company || "Other";
+        // ============================
+        // READ AND PARSE PDF
+        // ============================
+
+        let booking = {
+            company: "Other"
+        };
+
+        if (
+            fileName
+                .toLowerCase()
+                .endsWith(".pdf")
+        ) {
+            const text =
+                await readPDF(buffer);
+
+            console.log(
+                "Final Text Length:",
+                text.length
+            );
+
+            if (
+                !text ||
+                text.trim().length < 10
+            ) {
+                throw new Error(
+                    "PDF_TEXT_EMPTY"
+                );
+            }
+
+            booking =
+                parserService.parse(text) ||
+                {
+                    company: "Other"
+                };
+
+            // แสดงเฉพาะข้อมูลที่จำเป็น
+            // ไม่แสดง rawText ทั้งไฟล์
+
+            console.log(
+                "Parsed booking:",
+                {
+                    company:
+                        booking.company,
+
+                    bookingNo:
+                        booking.bookingNo,
+
+                    customerName:
+                        booking.customerName,
+
+                    customerPhone:
+                        booking.customerPhone,
+
+                    pickupDate:
+                        booking.pickupDate,
+
+                    pickupTime:
+                        booking.pickupTime,
+
+                    pickupLocation:
+                        booking.pickupLocation,
+
+                    returnDate:
+                        booking.returnDate,
+
+                    returnTime:
+                        booking.returnTime,
+
+                    returnLocation:
+                        booking.returnLocation,
+
+                    car:
+                        booking.car
+                }
+            );
+        }
+
+        // ============================
+        // CLEAN BOOKING DATA
+        // ============================
+
+        booking.company =
+            cleanText(
+                booking.company ||
+                "Other"
+            ) || "Other";
+
+        booking.bookingNo =
+            cleanText(
+                booking.bookingNo || ""
+            );
 
         booking.customerName =
             cleanText(
@@ -177,6 +285,9 @@ booking =
                 ""
             );
 
+        booking.renter =
+            booking.customerName;
+
         booking.customerPhone =
             cleanText(
                 booking.customerPhone ||
@@ -184,183 +295,281 @@ booking =
                 ""
             );
 
-        booking.car =
-            cleanText(booking.car);
+        booking.phone =
+            booking.customerPhone;
 
-        booking.pickupLocation =
-            cleanText(booking.pickupLocation);
-
-        booking.returnLocation =
-            cleanText(booking.returnLocation);
-
-        booking.pickupTime =
-            cleanText(booking.pickupTime);
-
-        booking.returnTime =
-            cleanText(booking.returnTime);
+        booking.customerEmail =
+            cleanText(
+                booking.customerEmail ||
+                ""
+            );
 
         booking.pickupDate =
-            cleanText(booking.pickupDate);
+            cleanText(
+                booking.pickupDate ||
+                ""
+            );
+
+        booking.pickupTime =
+            cleanText(
+                booking.pickupTime ||
+                ""
+            );
+
+        booking.pickupLocation =
+            cleanText(
+                booking.pickupLocation ||
+                ""
+            );
 
         booking.returnDate =
-            cleanText(booking.returnDate);
-        // ============================
-        // Upload to Google Drive
-        // ============================
+            cleanText(
+                booking.returnDate ||
+                ""
+            );
 
-        const drive = google.drive({
+        booking.returnTime =
+            cleanText(
+                booking.returnTime ||
+                ""
+            );
 
-            version: "v3",
+        booking.returnLocation =
+            cleanText(
+                booking.returnLocation ||
+                ""
+            );
 
-            auth
-
-        });
-
-        const upload = await drive.files.create({
-
-            requestBody: {
-
-                name: fileName,
-
-                parents: [
-                    process.env.GOOGLE_DRIVE_FOLDER_ID
-                ]
-
-            },
-
-            media: {
-
-                body: stream.Readable.from(buffer)
-
-            },
-
-            fields: "id"
-
-        });
-
-        const fileId = upload.data.id;
+        booking.car =
+            cleanText(
+                booking.car || ""
+            );
 
         // ============================
-        // Make Public
+        // UPLOAD TO GOOGLE DRIVE
+        // ============================
+
+        const drive =
+            google.drive({
+                version: "v3",
+                auth
+            });
+
+        const mimeType =
+            response.headers[
+                "content-type"
+            ] ||
+            "application/octet-stream";
+
+        const upload =
+            await drive.files.create({
+                requestBody: {
+                    name: fileName,
+
+                    parents: [
+                        process.env
+                            .GOOGLE_DRIVE_FOLDER_ID
+                    ]
+                },
+
+                media: {
+                    mimeType,
+
+                    body:
+                        stream.Readable.from(
+                            buffer
+                        )
+                },
+
+                fields: "id"
+            });
+
+        const fileId =
+            upload.data.id;
+
+        if (!fileId) {
+            throw new Error(
+                "GOOGLE_DRIVE_FILE_ID_EMPTY"
+            );
+        }
+
+        // ============================
+        // MAKE FILE PUBLIC
         // ============================
 
         await drive.permissions.create({
-
             fileId,
 
             requestBody: {
-
                 role: "reader",
-
                 type: "anyone"
-
             }
-
         });
 
         const link =
             `https://drive.google.com/file/d/${fileId}/view`;
 
-        booking.driveFileId = fileId;
-        booking.fileName = fileName;
-        booking.pdfLink = link;
+        booking.driveFileId =
+            fileId;
+
+        booking.fileName =
+            fileName;
+
+        booking.pdfLink =
+            link;
 
         // ============================
-        // Google Sheet
+        // SAVE TO GOOGLE SHEET
         // ============================
 
-        const sheets = google.sheets({
+        const sheets =
+            google.sheets({
+                version: "v4",
+                auth
+            });
 
-            version: "v4",
+        await sheets.spreadsheets
+            .values.append({
+                spreadsheetId:
+                    process.env
+                        .GOOGLE_SHEET_ID,
 
-            auth
+                range:
+                    "Booking!A:N",
 
-        });
+                valueInputOption:
+                    "USER_ENTERED",
 
-        await sheets.spreadsheets.values.append({
+                requestBody: {
+                    values: [[
+                        new Date()
+                            .toISOString(),
 
-            spreadsheetId:
-                process.env.GOOGLE_SHEET_ID,
+                        booking.company,
 
-            range: "Booking!A:N",
+                        booking.bookingNo,
 
-            valueInputOption: "USER_ENTERED",
+                        booking.customerName,
 
-            requestBody: {
+                        booking.customerPhone,
 
-                values: [[
+                        booking.pickupDate,
 
-                    new Date(),
+                        booking.pickupTime,
 
-                    booking.company,
+                        booking.pickupLocation,
 
-                    booking.bookingNo,
+                        booking.returnDate,
 
-                    booking.customerName,
+                        booking.returnTime,
 
-                    booking.customerPhone,
+                        booking.returnLocation,
 
-                    booking.pickupDate,
+                        booking.car,
 
-                    booking.pickupTime,
+                        fileName,
 
-                    booking.pickupLocation,
+                        link
+                    ]]
+                }
+            });
 
-                    booking.returnDate,
-
-                    booking.returnTime,
-
-                    booking.returnLocation,
-
-                    booking.car,
-
-                    fileName,
-
-                    link
-
-                ]]
-
-            }
-
-        });
-
-        console.log("Saved :", booking.bookingNo);
+        console.log(
+            "Saved :",
+            booking.bookingNo ||
+            fileName
+        );
 
         // ============================
-        // Reply LINE
+        // PREPARE LINE MESSAGE
         // ============================
 
-        const reply1 =
-`✅ บันทึกไฟล์แล้ว ${booking.company}
+        const pickupDateTime =
+            `${formatDate(
+                booking.pickupDate
+            )} ${
+                booking.pickupTime ||
+                ""
+            }`.trim();
 
-👤 ${booking.customerName || "-"}
-📞 ${booking.customerPhone || "-"}
+        const returnDateTime =
+            `${formatDate(
+                booking.returnDate
+            )} ${
+                booking.returnTime ||
+                ""
+            }`.trim();
 
-🚗 รับรถ
-${booking.pickupDate || "-"} ${booking.pickupTime || ""}
-${booking.pickupLocation || "-"}
+        const reply1 = [
+            `✅ บันทึกไฟล์แล้ว ${booking.company}`,
 
-🔄 คืนรถ
-${booking.returnDate || "-"} ${booking.returnTime || ""}
-${booking.returnLocation || "-"}
+            "",
 
-🚙 ${(booking.car || "-").substring(0,50)}`;
+            `👤 ${
+                booking.customerName ||
+                "-"
+            }`,
 
-        const reply2 =
-`📄 ${fileName}
+            `📞 ${
+                booking.customerPhone ||
+                "-"
+            }`,
 
-📂 เปิดไฟล์
-${link}`;
+            "",
 
-        console.log("Reply1 Length :", reply1.length);
-        console.log("Reply2 Length :", reply2.length);
+            "🚗 รับรถ",
+
+            pickupDateTime || "-",
+
+            booking.pickupLocation ||
+                "-",
+
+            "",
+
+            "🔄 คืนรถ",
+
+            returnDateTime || "-",
+
+            booking.returnLocation ||
+                "-",
+
+            "",
+
+            `🚙 ${shortText(
+                booking.car,
+                80
+            )}`
+        ].join("\n");
+
+        const reply2 = [
+            `📄 ${fileName}`,
+
+            "",
+
+            "📂 เปิดไฟล์",
+
+            link
+        ].join("\n");
+
+        console.log(
+            "Reply1 Length :",
+            reply1.length
+        );
+
+        console.log(
+            "Reply2 Length :",
+            reply2.length
+        );
+
+        // ============================
+        // REPLY LINE
+        // ============================
 
         await client.replyMessage({
-
-            replyToken: event.replyToken,
+            replyToken:
+                event.replyToken,
 
             messages: [
-
                 {
                     type: "text",
                     text: reply1
@@ -370,82 +579,110 @@ ${link}`;
                     type: "text",
                     text: reply2
                 }
-
             ]
-
         });
 
-    } catch (err) {
+        replied = true;
+    } catch (error) {
+        console.error(
+            "============= ERROR ============="
+        );
 
-        console.error("============= ERROR =============");
-        console.error(err);
-        console.error("================================");
+        console.error(
+            error?.response?.data ||
+            error?.stack ||
+            error
+        );
 
-        if (event.replyToken) {
+        console.error(
+            "================================="
+        );
 
+        if (
+            !replied &&
+            event.replyToken
+        ) {
             try {
-
                 await client.replyMessage({
-
-                    replyToken: event.replyToken,
+                    replyToken:
+                        event.replyToken,
 
                     messages: [
-
                         {
                             type: "text",
-                            text: "❌ ไม่สามารถประมวลผลไฟล์ได้"
+
+                            text:
+                                "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาลองส่งใหม่อีกครั้ง"
                         }
-
                     ]
-
                 });
 
-            } catch (e) {
-
-                console.error(e);
-
+                replied = true;
+            } catch (replyError) {
+                console.error(
+                    "ERROR REPLY FAILED:",
+                    replyError
+                        ?.response
+                        ?.data ||
+                    replyError?.stack ||
+                    replyError
+                );
             }
-
         }
-
     }
-
 }
 
 // ============================
-// Home
+// HOME / HEALTH CHECK
 // ============================
 
 app.get("/", (req, res) => {
+    res.send(
+        "LINE Drive Bot Running"
+    );
+});
 
-    res.send("LINE Drive Bot Running");
-
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        status: "ok"
+    });
 });
 
 // ============================
-// Error
+// EXPRESS ERROR HANDLER
 // ============================
 
-app.use((err, req, res, next) => {
+app.use(
+    (error, req, res, next) => {
+        console.error(
+            "EXPRESS ERROR:",
+            error?.stack || error
+        );
 
-    console.error(err);
-
-    res.sendStatus(500);
-
-});
+        if (
+            !res.headersSent
+        ) {
+            res.sendStatus(500);
+        }
+    }
+);
 
 // ============================
-// Start
+// START SERVER
 // ============================
+
+const PORT =
+    Number(
+        process.env.PORT ||
+        3000
+    );
 
 app.listen(
-
-    process.env.PORT || 3000,
+    PORT,
 
     () => {
-
-        console.log("Bot Started");
-
+        console.log(
+            `Bot Started on port ${PORT}`
+        );
     }
-
 );

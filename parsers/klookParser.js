@@ -1,5 +1,7 @@
 const Booking = require("../models/booking");
 
+const KLOOK_PARSER_VERSION = "2026-08-05-V4";
+
 // ============================
 // Helper
 // ============================
@@ -8,12 +10,15 @@ function cleanText(value = "") {
     return String(value)
         .replace(/\r/g, "")
         .replace(/\u0000/g, "")
+        .replace(/\u00A0/g, " ")
         .replace(
             /[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
             " "
         )
         .replace(/\uFFFD/g, "")
         .replace(/[ \t]+/g, " ")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
         .trim();
 }
 
@@ -24,30 +29,13 @@ function toOneLine(value = "") {
         .trim();
 }
 
-function normalizeLocation(value = "") {
+function titleCase(value = "") {
     return toOneLine(value)
-        .replace(/^Chic\s+Network\s*-\s*/i, "")
+        .toLowerCase()
         .replace(
-            /^(?:Pick\s*-?\s*up|Pickup|Drop\s*-?\s*off|Dropoff)\s*:?\s*/i,
-            ""
-        )
-        .replace(
-            /^(?:Location|Station)\s*:?\s*/i,
-            ""
-        )
-        .trim();
-}
-
-function normalizePhone(value = "") {
-    const phone = String(value)
-        .replace(/[()\s-]/g, "")
-        .trim();
-
-    if (/^66\d{9,10}$/.test(phone)) {
-        return `+${phone}`;
-    }
-
-    return phone;
+            /\b[a-z]/g,
+            letter => letter.toUpperCase()
+        );
 }
 
 // ============================
@@ -58,22 +46,15 @@ function extractBookingNumber(text = "") {
     const source = toOneLine(text);
 
     const patterns = [
-        /(?:Klook\s*)?(?:Booking|Reservation)\s*(?:No\.?|Number|ID|Reference)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
-
-        /(?:Confirmation|Voucher)\s*(?:No\.?|Number|ID)\s*[:#-]?\s*([A-Z0-9-]{6,})/i,
-
-        /\b([A-Z]{2,5}\d{5,12})\b/,
-
-        /\b(\d{10,16})\b/
+        /klook_booking_reference_number[^A-Z0-9]*([A-Z]{3}\d{6,12})/i,
+        /\b([A-Z]{3}\d{6,12})\b/
     ];
 
     for (const pattern of patterns) {
         const match = source.match(pattern);
 
         if (match) {
-            return cleanText(
-                match[1] || match[0]
-            );
+            return match[1];
         }
     }
 
@@ -81,7 +62,7 @@ function extractBookingNumber(text = "") {
 }
 
 // ============================
-// Email
+// Customer Email
 // ============================
 
 function extractCustomerEmail(text = "") {
@@ -89,29 +70,168 @@ function extractCustomerEmail(text = "") {
         ...String(text).matchAll(
             /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
         )
-    ].map(match =>
-        match[0].toLowerCase()
-    );
+    ].map(item => item[0].toLowerCase());
 
     return (
         emails.find(email =>
             !email.includes("@klook.com") &&
             !email.includes("@chiccarrent.com") &&
-            !email.includes("@chicnetwork")
+            !email.includes("@outlook.com") &&
+            !email.includes("@microsoft.com")
         ) || ""
     );
+}
+
+// ============================
+// Customer Name
+// ============================
+
+function isValidNamePart(value = "") {
+    const word = String(value).trim();
+
+    if (
+        !/^[A-Za-z][A-Za-z'.-]{2,39}$/.test(
+            word
+        )
+    ) {
+        return false;
+    }
+
+    const blocked = new Set([
+        "mail",
+        "inbox",
+        "office",
+        "outlook",
+        "klook",
+        "booking",
+        "reservation",
+        "customer",
+        "driver",
+        "airport",
+        "network",
+        "surat",
+        "thani"
+    ]);
+
+    return !blocked.has(
+        word.toLowerCase()
+    );
+}
+
+function extractCustomerName(text = "") {
+    const lines = cleanText(text)
+        .split(/\n+/)
+        .map(toOneLine)
+        .filter(Boolean);
+
+    /*
+        ตัวอย่างจริงจาก OCR:
+
+        dAawineudusa Jirawat/Wongsrisuk
+    */
+
+    for (const line of lines) {
+        if (
+            /https?:|outlook|office\.com|mail\/|inbox\/|@/i.test(
+                line
+            )
+        ) {
+            continue;
+        }
+
+        const match = line.match(
+            /\b([A-Za-z][A-Za-z'.-]{2,39})\s*\/\s*([A-Za-z][A-Za-z'.-]{2,39})\b/
+        );
+
+        if (
+            match &&
+            isValidNamePart(match[1]) &&
+            isValidNamePart(match[2])
+        ) {
+            return `${match[1]} ${match[2]}`;
+        }
+    }
+
+    const source = toOneLine(text);
+
+    const labelledPatterns = [
+        /Customer\s+Name\s*:?\s*([A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){1,3})/i,
+
+        /Driver\s+Name\s*:?\s*([A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){1,3})/i,
+
+        /Main\s+Driver\s*:?\s*([A-Za-z][A-Za-z'.-]+(?:\s+[A-Za-z][A-Za-z'.-]+){1,3})/i
+    ];
+
+    for (const pattern of labelledPatterns) {
+        const match = source.match(pattern);
+
+        if (match) {
+            return toOneLine(match[1]);
+        }
+    }
+
+    /*
+        ห้ามสุ่มชื่อจากข้อความ OCR
+        ป้องกันการได้ชื่อ o AY
+    */
+
+    return "";
 }
 
 // ============================
 // Phone
 // ============================
 
+function normalizePhone(value = "") {
+    const raw = String(value).trim();
+
+    let digits = raw.replace(/\D/g, "");
+
+    if (!digits) {
+        return "";
+    }
+
+    /*
+        66-0807726267
+        660807726267
+        เปลี่ยนเป็น +66807726267
+    */
+
+    if (
+        digits.startsWith("660") &&
+        digits.length === 12
+    ) {
+        digits =
+            `66${digits.slice(3)}`;
+
+        return `+${digits}`;
+    }
+
+    if (
+        digits.startsWith("66") &&
+        digits.length >= 11
+    ) {
+        return `+${digits}`;
+    }
+
+    if (
+        digits.startsWith("0") &&
+        digits.length === 10
+    ) {
+        return `+66${digits.slice(1)}`;
+    }
+
+    return raw.startsWith("+")
+        ? `+${digits}`
+        : digits;
+}
+
 function extractPhone(text = "") {
     const source = toOneLine(text);
 
     const patterns = [
-        /\+66[\s()-]*\d(?:[\s()-]*\d){8,9}/,
-        /\b66[\s()-]*\d(?:[\s()-]*\d){8,9}\b/,
+        /\b66[\s-]*0\d(?:[\s-]*\d){8}\b/,
+        /\+66[\s-]*\d(?:[\s-]*\d){8,9}/,
         /\b0\d{9}\b/
     ];
 
@@ -127,559 +247,350 @@ function extractPhone(text = "") {
 }
 
 // ============================
-// ตรวจสอบชื่อบุคคล
+// Location
 // ============================
 
-function isValidCustomerName(value = "") {
-    const name = toOneLine(value);
+function normalizeLocation(value = "") {
+    const source = toOneLine(value);
 
-    if (
-        !/^[A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){1,4}$/.test(
-            name
-        )
-    ) {
-        return false;
-    }
-
-    const blockedWords = new Set([
-        "klook",
-        "chic",
-        "network",
-        "car",
-        "rent",
-        "booking",
-        "voucher",
-        "reservation",
-        "customer",
-        "driver",
-        "guest",
-        "name",
-        "email",
-        "phone",
-        "mobile",
-        "airport",
-        "pickup",
-        "dropoff",
-        "vehicle",
-        "automatic",
-        "manual",
-        "thailand"
-    ]);
-
-    const words = name
-        .toLowerCase()
-        .split(/\s+/);
-
-    return words.every(
-        word => !blockedWords.has(word)
+    const chicMatch = source.match(
+        /Chic\s+Network\s*-\s*([A-Za-z][A-Za-z'. -]{1,70}?\s+Airport)\b/i
     );
+
+    if (chicMatch) {
+        return titleCase(chicMatch[1]);
+    }
+
+    const airportMatch = source.match(
+        /\b([A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){0,5}\s+Airport)\b/i
+    );
+
+    return airportMatch
+        ? titleCase(airportMatch[1])
+        : "";
 }
 
 // ============================
-// Customer Name
+// Pickup / Return
 // ============================
 
-function extractCustomerName(
-    lines,
-    text,
-    customerEmail
-) {
-    const source = toOneLine(text);
+function extractRentalEvents(text = "") {
+    const lines = cleanText(text)
+        .split(/\n+/)
+        .map(toOneLine)
+        .filter(Boolean);
 
-    // ค้นหาหลังหัวข้อ Customer / Guest / Driver Name
+    const events = [];
 
-    const labelRegex =
-        /(?:Customer|Guest|Main\s+Driver|Primary\s+Driver|Driver)\s*(?:Name)?\s*:?\s*/gi;
-
-    let labelMatch;
-
-    while (
-        (labelMatch =
-            labelRegex.exec(source)) !== null
+    for (
+        let index = 0;
+        index < lines.length;
+        index++
     ) {
-        const start =
-            labelMatch.index +
-            labelMatch[0].length;
-
-        let section = source
-            .slice(start, start + 180)
-            .split(
-                /\b(?:Email|E-mail|Phone|Mobile|Contact|Vehicle|Car\s+type|Pick\s*-?\s*up|Pickup|Drop\s*-?\s*off|Dropoff|Booking|Reservation)\b/i
-            )[0]
-            .trim();
-
-        const nameMatch = section.match(
-            /^([A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){1,4})/
-        );
-
-        if (
-            nameMatch &&
-            isValidCustomerName(nameMatch[1])
-        ) {
-            return toOneLine(nameMatch[1]);
-        }
-    }
-
-    // ค้นหาชื่อที่อยู่ก่อนอีเมลลูกค้า
-
-    if (customerEmail) {
-        const emailIndex = lines.findIndex(
-            line =>
-                line
-                    .toLowerCase()
-                    .includes(
-                        customerEmail.toLowerCase()
-                    )
-        );
-
-        if (emailIndex >= 0) {
-            for (
-                let i = emailIndex - 1;
-                i >= Math.max(0, emailIndex - 5);
-                i--
-            ) {
-                let candidate = toOneLine(
-                    lines[i]
-                )
-                    .replace(
-                        /^(?:Customer|Guest|Driver|Name)\s*:?\s*/i,
-                        ""
-                    )
-                    .trim();
-
-                if (
-                    isValidCustomerName(candidate)
-                ) {
-                    return candidate;
-                }
-            }
-        }
-    }
-
-    // ตรวจทีละบรรทัด
-
-    for (const originalLine of lines) {
-        const line = toOneLine(
-            originalLine
-        )
-            .replace(
-                /^(?:Customer|Guest|Driver|Name)\s*:?\s*/i,
-                ""
-            )
-            .trim();
-
-        if (
-            isValidCustomerName(line)
-        ) {
-            return line;
-        }
-    }
-
-    return "";
-}
-
-// ============================
-// วันที่และเวลาทั้งหมด
-// ============================
-
-function extractDateTimes(text = "") {
-    const source = toOneLine(text);
-
-    const results = [];
-
-    const dateRegex =
-        /\b(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})\b/g;
-
-    let match;
-
-    while (
-        (match = dateRegex.exec(source)) !==
-        null
-    ) {
-        const item = {
-            index: match.index,
-            date: match[1],
-            time: match[2]
-        };
-
-        const duplicate = results.some(
-            result =>
-                result.date === item.date &&
-                result.time === item.time
-        );
-
-        if (!duplicate) {
-            results.push(item);
-        }
-    }
-
-    return results;
-}
-
-// ============================
-// สถานที่ Chic Network
-// ============================
-
-function extractLocations(lines) {
-    const locations = [];
-
-    for (const originalLine of lines) {
-        const line = toOneLine(
-            originalLine
-        );
-
         if (
             !/Chic\s+Network\s*-/i.test(
-                line
+                lines[index]
             )
         ) {
             continue;
         }
 
-        let location =
-            normalizeLocation(line);
+        const location =
+            normalizeLocation(
+                lines[index]
+            );
 
-        location = location
-            .split(
-                /\s+T\d+\b/i
-            )[0]
-            .split(
-                /\s+\d{4}-\d{2}-\d{2}\b/
-            )[0]
-            .trim();
+        if (!location) {
+            continue;
+        }
 
-        if (
-            location &&
-            !locations.includes(location)
-        ) {
-            locations.push(location);
+        const nearby = lines
+            .slice(
+                index,
+                Math.min(
+                    lines.length,
+                    index + 10
+                )
+            )
+            .join(" ");
+
+        const dateTime = nearby.match(
+            /\b(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)\b/
+        );
+
+        if (!dateTime) {
+            continue;
+        }
+
+        const event = {
+            location,
+            date: dateTime[1],
+            time: dateTime[2]
+        };
+
+        const duplicate =
+            events.some(item =>
+                item.location === event.location &&
+                item.date === event.date &&
+                item.time === event.time
+            );
+
+        if (!duplicate) {
+            events.push(event);
         }
     }
-
-    return locations;
-}
-
-// ============================
-// ดึงข้อมูลรับรถและคืนรถ
-// ============================
-
-function extractRentalEvents(
-    text,
-    lines
-) {
-    const source = toOneLine(text);
-
-    const events = [];
 
     /*
-        ตัวอย่าง:
-
-        Chic Network - Surat Thani Airport
-        T123456
-        2026-08-05 18:30
+        Fallback กรณี OCR รวมทุกอย่างเป็นบรรทัดเดียว
     */
 
-    const eventRegex =
-        /(Chic\s+Network\s*-\s+.{2,120}?)\s+T\d+\s+(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})/gi;
+    if (events.length < 2) {
+        const source = toOneLine(text);
 
-    let match;
+        const regex =
+            /Chic\s+Network\s*-\s*([A-Za-z][A-Za-z'. -]{1,70}?\s+Airport)\b[\s\S]{0,180}?(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)/gi;
 
-    while (
-        (match = eventRegex.exec(source)) !==
-        null
-    ) {
-        const location =
-            normalizeLocation(match[1]);
+        let match;
 
-        events.push({
-            location,
-            date: match[2],
-            time: match[3]
-        });
-    }
-
-    // ถ้า Regex หลักหาไม่ได้
-    // ใช้วิธีอ่านตามบรรทัด
-
-    if (events.length === 0) {
-        for (
-            let i = 0;
-            i < lines.length;
-            i++
+        while (
+            (match = regex.exec(source)) !== null
         ) {
-            if (
-                !/Chic\s+Network\s*-/i.test(
-                    lines[i]
-                )
-            ) {
-                continue;
-            }
+            const event = {
+                location:
+                    titleCase(match[1]),
 
-            const location =
-                normalizeLocation(
-                    lines[i]
+                date: match[2],
+                time: match[3]
+            };
+
+            const duplicate =
+                events.some(item =>
+                    item.location ===
+                        event.location &&
+                    item.date ===
+                        event.date &&
+                    item.time ===
+                        event.time
                 );
 
-            const section = lines
-                .slice(
-                    i,
-                    Math.min(
-                        i + 10,
-                        lines.length
-                    )
-                )
-                .join(" ");
-
-            const dateMatch =
-                section.match(
-                    /\b(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2})\b/
-                );
-
-            if (dateMatch) {
-                events.push({
-                    location,
-                    date: dateMatch[1],
-                    time: dateMatch[2]
-                });
+            if (!duplicate) {
+                events.push(event);
             }
         }
     }
 
-    // Fallback ใช้วันที่และสถานที่ตามลำดับ
-
-    if (events.length === 0) {
-        const dates =
-            extractDateTimes(source);
-
-        const locations =
-            extractLocations(lines);
-
-        dates.forEach(
-            (dateTime, index) => {
-                events.push({
-                    location:
-                        locations[index] ||
-                        locations[0] ||
-                        "",
-                    date: dateTime.date,
-                    time: dateTime.time
-                });
-            }
-        );
-    }
-
-    // ลบรายการซ้ำ
-
-    return events.filter(
-        (item, index, array) =>
-            index ===
-            array.findIndex(
-                other =>
-                    other.location ===
-                        item.location &&
-                    other.date === item.date &&
-                    other.time === item.time
-            )
-    );
+    return events;
 }
 
 // ============================
 // Vehicle
 // ============================
 
-function extractCar(lines, text) {
-    // หา HDAV_ จากแต่ละบรรทัด
+function extractCar(text = "") {
+    const lines = cleanText(text)
+        .split(/\n+/)
+        .map(toOneLine)
+        .filter(Boolean);
+
+    let carSource = "";
 
     const hdavLine = lines.find(
         line => /\bHDAV_/i.test(line)
     );
 
     if (hdavLine) {
-        return toOneLine(hdavLine)
-            .replace(
-                /^(?:Vehicle|Car\s+type)\s*:?\s*/i,
-                ""
-            )
-            .split(
-                /\b(?:Pick\s*-?\s*up|Pickup|Drop\s*-?\s*off|Dropoff|Booking|Customer|Email|Phone)\b/i
-            )[0]
-            .trim();
+        carSource = hdavLine;
+    } else {
+        carSource = toOneLine(text);
     }
 
-    const source = toOneLine(text);
+    const knownCars = [
+        [
+            /\bYaris\s+Ativ\b/i,
+            "Toyota Yaris Ativ"
+        ],
+        [
+            /\bYaris\b/i,
+            "Toyota Yaris"
+        ],
+        [
+            /\bHR\s*-?\s*V\b/i,
+            "Honda HR-V"
+        ],
+        [
+            /\bCity\b/i,
+            "Honda City"
+        ],
+        [
+            /\bCivic\b/i,
+            "Honda Civic"
+        ],
+        [
+            /\bXpander\b/i,
+            "Mitsubishi Xpander"
+        ],
+        [
+            /\bPajero(?:\s+Sport)?\b/i,
+            "Mitsubishi Pajero Sport"
+        ],
+        [
+            /\bVios\b/i,
+            "Toyota Vios"
+        ],
+        [
+            /\bFortuner\b/i,
+            "Toyota Fortuner"
+        ],
+        [
+            /\bCorolla(?:\s+Altis)?\b/i,
+            "Toyota Corolla Altis"
+        ],
+        [
+            /\bCamry\b/i,
+            "Toyota Camry"
+        ],
+        [
+            /\bD\s*-?\s*Max\b/i,
+            "Isuzu D-Max"
+        ],
+        [
+            /\bSwift\b/i,
+            "Suzuki Swift"
+        ],
+        [
+            /\bErtiga\b/i,
+            "Suzuki Ertiga"
+        ],
+        [
+            /\bAtto\s*3\b/i,
+            "BYD Atto 3"
+        ],
+        [
+            /\bSeal\b/i,
+            "BYD Seal"
+        ]
+    ];
 
-    // หา Car type
+    for (const [pattern, name] of knownCars) {
+        if (pattern.test(carSource)) {
+            return name;
+        }
+    }
 
-    const carType = source.match(
-        /Car\s+type\s*:?\s*(.{2,100}?)(?=\s+(?:Transmission|Pick\s*-?\s*up|Pickup|Drop\s*-?\s*off|Dropoff|Booking|Customer|Email|Phone)\b|$)/i
+    const generic = carSource.match(
+        /HDAV[_\s-]*(Toyota|Honda|Mitsubishi|Nissan|Mazda|Isuzu|Suzuki|MG|BYD|Ford|Hyundai|Kia)\s+([A-Za-z0-9-]+(?:\s+[A-Za-z0-9-]+){0,3})/i
     );
 
-    if (carType) {
-        return toOneLine(carType[1])
-            .replace(
-                /\s+or\s+similar.*$/i,
-                ""
-            )
-            .trim();
+    if (!generic) {
+        return "";
     }
 
-    // หา Vehicle
-
-    const vehicle = source.match(
-        /Vehicle\s*:?\s*(.{2,100}?)(?=\s+(?:Pick\s*-?\s*up|Pickup|Drop\s*-?\s*off|Dropoff|Booking|Customer|Email|Phone)\b|$)/i
-    );
-
-    if (vehicle) {
-        return toOneLine(vehicle[1]);
-    }
-
-    return "";
+    return (
+        `${titleCase(generic[1])} ` +
+        `${titleCase(generic[2])}`
+    )
+        .replace(
+            /\s+(?:AT|MT|Automatic|Manual).*$/i,
+            ""
+        )
+        .trim();
 }
 
 // ============================
-// Parser หลัก
+// Main Parser
 // ============================
 
 function parseKlook(inputText) {
+    console.log(
+        "KLOOK_PARSER_VERSION:",
+        KLOOK_PARSER_VERSION
+    );
+
     const booking = Booking();
 
-    const rawText = cleanText(
+    const text = cleanText(
         inputText || ""
     );
 
-    const lines = rawText
-        .split(/\n+/)
-        .map(line =>
-            toOneLine(line)
-        )
-        .filter(Boolean);
-
-    const flatText =
-        toOneLine(rawText);
-
     booking.company = "Klook";
-    booking.rawText = rawText;
+    booking.rawText = text;
 
     booking.bookingNo =
-        extractBookingNumber(flatText);
+        extractBookingNumber(text);
 
     booking.customerEmail =
-        extractCustomerEmail(flatText);
-
-    booking.customerPhone =
-        extractPhone(flatText);
-
-    booking.phone =
-        booking.customerPhone;
+        extractCustomerEmail(text);
 
     booking.customerName =
-        extractCustomerName(
-            lines,
-            flatText,
-            booking.customerEmail
-        );
+        extractCustomerName(text);
 
     booking.renter =
         booking.customerName;
 
-    booking.car =
-        extractCar(
-            lines,
-            flatText
-        );
+    booking.customerPhone =
+        extractPhone(text);
 
-    const rentalEvents =
-        extractRentalEvents(
-            rawText,
-            lines
-        );
+    booking.phone =
+        booking.customerPhone;
 
-    if (rentalEvents.length >= 1) {
+    const events =
+        extractRentalEvents(text);
+
+    if (events.length >= 1) {
         booking.pickupLocation =
-            rentalEvents[0].location;
+            events[0].location;
 
         booking.pickupDate =
-            rentalEvents[0].date;
+            events[0].date;
 
         booking.pickupTime =
-            rentalEvents[0].time;
+            events[0].time;
     }
 
-    if (rentalEvents.length >= 2) {
+    if (events.length >= 2) {
         booking.returnLocation =
-            rentalEvents[1].location;
+            events[1].location;
 
         booking.returnDate =
-            rentalEvents[1].date;
+            events[1].date;
 
         booking.returnTime =
-            rentalEvents[1].time;
+            events[1].time;
     }
 
-    booking.bookingNo =
-        toOneLine(
-            booking.bookingNo || ""
-        );
-
-    booking.customerName =
-        toOneLine(
-            booking.customerName || ""
-        );
-
-    booking.customerEmail =
-        toOneLine(
-            booking.customerEmail || ""
-        );
-
-    booking.customerPhone =
-        toOneLine(
-            booking.customerPhone || ""
-        );
-
     booking.car =
-        toOneLine(
-            booking.car || ""
-        );
+        extractCar(text);
 
-    booking.pickupLocation =
-        normalizeLocation(
-            booking.pickupLocation || ""
-        );
-
-    booking.returnLocation =
-        normalizeLocation(
-            booking.returnLocation || ""
-        );
-
-    booking.pickupDate =
-        toOneLine(
-            booking.pickupDate || ""
-        );
-
-    booking.returnDate =
-        toOneLine(
-            booking.returnDate || ""
-        );
-
-    booking.pickupTime =
-        toOneLine(
-            booking.pickupTime || ""
-        );
-
-    booking.returnTime =
-        toOneLine(
-            booking.returnTime || ""
-        );
-
-    console.log("Klook parsed:", {
+    console.log("Klook result:", {
         bookingNo:
             booking.bookingNo,
+
         customerName:
             booking.customerName,
+
+        customerPhone:
+            booking.customerPhone,
+
+        pickupLocation:
+            booking.pickupLocation,
+
         pickupDate:
             booking.pickupDate,
+
+        pickupTime:
+            booking.pickupTime,
+
+        returnLocation:
+            booking.returnLocation,
+
         returnDate:
-            booking.returnDate
+            booking.returnDate,
+
+        returnTime:
+            booking.returnTime,
+
+        car:
+            booking.car
     });
 
     return booking;

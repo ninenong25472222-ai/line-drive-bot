@@ -8,39 +8,76 @@ function detectCompany(inputText = "") {
 
     // ============================
     // KLOOK
-    // ต้องตรวจ Klook ก่อน ChicCar
-    // เพราะเอกสาร Klook อาจมีคำว่า Chic Network
     // ============================
 
     const hasKlook =
         /\bKLOOK\b/i.test(text) ||
-        /operator@klook\.com/i.test(text) ||
-        /\bHDAV_[A-Z0-9_-]+/i.test(text) ||
-        (
-            /Chic\s+Network\s*-/i.test(text) &&
-            /\b[A-Z]{3}\d{6,12}\b/i.test(text)
+        /@klook\.com/i.test(text) ||
+        /klook_booking_reference_number/i.test(
+            text
         );
 
-    console.log("HAS KLOOK :", hasKlook);
+    console.log(
+        "HAS KLOOK :",
+        hasKlook
+    );
 
     if (hasKlook) {
         return "klook";
     }
 
     // ============================
-    // TRIP.COM
+    // TRIP
     // ============================
 
     const hasTrip =
         /\bTRIP\.?\s*COM\b/i.test(text) ||
-        /TRIP\.COM\s+TRAVEL\s+SINGAPORE/i.test(text) ||
-        /Trip\.com/i.test(text) ||
+        /TRIP\.COM\s+TRAVEL\s+SINGAPORE/i.test(
+            text
+        ) ||
         /\bC\d{10,20}\b/.test(text);
 
-    console.log("HAS TRIP :", hasTrip);
+    console.log(
+        "HAS TRIP :",
+        hasTrip
+    );
 
     if (hasTrip) {
         return "trip";
+    }
+
+    // ============================
+    // CHICCAR
+    // ต้องตรวจก่อน Reservation
+    // ============================
+
+    const hasChicCar =
+        /Renter\s+Name/i.test(text) ||
+
+        /www\.chiccarrent\.com/i.test(
+            text
+        ) ||
+
+        /reservations?\.c@chiccarrent\.com/i.test(
+            text
+        ) ||
+
+        (
+            /Reservation\s+No\.?/i.test(
+                text
+            ) &&
+            /Chic\s+Network/i.test(
+                text
+            )
+        );
+
+    console.log(
+        "HAS CHICCAR :",
+        hasChicCar
+    );
+
+    if (hasChicCar) {
+        return "chiccar";
     }
 
     // ============================
@@ -48,11 +85,32 @@ function detectCompany(inputText = "") {
     // ============================
 
     const hasReservation =
-        /Reservation\s+(?:Confirmation|Voucher|Number|No\.?)/i.test(
-            text
+        (
+            /Reservation\s+ref\.?\s+number/i.test(
+                text
+            ) &&
+            /Driver'?s\s+Name/i.test(
+                text
+            )
         ) ||
-        /Booking\s+Reservation/i.test(text) ||
-        /Reservation\s+Details/i.test(text);
+
+        (
+            /Confirmation\s+number/i.test(
+                text
+            ) &&
+            /Pick\s*-?\s*up\s+date/i.test(
+                text
+            )
+        ) ||
+
+        (
+            /Drop\s*-?\s*off\s+date\s*&\s*time/i.test(
+                text
+            ) &&
+            /Vehicle\s+Name/i.test(
+                text
+            )
+        );
 
     console.log(
         "HAS RESERVATION :",
@@ -61,24 +119,6 @@ function detectCompany(inputText = "") {
 
     if (hasReservation) {
         return "reservation";
-    }
-
-    // ============================
-    // CHIC CAR
-    // ห้ามใช้ Chic Network อย่างเดียว
-    // เพราะอาจเป็นเอกสารจาก Klook
-    // ============================
-
-    const hasChicCar =
-        /CHIC\s*CAR\s*RENT/i.test(text) ||
-        /CHICCARRENT/i.test(text) ||
-        /chiccarrent\.com/i.test(text) ||
-        /Chic\s+Car\s+Rental/i.test(text);
-
-    console.log("HAS CHICCAR :", hasChicCar);
-
-    if (hasChicCar) {
-        return "chiccar";
     }
 
     return "other";
