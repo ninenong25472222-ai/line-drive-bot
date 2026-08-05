@@ -8,17 +8,28 @@ const {
     Path2D
 } = canvasLibrary;
 
-// PDF.js รุ่นใหม่ต้องใช้ Object เหล่านี้ตอน Render หน้า PDF
+// ============================
+// Canvas globals สำหรับ PDF.js
+// ============================
 
-if (!global.DOMMatrix && DOMMatrix) {
+if (
+    typeof global.DOMMatrix === "undefined" &&
+    DOMMatrix
+) {
     global.DOMMatrix = DOMMatrix;
 }
 
-if (!global.ImageData && ImageData) {
+if (
+    typeof global.ImageData === "undefined" &&
+    ImageData
+) {
     global.ImageData = ImageData;
 }
 
-if (!global.Path2D && Path2D) {
+if (
+    typeof global.Path2D === "undefined" &&
+    Path2D
+) {
     global.Path2D = Path2D;
 }
 
@@ -53,79 +64,186 @@ function cleanText(value = "") {
         .replace(/\r/g, "")
         .replace(/[ \t]+/g, " ")
         .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n[ \t]+/g, "\n")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 }
 
 // ============================
-// เปิด PDF
+// เปิดไฟล์ PDF
 // ============================
 
 async function openPdf(buffer) {
+    if (
+        !Buffer.isBuffer(buffer) ||
+        buffer.length === 0
+    ) {
+        throw new Error(
+            "PDF buffer is empty"
+        );
+    }
+
     const pdfjs = await loadPdfJs();
 
     const loadingTask = pdfjs.getDocument({
         data: new Uint8Array(buffer),
         disableWorker: true,
-        useSystemFonts: true
+        useSystemFonts: true,
+        isEvalSupported: false
     });
 
-    return loadingTask.promise;
+    const pdfDocument =
+        await loadingTask.promise;
+
+    return {
+        pdfDocument,
+        loadingTask
+    };
 }
 
 // ============================
-// อ่าน Text Layer ปกติ
+// ปิด PDF อย่างปลอดภัย
+// ============================
+
+async function closePdf(handle) {
+    if (!handle) {
+        return;
+    }
+
+    const {
+        pdfDocument,
+        loadingTask
+    } = handle;
+
+    // ทำความสะอาดข้อมูลของเอกสาร
+
+    try {
+        if (
+            pdfDocument &&
+            typeof pdfDocument.cleanup ===
+                "function"
+        ) {
+            await pdfDocument.cleanup();
+        }
+    } catch (error) {
+        console.error(
+            "PDF cleanup warning:",
+            error.message
+        );
+    }
+
+    // PDF.js ให้ปิดผ่าน loadingTask
+
+    try {
+        if (
+            loadingTask &&
+            typeof loadingTask.destroy ===
+                "function"
+        ) {
+            await loadingTask.destroy();
+            return;
+        }
+    } catch (error) {
+        console.error(
+            "PDF loadingTask destroy warning:",
+            error.message
+        );
+    }
+
+    // สำรองสำหรับ PDF.js บางเวอร์ชัน
+
+    try {
+        if (
+            pdfDocument &&
+            typeof pdfDocument.destroy ===
+                "function"
+        ) {
+            await pdfDocument.destroy();
+        }
+    } catch (error) {
+        console.error(
+            "PDF document destroy warning:",
+            error.message
+        );
+    }
+}
+
+// ============================
+// อ่าน Text Layer
 // ============================
 
 async function extractTextLayer(buffer) {
-    const pdf = await openPdf(buffer);
+    const handle = await openPdf(buffer);
+
+    const {
+        pdfDocument
+    } = handle;
 
     const pages = [];
 
     try {
         for (
             let pageNumber = 1;
-            pageNumber <= pdf.numPages;
+            pageNumber <=
+            pdfDocument.numPages;
             pageNumber++
         ) {
-            const page = await pdf.getPage(
-                pageNumber
-            );
+            let page = null;
 
-            const content =
-                await page.getTextContent();
+            try {
+                page =
+                    await pdfDocument.getPage(
+                        pageNumber
+                    );
 
-            let pageText = "";
+                const content =
+                    await page.getTextContent();
 
-            for (const item of content.items) {
-                const value = String(
-                    item.str || ""
-                ).trim();
+                let pageText = "";
 
-                if (!value) {
-                    continue;
-                }
-
-                if (
-                    pageText &&
-                    !pageText.endsWith("\n")
+                for (
+                    const item of
+                    content.items || []
                 ) {
-                    pageText += " ";
+                    const value = String(
+                        item.str || ""
+                    ).trim();
+
+                    if (!value) {
+                        continue;
+                    }
+
+                    pageText += value;
+
+                    if (item.hasEOL) {
+                        pageText += "\n";
+                    } else {
+                        pageText += " ";
+                    }
                 }
 
-                pageText += value;
-
-                if (item.hasEOL) {
-                    pageText += "\n";
+                pages.push(
+                    cleanText(pageText)
+                );
+            } finally {
+                try {
+                    if (
+                        page &&
+                        typeof page.cleanup ===
+                            "function"
+                    ) {
+                        page.cleanup();
+                    }
+                } catch (error) {
+                    console.error(
+                        `Page ${pageNumber} cleanup warning:`,
+                        error.message
+                    );
                 }
             }
-
-            pages.push(pageText);
-
-            page.cleanup();
         }
     } finally {
-        await pdf.destroy();
+        await closePdf(handle);
     }
 
     return cleanText(
@@ -134,13 +252,53 @@ async function extractTextLayer(buffer) {
 }
 
 // ============================
-// OCR หน้า PDF
+// สร้าง OCR Worker
+// ============================
+
+async function createOcrWorker() {
+    // ค่าเริ่มต้นใช้ภาษาอังกฤษ
+    // ตั้ง OCR_LANGUAGES=eng+tha
+    // ใน Railway ได้เมื่อต้องการ OCR ไทย
+
+    const languages =
+        process.env.OCR_LANGUAGES ||
+        "eng";
+
+    console.log(
+        "OCR Languages:",
+        languages
+    );
+
+    const worker =
+        await createWorker(languages);
+
+    try {
+        await worker.setParameters({
+            preserve_interword_spaces:
+                "1"
+        });
+    } catch (error) {
+        console.error(
+            "OCR parameter warning:",
+            error.message
+        );
+    }
+
+    return worker;
+}
+
+// ============================
+// OCR PDF ทุกหน้า
 // ============================
 
 async function extractTextWithOcr(
     buffer
 ) {
-    const pdf = await openPdf(buffer);
+    const handle = await openPdf(buffer);
+
+    const {
+        pdfDocument
+    } = handle;
 
     const pages = [];
 
@@ -151,92 +309,143 @@ async function extractTextWithOcr(
             "PDF ไม่มี Text Layer เริ่ม OCR..."
         );
 
-        worker = await createWorker(
-            "eng"
+        worker =
+            await createOcrWorker();
+
+        const scaleFromEnv = Number(
+            process.env.OCR_SCALE || 2
         );
 
-        await worker.setParameters({
-            preserve_interword_spaces:
-                "1"
-        });
+        const scale =
+            Number.isFinite(scaleFromEnv) &&
+            scaleFromEnv >= 1 &&
+            scaleFromEnv <= 3
+                ? scaleFromEnv
+                : 2;
 
         for (
             let pageNumber = 1;
-            pageNumber <= pdf.numPages;
+            pageNumber <=
+            pdfDocument.numPages;
             pageNumber++
         ) {
-            const page = await pdf.getPage(
-                pageNumber
-            );
+            let page = null;
 
-            // Scale 2 ช่วยให้ OCR อ่านชัดขึ้น
-            // และไม่ใช้ RAM มากเกินไป
+            try {
+                page =
+                    await pdfDocument.getPage(
+                        pageNumber
+                    );
 
-            const viewport =
-                page.getViewport({
-                    scale: 2
-                });
+                const viewport =
+                    page.getViewport({
+                        scale
+                    });
 
-            const width = Math.ceil(
-                viewport.width
-            );
-
-            const height = Math.ceil(
-                viewport.height
-            );
-
-            const canvas = createCanvas(
-                width,
-                height
-            );
-
-            const context =
-                canvas.getContext("2d");
-
-            // ทำพื้นหลังให้เป็นสีขาว
-            // ป้องกัน PDF โปร่งใสทำให้ OCR อ่านยาก
-
-            context.fillStyle = "#ffffff";
-
-            context.fillRect(
-                0,
-                0,
-                width,
-                height
-            );
-
-            await page.render({
-                canvasContext: context,
-                viewport,
-                canvas
-            }).promise;
-
-            const imageBuffer =
-                canvas.toBuffer(
-                    "image/png"
+                const width = Math.ceil(
+                    viewport.width
                 );
 
-            const result =
-                await worker.recognize(
-                    imageBuffer
+                const height = Math.ceil(
+                    viewport.height
                 );
 
-            pages.push(
-                result?.data?.text || ""
-            );
+                const canvas =
+                    createCanvas(
+                        width,
+                        height
+                    );
 
-            console.log(
-                `OCR Page ${pageNumber}/${pdf.numPages}`
-            );
+                const context =
+                    canvas.getContext("2d");
 
-            page.cleanup();
+                // พื้นหลังสีขาวช่วยให้ OCR
+                // อ่าน PDF โปร่งใสได้ดีขึ้น
+
+                context.fillStyle =
+                    "#ffffff";
+
+                context.fillRect(
+                    0,
+                    0,
+                    width,
+                    height
+                );
+
+                const renderTask =
+                    page.render({
+                        canvasContext:
+                            context,
+                        viewport,
+                        canvas
+                    });
+
+                await renderTask.promise;
+
+                const imageBuffer =
+                    canvas.toBuffer(
+                        "image/png"
+                    );
+
+                const result =
+                    await worker.recognize(
+                        imageBuffer
+                    );
+
+                const pageText =
+                    result &&
+                    result.data
+                        ? result.data.text ||
+                          ""
+                        : "";
+
+                pages.push(pageText);
+
+                console.log(
+                    `OCR Page ${pageNumber}/${pdfDocument.numPages}`
+                );
+            } catch (error) {
+                console.error(
+                    `OCR Page ${pageNumber} error:`,
+                    error.message
+                );
+
+                // อ่านหน้าถัดไปต่อ
+                pages.push("");
+            } finally {
+                try {
+                    if (
+                        page &&
+                        typeof page.cleanup ===
+                            "function"
+                    ) {
+                        page.cleanup();
+                    }
+                } catch (error) {
+                    console.error(
+                        `OCR Page ${pageNumber} cleanup warning:`,
+                        error.message
+                    );
+                }
+            }
         }
     } finally {
+        // ปิด OCR Worker ก่อน
+
         if (worker) {
-            await worker.terminate();
+            try {
+                await worker.terminate();
+            } catch (error) {
+                console.error(
+                    "OCR worker terminate warning:",
+                    error.message
+                );
+            }
         }
 
-        await pdf.destroy();
+        // แล้วจึงปิด PDF
+
+        await closePdf(handle);
     }
 
     return cleanText(
@@ -245,7 +454,7 @@ async function extractTextWithOcr(
 }
 
 // ============================
-// อ่าน PDF หลัก
+// ฟังก์ชันหลัก
 // ============================
 
 async function readPDF(buffer) {
@@ -260,7 +469,9 @@ async function readPDF(buffer) {
 
     let text = "";
 
-    // พยายามอ่าน Text Layer ก่อน
+    // ========================
+    // ขั้นที่ 1: Text Layer
+    // ========================
 
     try {
         text =
@@ -281,15 +492,23 @@ async function readPDF(buffer) {
             "อ่าน Text Layer ไม่สำเร็จ:",
             error.message
         );
+
+        text = "";
     }
 
-    // มีข้อความแล้ว ไม่ต้องทำ OCR
+    // มีข้อความเพียงพอแล้ว
+    // ไม่จำเป็นต้อง OCR
 
-    if (text.length >= 20) {
+    if (
+        text &&
+        text.trim().length >= 20
+    ) {
         return text;
     }
 
-    // ไม่มี Text Layer ให้ทำ OCR
+    // ========================
+    // ขั้นที่ 2: OCR
+    // ========================
 
     try {
         text =
@@ -312,7 +531,10 @@ async function readPDF(buffer) {
         );
     }
 
-    if (text.length < 10) {
+    if (
+        !text ||
+        text.trim().length < 10
+    ) {
         throw new Error(
             "PDF ไม่มีข้อความหลังทำ OCR"
         );
