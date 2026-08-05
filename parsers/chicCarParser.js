@@ -121,13 +121,6 @@ if(car){
     /Total[\s:]*([\d,]+\.\d{2})/i
 );
 
-if(amount){
-
-    booking.amount = amount[1].replace(/,/g,"");
-    booking.currency = "THB";
-
-    }
-
     return booking;
 
 }

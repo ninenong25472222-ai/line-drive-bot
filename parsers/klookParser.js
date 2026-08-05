@@ -93,13 +93,6 @@ function parseKlook(text) {
     booking.car =
         text.match(/HDAV_[^\n]+/)?.[0] || "";
 
-    // -----------------------------
-    // Amount
-    // -----------------------------
-    booking.amount =
-        text.match(/(\d+\.\d{2})\s*THB/) ?. [1] || "";
-
-    booking.currency = "THB";
 
     console.log("===== BOOKING =====");
     console.log(booking);
