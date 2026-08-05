@@ -1,18 +1,16 @@
 function parseTrip(text) {
+    // ทำความสะอาดข้อความเบื้องต้น
     text = text
         .replace(/\r/g, "")
         .replace(/\u0000/g, "")
         .replace(/[ \t]+/g, " ")
         .replace(/\n{2,}/g, "\n")
-        .trim();  // เพิ่ม trim เพื่อตัดช่องว่างหัวท้าย
+        .trim();
 
-    const booking = Booking();
+    const booking = {};
 
     booking.company = "Trip";
     booking.rawText = text;
-
-    // Debug ข้อความก่อนจับข้อมูล
-    console.log("Raw text:", booking.rawText);
 
     // Booking No
     let m =
@@ -23,94 +21,98 @@ function parseTrip(text) {
         booking.bookingNo = m[1].trim();
     }
 
-    // Phone
+    // Phone number (+66...)
     m = text.match(/\+66[- ]?\d[\d -]{7,}/);
     if (m) {
         booking.customerPhone = m[0].replace(/[ -]/g, "");
     }
 
-    // Customer Name (เพิ่มการใช้งานฟังก์ชันช่วยแยก)
-    booking.customerName = extractCustomerName(text);
+    // แยกบรรทัดและหา Customer Name (ภาษาอังกฤษตัวพิมพ์ใหญ่)
+    const lines = text.split("\n").map(line => line.trim()).filter(Boolean);
 
-    // Car Type
-    m =
-        text.match(/Car type\s*([\s\S]*?)Transmission/i) ||
-        text.match(/ประเภทรถ([\s\S]*?)ระบบเกียร์/i);
+    for (let i = 0; i < lines.length - 1; i++) {
+        // ชื่อแบบ 2 บรรทัดเป็นตัวพิมพ์ใหญ่ล้วน เช่น "JOHN" กับ "DOE"
+        if (/^[A-Z]+$/.test(lines[i]) && /^[A-Z]+$/.test(lines[i + 1])) {
+            const fullname = `${lines[i]} ${lines[i + 1]}`;
+            if (fullname.length > 5 &&
+                !fullname.includes("AIRPORT") &&
+                !fullname.includes("BOOKING")) {
+                booking.customerName = fullname;
+                booking.renter = fullname;
+                break;
+            }
+        }
 
+        // ชื่อแบบบรรทัดเดียวตัวพิมพ์ใหญ่ยาว ๆ
+        if (/^[A-Z ]{6,}$/.test(lines[i])) {
+            if (!lines[i].includes("AIRPORT") && !lines[i].includes("BOOKING")) {
+                booking.customerName = lines[i];
+                booking.renter = lines[i];
+                break;
+            }
+        }
+    }
+
+    // Car type
+    m = text.match(/Car type\s*([\s\S]*?)Transmission/i) || text.match(/ประเภทรถ([\s\S]*?)ระบบเกียร์/i);
     if (m) {
         booking.car = m[1]
             .replace(/or similar/i, "")
             .replace(/หรือรุ่นที.*/i, "")
-            .replace(/[\u0000]/g, "")
+            .replace(/\u0000/g, "")
             .replace(/\n/g, " ")
             .replace(/\s+/g, " ")
             .replace("มิตซูบิช ิ", "มิตซูบิชิ")
             .trim();
     }
 
-    // Pickup
-    parsePickupReturn(text, booking, "Pick-up", "Drop-off");
+    // Pickup details
+    m = text.match(/Pick-up([\s\S]*?)Drop-off/i) || text.match(/จุดรับรถ([\s\S]*?)จุดคืนรถ/i);
+    if (m) {
+        const sec = m[1];
 
-    // Return
-    parsePickupReturn(text, booking, "Drop-off", "Pick-up Guide");
+        let airport = sec.match(/([A-Za-z ]+Airport)/);
+        if (airport) booking.pickupLocation = airport[1].trim();
 
-    return booking;
-}
-
-// ช่วยแยกชื่อภาษาอังกฤษง่าย ๆ
-function extractCustomerName(text) {
-    const lines = text.split("\n").map(line => line.trim()).filter(Boolean);
-
-    for (let i = 0; i < lines.length - 1; i++) {
-        if (/^[A-Z]+$/.test(lines[i]) && /^[A-Z]+$/.test(lines[i + 1])) {
-            const fullname = `${lines[i]} ${lines[i + 1]}`;
-            if (fullname.length > 5 && !fullname.includes("AIRPORT") && !fullname.includes("BOOKING")) {
-                return fullname;
-            }
-        }
-        if (/^[A-Z ]{6,}$/.test(lines[i])) {
-            if (!lines[i].includes("AIRPORT") && !lines[i].includes("BOOKING")) {
-                return lines[i];
-            }
-        }
-    }
-    return null;
-}
-
-function parsePickupReturn(text, booking, startLabel, endLabel) {
-    let regexStart = new RegExp(`${startLabel}([\\s\\S]*?)${endLabel}`, "i");
-    let m = text.match(regexStart);
-    if (!m) return;
-
-    const section = m[1];
-
-    let airport = section.match(/([A-Za-z ]+Airport)/);
-    if (airport) {
-        if (startLabel === "Pick-up") booking.pickupLocation = airport[1].trim();
-        if (startLabel === "Drop-off") booking.returnLocation = airport[1].trim();
-    }
-
-    let date = section.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)).*?([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i);
-    if (date) {
-        if (startLabel === "Pick-up") {
+        // อังกฤษ
+        let date = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)).*?([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i);
+        if (date) {
             booking.pickupTime = date[1];
             booking.pickupDate = date[2];
-        }
-        if (startLabel === "Drop-off") {
-            booking.returnTime = date[1];
-            booking.returnDate = date[2];
-        }
-    } else {
-        date = section.match(/(\d{1,2}\s+\S+\s+\d{4}).*?(\d{2}:\d{2})/);
-        if (date) {
-            if (startLabel === "Pick-up") {
+        } else {
+            // ไทย
+            date = sec.match(/(\d{1,2}\s+\S+\s+\d{4}).*?(\d{2}:\d{2})/);
+            if (date) {
                 booking.pickupDate = date[1];
                 booking.pickupTime = date[2];
             }
-            if (startLabel === "Drop-off") {
+        }
+    }
+
+    // Return details
+    m = text.match(/Drop-off([\s\S]*?)Pick-up Guide/i) || text.match(/จุดคืนรถ([\s\S]*?)วิธีการคืนรถ/i);
+    if (m) {
+        const sec = m[1];
+
+        let airport = sec.match(/([A-Za-z ]+Airport)/);
+        if (airport) booking.returnLocation = airport[1].trim();
+
+        // อังกฤษ
+        let date = sec.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)).*?([A-Za-z]{3}\s+\d{1,2},\s+\d{4})/i);
+        if (date) {
+            booking.returnTime = date[1];
+            booking.returnDate = date[2];
+        } else {
+            // ไทย
+            date = sec.match(/(\d{1,2}\s+\S+\s+\d{4}).*?(\d{2}:\d{2})/);
+            if (date) {
                 booking.returnDate = date[1];
                 booking.returnTime = date[2];
             }
         }
     }
+
+    return booking;
 }
+
+module.exports = parseTrip;
