@@ -653,6 +653,16 @@ console.log("Drive upload result:", {
 
                                     sortSpecs: [
                                         {
+                                            // Column F: pickup date.
+                                            dimensionIndex: 5,
+
+                                            sortOrder:
+                                                "ASCENDING"
+                                        },
+
+                                        {
+                                            // Column A: newest upload first
+                                            // when pickup dates match.
                                             dimensionIndex: 0,
 
                                             sortOrder:
