@@ -8,6 +8,7 @@ const { messagingApi, middleware } = require("@line/bot-sdk");
 const axios = require("axios");
 const { google } = require("googleapis");
 const stream = require("stream");
+const crypto = require("crypto");
 
 const app = express();
 
@@ -420,6 +421,14 @@ const targetFolderName =
         ? "Booking"
         : "Other";
 
+const fileHash =
+    crypto
+        .createHash("sha256")
+        .update(buffer)
+        .digest("hex");
+
+console.log("File hash:", fileHash.slice(-8));
+
 // แสดง Log โดยไม่เปิดเผย Folder ID เต็ม
 
 console.log("Drive destination:", {
@@ -446,12 +455,80 @@ const mimeType =
     ] ||
     "application/octet-stream";
 
+// ตรวจไฟล์ซ้ำจากเนื้อไฟล์จริงในโฟลเดอร์ปลายทาง
+let duplicateFile = null;
+
+try {
+    const duplicateResult =
+        await drive.files.list({
+            q:
+                `'${targetFolderId}' in parents and ` +
+                "trashed = false and " +
+                "appProperties has { key = 'contentHash' " +
+                `and value = '${fileHash}' }`,
+
+            spaces: "drive",
+
+            pageSize: 1,
+
+            fields:
+                "files(id,name,createdTime)"
+        });
+
+    duplicateFile =
+        duplicateResult.data.files?.[0] ||
+        null;
+} catch (duplicateError) {
+    console.error(
+        "DUPLICATE_CHECK_ERROR:",
+        duplicateError?.response?.data ||
+        duplicateError?.message ||
+        duplicateError
+    );
+}
+
+if (duplicateFile?.id) {
+    const duplicateLink =
+        `https://drive.google.com/file/d/${duplicateFile.id}/view`;
+
+    const duplicateReply = [
+        "♻️ ไฟล์นี้เคยบันทึกแล้ว",
+
+        `📄 ${fileName}`,
+
+        "",
+
+        "📂 เปิดไฟล์เดิม",
+
+        duplicateLink
+    ].join("\n");
+
+    await client.replyMessage({
+        replyToken:
+            event.replyToken,
+
+        messages: [
+            {
+                type: "text",
+                text: duplicateReply
+            }
+        ]
+    });
+
+    replied = true;
+    return;
+}
+
 // อัปโหลดไฟล์
 
 const upload =
     await drive.files.create({
         requestBody: {
             name: fileName,
+
+            appProperties: {
+                contentHash: fileHash
+            },
 
             parents: [
                 targetFolderId
