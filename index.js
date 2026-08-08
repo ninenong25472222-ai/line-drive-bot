@@ -582,6 +582,102 @@ console.log("Drive upload result:", {
                 }
             });
 
+        // Keep the newest uploaded files at the top of the Booking sheet.
+        // Sorting is best-effort so a formatting/sorting issue never blocks
+        // the Drive upload or LINE reply.
+        try {
+            const sheetInfo =
+                await sheets.spreadsheets.get({
+                    spreadsheetId:
+                        process.env
+                            .GOOGLE_SHEET_ID,
+
+                    fields:
+                        "sheets(properties(sheetId,title))"
+                });
+
+            const bookingSheet =
+                (sheetInfo.data.sheets || [])
+                    .find(
+                        (sheet) =>
+                            sheet.properties?.title ===
+                            "Booking"
+                    );
+
+            const columnA =
+                await sheets.spreadsheets.values.get({
+                    spreadsheetId:
+                        process.env
+                            .GOOGLE_SHEET_ID,
+
+                    range:
+                        "Booking!A:A"
+                });
+
+            const rowCount =
+                Array.isArray(
+                    columnA.data.values
+                )
+                    ? columnA.data.values.length
+                    : 0;
+
+            if (
+                bookingSheet?.properties?.sheetId !==
+                    undefined &&
+                rowCount > 2
+            ) {
+                await sheets.spreadsheets.batchUpdate({
+                    spreadsheetId:
+                        process.env
+                            .GOOGLE_SHEET_ID,
+
+                    requestBody: {
+                        requests: [
+                            {
+                                sortRange: {
+                                    range: {
+                                        sheetId:
+                                            bookingSheet
+                                                .properties
+                                                .sheetId,
+
+                                        startRowIndex: 1,
+
+                                        endRowIndex:
+                                            rowCount,
+
+                                        startColumnIndex: 0,
+
+                                        endColumnIndex: 14
+                                    },
+
+                                    sortSpecs: [
+                                        {
+                                            dimensionIndex: 0,
+
+                                            sortOrder:
+                                                "DESCENDING"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                });
+
+                console.log(
+                    "Sorted Booking sheet by upload date descending"
+                );
+            }
+        } catch (sortError) {
+            console.error(
+                "SHEET_SORT_ERROR:",
+                sortError?.response?.data ||
+                sortError?.message ||
+                sortError
+            );
+        }
+
         console.log(
             "Saved :",
             booking.bookingNo ||
@@ -666,14 +762,14 @@ console.log("Drive upload result:", {
             link
         ].join("\n");
 
-        console.log(
-            "Reply1 Length :",
-            reply1.length
-        );
+        const replyText = [
+            reply1,
+            reply2
+        ].join("\n\n");
 
         console.log(
-            "Reply2 Length :",
-            reply2.length
+            "Reply Length :",
+            replyText.length
         );
 
         // ============================
@@ -687,12 +783,7 @@ console.log("Drive upload result:", {
             messages: [
                 {
                     type: "text",
-                    text: reply1
-                },
-
-                {
-                    type: "text",
-                    text: reply2
+                    text: replyText
                 }
             ]
         });
