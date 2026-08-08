@@ -608,46 +608,53 @@ console.log("Drive upload result:", {
                 ""
             }`.trim();
 
-        const reply1 = [
-            `✅ บันทึกไฟล์แล้ว ${booking.company}`,
+        const isOtherFile =
+            String(booking.company || "")
+                .trim()
+                .toLowerCase() === "other";
 
-            "",
+        const reply1 = isOtherFile
+            ? "✅ บันทึกไฟล์แล้ว\n📄 ไฟล์นี้ไม่ใช่ใบจองรถเช่า"
+            : [
+                `✅ บันทึกไฟล์แล้ว ${booking.company}`,
 
-            `👤 ${
-                booking.customerName ||
-                "-"
-            }`,
+                "",
 
-            `📞 ${
-                booking.customerPhone ||
-                "-"
-            }`,
+                `👤 ${
+                    booking.customerName ||
+                    "-"
+                }`,
 
-            "",
+                `📞 ${
+                    booking.customerPhone ||
+                    "-"
+                }`,
 
-            "🚗 รับรถ",
+                "",
 
-            pickupDateTime || "-",
+                "🚗 รับรถ",
 
-            booking.pickupLocation ||
-                "-",
+                pickupDateTime || "-",
 
-            "",
+                booking.pickupLocation ||
+                    "-",
 
-            "🔄 คืนรถ",
+                "",
 
-            returnDateTime || "-",
+                "🔄 คืนรถ",
 
-            booking.returnLocation ||
-                "-",
+                returnDateTime || "-",
 
-            "",
+                booking.returnLocation ||
+                    "-",
 
-            `🚙 ${shortText(
-                booking.car,
-                80
-            )}`
-        ].join("\n");
+                "",
+
+                `🚙 ${shortText(
+                    booking.car,
+                    80
+                )}`
+            ].join("\n");
 
         const reply2 = [
             `📄 ${fileName}`,
