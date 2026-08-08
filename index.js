@@ -84,6 +84,122 @@ function shortText(
     )}...`;
 }
 
+async function ensureSheetTab(
+    sheets,
+    spreadsheetId,
+    title
+) {
+    const sheetInfo =
+        await sheets.spreadsheets.get({
+            spreadsheetId,
+
+            fields:
+                "sheets(properties(sheetId,title))"
+        });
+
+    const existingSheet =
+        (sheetInfo.data.sheets || [])
+            .find(
+                (sheet) =>
+                    sheet.properties?.title ===
+                    title
+            );
+
+    if (
+        existingSheet?.properties?.sheetId !==
+        undefined
+    ) {
+        return existingSheet.properties.sheetId;
+    }
+
+    let createdSheet;
+
+    try {
+        const created =
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId,
+
+                requestBody: {
+                    requests: [
+                        {
+                            addSheet: {
+                                properties: {
+                                    title
+                                }
+                            }
+                        }
+                    ]
+                }
+            });
+
+        createdSheet =
+            created.data.replies?.[0]
+                ?.addSheet?.properties;
+    } catch (error) {
+        // Another event may create the tab at the same time.
+        if (error?.response?.status !== 400) {
+            throw error;
+        }
+    }
+
+    const finalSheetInfo =
+        await sheets.spreadsheets.get({
+            spreadsheetId,
+
+            fields:
+                "sheets(properties(sheetId,title))"
+        });
+
+    const finalSheet =
+        (finalSheetInfo.data.sheets || [])
+            .find(
+                (sheet) =>
+                    sheet.properties?.title ===
+                    title
+            );
+
+    const sheetId =
+        createdSheet?.sheetId ??
+        finalSheet?.properties?.sheetId;
+
+    if (sheetId === undefined) {
+        throw new Error(
+            `SHEET_TAB_CREATE_FAILED:${title}`
+        );
+    }
+
+    // Reuse the Booking header so both tabs have the same layout.
+    const bookingHeader =
+        await sheets.spreadsheets.values.get({
+            spreadsheetId,
+
+            range:
+                "Booking!A1:N1"
+        });
+
+    if (
+        (bookingHeader.data.values || [])
+            .length
+    ) {
+        await sheets.spreadsheets.values.update({
+            spreadsheetId,
+
+            range:
+                `${title}!A1:N1`,
+
+            valueInputOption:
+                "RAW",
+
+            requestBody: {
+                values:
+                    bookingHeader.data.values
+            }
+        });
+    }
+
+    return sheetId;
+}
+
 // ============================
 // WEBHOOK
 // ============================
@@ -613,6 +729,20 @@ console.log("Drive upload result:", {
                 auth
             });
 
+        const sheetTitle =
+            isBookingFile
+                ? "Booking"
+                : "Other";
+
+        await ensureSheetTab(
+            sheets,
+
+            process.env
+                .GOOGLE_SHEET_ID,
+
+            sheetTitle
+        );
+
         await sheets.spreadsheets
             .values.append({
                 spreadsheetId:
@@ -620,7 +750,7 @@ console.log("Drive upload result:", {
                         .GOOGLE_SHEET_ID,
 
                 range:
-                    "Booking!A:N",
+                    `${sheetTitle}!A:N`,
 
                 valueInputOption:
                     "USER_ENTERED",
