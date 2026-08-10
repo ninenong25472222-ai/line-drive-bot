@@ -35,6 +35,27 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         drive_url: clean(driveUrl)
     };
 
+    if (details.file_hash) {
+        const existing = await axios.get(`${rentalProUrl}/rest/v1/audit_logs`, {
+            params: {
+                select: "id",
+                action: "eq.partner_upload_received",
+                entity_type: "eq.partner_upload",
+                "details->>file_hash": `eq.${details.file_hash}`,
+                limit: 1
+            },
+            headers: {
+                apikey: rentalProKey,
+                Authorization: `Bearer ${rentalProKey}`
+            },
+            timeout: 30000
+        });
+
+        if (Array.isArray(existing.data) && existing.data.length > 0) {
+            return { skipped: true, duplicate: true };
+        }
+    }
+
     await axios.post(`${rentalProUrl}/rest/v1/audit_logs`, {
         actor_id: null,
         action: "partner_upload_received",

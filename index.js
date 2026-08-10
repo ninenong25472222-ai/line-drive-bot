@@ -608,6 +608,19 @@ if (duplicateFile?.id) {
     const duplicateLink =
         `https://drive.google.com/file/d/${duplicateFile.id}/view`;
 
+    try {
+        const rentalProSync = await savePartnerUpload({
+            booking,
+            fileName,
+            fileHash,
+            driveFileId: duplicateFile.id,
+            driveUrl: duplicateLink
+        });
+        console.log(rentalProSync?.duplicate ? "RentalPro sync: ALREADY EXISTS" : rentalProSync?.skipped ? "RentalPro sync: SKIPPED (missing environment variables)" : "RentalPro sync: OK");
+    } catch (rentalProError) {
+        console.error("RENTALPRO_SYNC_ERROR:", rentalProError?.response?.data || rentalProError?.message || rentalProError);
+    }
+
     const duplicateReply = [
         "♻️ ไฟล์นี้เคยบันทึกแล้ว",
 
