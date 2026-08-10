@@ -725,7 +725,7 @@ console.log("Drive upload result:", {
         // ============================
 
         try {
-            await savePartnerUpload({
+            const rentalProSync = await savePartnerUpload({
                 booking,
                 fileName,
                 fileHash,
@@ -733,7 +733,7 @@ console.log("Drive upload result:", {
                 driveUrl: link
             });
 
-            console.log("RentalPro sync: OK");
+            console.log(rentalProSync?.skipped ? "RentalPro sync: SKIPPED (missing environment variables)" : "RentalPro sync: OK");
         } catch (rentalProError) {
             // The LINE/Drive workflow should continue even if the website is temporarily unavailable.
             console.error(
