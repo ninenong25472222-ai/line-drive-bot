@@ -1,5 +1,6 @@
 const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
+const { savePartnerUpload } = require("./services/rentalProService");
 
 require("dotenv").config();
 
@@ -718,6 +719,30 @@ console.log("Drive upload result:", {
 
         booking.pdfLink =
             link;
+
+        // ============================
+        // SYNC TO RENTALPRO
+        // ============================
+
+        try {
+            await savePartnerUpload({
+                booking,
+                fileName,
+                fileHash,
+                driveFileId: fileId,
+                driveUrl: link
+            });
+
+            console.log("RentalPro sync: OK");
+        } catch (rentalProError) {
+            // The LINE/Drive workflow should continue even if the website is temporarily unavailable.
+            console.error(
+                "RENTALPRO_SYNC_ERROR:",
+                rentalProError?.response?.data ||
+                rentalProError?.message ||
+                rentalProError
+            );
+        }
 
         // ============================
         // SAVE TO GOOGLE SHEET
