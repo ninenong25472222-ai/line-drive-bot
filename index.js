@@ -1,6 +1,7 @@
 const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
+const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 
 require("dotenv").config();
 
@@ -1137,6 +1138,27 @@ const PORT =
         process.env.PORT ||
         3000
     );
+
+async function runAppSheetSync() {
+    const spreadsheetId = String(process.env.APPSHEET_SPREADSHEET_ID || "").trim();
+    if (!spreadsheetId) return;
+    try {
+        const result = await syncAppSheetBookings({
+            auth,
+            spreadsheetId,
+            bookingSheetTitle: process.env.APPSHEET_BOOKING_SHEET || "Bookings",
+            carSheetTitle: process.env.APPSHEET_CAR_SHEET || "Car_Master"
+        });
+        console.log("APPSHEET_SYNC:", result);
+    } catch (error) {
+        console.error("APPSHEET_SYNC_ERROR:", error?.response?.data || error?.message || error);
+    }
+}
+
+if (process.env.APPSHEET_SPREADSHEET_ID) {
+    setTimeout(() => void runAppSheetSync(), 15000);
+    setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
+}
 
 app.listen(
     PORT,

@@ -7,15 +7,15 @@ function clean(value = "") {
     return String(value ?? "").replace(/\u0000/g, "").trim();
 }
 
-async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, driveUrl }) {
+async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, driveUrl, source = "LINE", sourceLabel = "LINE / Partner" }) {
     if (!rentalProUrl || !rentalProKey) {
         console.warn("RENTALPRO_SYNC_SKIPPED: missing RENTALPRO_SUPABASE_URL or RENTALPRO_SUPABASE_SERVICE_ROLE_KEY");
         return { skipped: true };
     }
 
     const details = {
-        source: "LINE",
-        source_label: "LINE / Partner",
+        source,
+        source_label: sourceLabel,
         status: "รอตรวจสอบ",
         company: clean(booking.company || "Other"),
         booking_no: clean(booking.bookingNo),
