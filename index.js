@@ -202,6 +202,101 @@ async function ensureSheetTab(
     return sheetId;
 }
 
+async function backfillSheetRowIfMissing({
+    sheets,
+    spreadsheetId,
+    sheetTitle,
+    booking,
+    fileName,
+    link
+}) {
+    const existingRows =
+        await sheets.spreadsheets.values.get({
+            spreadsheetId,
+
+            range:
+                `${sheetTitle}!A2:N`
+        });
+
+    const normalizedFileName =
+        cleanText(fileName).toLowerCase();
+
+    const normalizedLink =
+        cleanText(link);
+
+    const alreadyInSheet =
+        (existingRows.data.values || [])
+            .some((row) => {
+                const rowFileName =
+                    cleanText(row?.[12]).toLowerCase();
+
+                const rowLink =
+                    cleanText(row?.[13]);
+
+                return (
+                    rowLink === normalizedLink ||
+                    rowFileName === normalizedFileName
+                );
+            });
+
+    if (alreadyInSheet) {
+        console.log(
+            `SHEET_BACKFILL: already exists in ${sheetTitle}`
+        );
+
+        return false;
+    }
+
+    await sheets.spreadsheets.values.append({
+        spreadsheetId,
+
+        range:
+            `${sheetTitle}!A:N`,
+
+        valueInputOption:
+            "USER_ENTERED",
+
+        requestBody: {
+            values: [[
+                new Date()
+                    .toISOString(),
+
+                booking.company,
+
+                booking.bookingNo,
+
+                booking.customerName,
+
+                booking.customerPhone,
+
+                booking.pickupDate,
+
+                booking.pickupTime,
+
+                booking.pickupLocation,
+
+                booking.returnDate,
+
+                booking.returnTime,
+
+                booking.returnLocation,
+
+                booking.car,
+
+                fileName,
+
+                link
+            ]]
+        }
+    });
+
+    console.log(
+        `SHEET_BACKFILL: added missing row to ${sheetTitle}`
+    );
+
+    return true;
+}
+
 // ============================
 // WEBHOOK
 // ============================
@@ -608,6 +703,49 @@ try {
 if (duplicateFile?.id) {
     const duplicateLink =
         `https://drive.google.com/file/d/${duplicateFile.id}/view`;
+
+    // A previous run may have uploaded the file to Drive and recorded it in
+    // RentalPro, but failed before appending the row to Google Sheets.
+    // Backfill only when the file is not already present in the target tab.
+    try {
+        const sheets =
+            google.sheets({
+                version: "v4",
+                auth
+            });
+
+        const sheetTitle =
+            isBookingFile
+                ? "Booking"
+                : "Other";
+
+        await ensureSheetTab(
+            sheets,
+
+            process.env
+                .GOOGLE_SHEET_ID,
+
+            sheetTitle
+        );
+
+        await backfillSheetRowIfMissing({
+            sheets,
+            spreadsheetId:
+                process.env
+                    .GOOGLE_SHEET_ID,
+            sheetTitle,
+            booking,
+            fileName,
+            link: duplicateLink
+        });
+    } catch (sheetBackfillError) {
+        console.error(
+            "SHEET_BACKFILL_ERROR:",
+            sheetBackfillError?.response?.data ||
+            sheetBackfillError?.message ||
+            sheetBackfillError
+        );
+    }
 
     try {
         const rentalProSync = await savePartnerUpload({
