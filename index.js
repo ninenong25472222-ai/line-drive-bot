@@ -86,6 +86,74 @@ function shortText(
     )}...`;
 }
 
+// ============================
+// LINE GROUP ROUTING
+// ============================
+
+function getEventGroupId(event) {
+    return cleanText(
+        event?.source?.groupId ||
+        ""
+    );
+}
+
+function isAllowedSourceGroup(event) {
+    const configuredSourceGroupId =
+        cleanText(
+            process.env.SOURCE_GROUP_ID ||
+            ""
+        );
+
+    return !configuredSourceGroupId ||
+        getEventGroupId(event) ===
+            configuredSourceGroupId;
+}
+
+async function sendResultMessage(event, text) {
+    const destinationGroupId =
+        cleanText(
+            process.env.DESTINATION_GROUP_ID ||
+            ""
+        );
+
+    const sourceGroupId =
+        getEventGroupId(event);
+
+    if (
+        destinationGroupId &&
+        destinationGroupId !== sourceGroupId
+    ) {
+        await client.pushMessage({
+            to: destinationGroupId,
+            messages: [
+                {
+                    type: "text",
+                    text
+                }
+            ]
+        });
+
+        console.log(
+            "LINE_RESULT_SENT_TO_DESTINATION_GROUP:",
+            destinationGroupId.slice(-6)
+        );
+
+        return;
+    }
+
+    await client.replyMessage({
+        replyToken:
+            event.replyToken,
+
+        messages: [
+            {
+                type: "text",
+                text
+            }
+        ]
+    });
+}
+
 async function ensureSheetTab(
     sheets,
     spreadsheetId,
@@ -339,6 +407,15 @@ async function handleEvent(event) {
     let replied = false;
 
     try {
+        if (!isAllowedSourceGroup(event)) {
+            console.log(
+                "IGNORED_FILE_FROM_UNCONFIGURED_GROUP:",
+                getEventGroupId(event).slice(-6)
+            );
+
+            return;
+        }
+
         if (
             event.type !== "message" ||
             event.message.type !== "file"
@@ -772,17 +849,10 @@ if (duplicateFile?.id) {
         duplicateLink
     ].join("\n");
 
-    await client.replyMessage({
-        replyToken:
-            event.replyToken,
-
-        messages: [
-            {
-                type: "text",
-                text: duplicateReply
-            }
-        ]
-    });
+    await sendResultMessage(
+        event,
+        duplicateReply
+    );
 
     replied = true;
     return;
@@ -1170,17 +1240,10 @@ console.log("Drive upload result:", {
         // REPLY LINE
         // ============================
 
-        await client.replyMessage({
-            replyToken:
-                event.replyToken,
-
-            messages: [
-                {
-                    type: "text",
-                    text: replyText
-                }
-            ]
-        });
+        await sendResultMessage(
+            event,
+            replyText
+        );
 
         replied = true;
     } catch (error) {
@@ -1203,19 +1266,10 @@ console.log("Drive upload result:", {
             event.replyToken
         ) {
             try {
-                await client.replyMessage({
-                    replyToken:
-                        event.replyToken,
-
-                    messages: [
-                        {
-                            type: "text",
-
-                            text:
-                                "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาลองส่งใหม่อีกครั้ง"
-                        }
-                    ]
-                });
+                await sendResultMessage(
+                    event,
+                    "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาลองส่งใหม่อีกครั้ง"
+                );
 
                 replied = true;
             } catch (replyError) {
