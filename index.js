@@ -407,6 +407,12 @@ async function handleEvent(event) {
     let replied = false;
 
     try {
+        console.log(
+            "LINE_EVENT_SOURCE:",
+            event?.source?.type || "unknown",
+            event?.source?.groupId || ""
+        );
+
         if (!isAllowedSourceGroup(event)) {
             console.log(
                 "IGNORED_FILE_FROM_UNCONFIGURED_GROUP:",
