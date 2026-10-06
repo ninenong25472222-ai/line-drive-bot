@@ -365,6 +365,55 @@ async function backfillSheetRowIfMissing({
     return true;
 }
 
+async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl }) {
+    const spreadsheetId = cleanText(process.env.APPSHEET_SPREADSHEET_ID || "");
+    if (!spreadsheetId) {
+        console.warn("APPSHEET_LINE_SYNC_SKIPPED: APPSHEET_SPREADSHEET_ID is not configured");
+        return;
+    }
+    if (!booking?.customerName || !booking?.pickupDate || !booking?.returnDate) {
+        console.log("APPSHEET_LINE_SYNC_SKIPPED: incomplete booking data");
+        return;
+    }
+    try {
+        const sheetTitle = process.env.APPSHEET_BOOKING_SHEET || "Bookings";
+        const sheets = google.sheets({ version: "v4", auth });
+        const result = await sheets.spreadsheets.values.get({ spreadsheetId, range: sheetTitle + "!A:Z" });
+        const [headers = [], ...rows] = result.data.values || [];
+        const normalize = (value) => String(value ?? "").toLowerCase().replace(/[\s_\-./()]+/g, "").trim();
+        const findColumn = (candidates) => headers.findIndex((header) => candidates.some((candidate) => normalize(header) === normalize(candidate) || normalize(header).includes(normalize(candidate))));
+        const idIndex = findColumn(["BookingID", "ID"]);
+        const requiredColumns = [["bookingsource", "ประเภทบุกกิง"], ["customername", "ชื่อลูกค้า"], ["pickupdate", "วันส่งรถ", "วันที่รับรถ"], ["returndate", "วันคืนรถ", "วันที่คืนรถ"]];
+        if (idIndex < 0 || requiredColumns.some((candidates) => findColumn(candidates) < 0)) throw new Error("APPSHEET_BOOKINGS_SCHEMA_MISMATCH");
+        const bookingId = String(fileHash || "").slice(0, 8);
+        if (!bookingId) throw new Error("APPSHEET_LINE_SYNC_MISSING_FILE_HASH");
+        if (rows.some((row) => String(row[idIndex] ?? "").trim() === bookingId)) {
+            console.log("APPSHEET_LINE_SYNC: duplicate", bookingId);
+            return;
+        }
+        const values = Array(headers.length).fill("");
+        const set = (candidates, value) => { const index = findColumn(candidates); if (index >= 0) values[index] = value ?? ""; };
+        set(["BookingID", "ID"], bookingId);
+        set(["bookingsource", "ประเภทบุกกิง"], "LIne");
+        set(["customername", "ชื่อลูกค้า"], booking.customerName || booking.renter);
+        set(["tel", "phone", "เบอร์โทร"], booking.customerPhone || booking.phone);
+        set(["carref", "รถที่เลือก", "รถ"], booking.car);
+        set(["pickupdate", "วันส่งรถ", "วันที่รับรถ"], booking.pickupDate);
+        set(["pickuptime", "เวลาส่งรถ", "เวลารับรถ"], booking.pickupTime);
+        set(["returndate", "วันคืนรถ", "วันที่คืนรถ"], booking.returnDate);
+        set(["returntime", "เวลาคืนรถ"], booking.returnTime);
+        set(["pickuplocation", "สถานที่ส่ง", "จุดรับรถ"], booking.pickupLocation);
+        set(["returnlocation", "สถานที่คืน", "จุดคืนรถ"], booking.returnLocation);
+        set(["notes", "หมายเหตุ"], [booking.bookingNo ? "เลขจอง: " + booking.bookingNo : "", fileName || "", driveUrl || ""].filter(Boolean).join(" | "));
+        let endColumn = "";
+        for (let n = headers.length; n > 0; n = Math.floor((n - 1) / 26)) endColumn = String.fromCharCode(65 + ((n - 1) % 26)) + endColumn;
+        await sheets.spreadsheets.values.append({ spreadsheetId, range: sheetTitle + "!A:" + endColumn, valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: [values] } });
+        console.log("APPSHEET_LINE_SYNC: added booking", bookingId);
+    } catch (error) {
+        console.error("APPSHEET_LINE_SYNC_ERROR:", error?.response?.data || error?.message || error);
+    }
+}
+
 // ============================
 // WEBHOOK
 // ============================
@@ -843,6 +892,10 @@ if (duplicateFile?.id) {
         console.error("RENTALPRO_SYNC_ERROR:", rentalProError?.response?.data || rentalProError?.message || rentalProError);
     }
 
+    if (isBookingFile) {
+        await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: duplicateLink });
+    }
+
     const duplicateReply = [
         "♻️ ไฟล์นี้เคยบันทึกแล้ว",
 
@@ -1041,6 +1094,10 @@ console.log("Drive upload result:", {
                     ]]
                 }
             });
+
+        if (isBookingFile) {
+            await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: link });
+        }
 
         // Keep the newest uploaded files at the top of the Booking sheet.
         // Sorting is best-effort so a formatting/sorting issue never blocks
