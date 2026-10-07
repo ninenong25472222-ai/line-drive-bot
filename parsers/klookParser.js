@@ -282,6 +282,35 @@ function extractRentalEvents(text = "") {
 
     const events = [];
 
+    // Klook PDFs may place the date/time label on a separate line from the
+    // location. Read the explicit labels first so layout changes do not make
+    // the date depend on being near the location line.
+    const labeledEvents = [
+        {
+            datePattern: /เวลานัดรับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)/i,
+            locationPattern: /สถานที่นัดรับ\s+Chic\s+Network\s*-\s*([^\n]+?Airport)\b/i
+        },
+        {
+            datePattern: /ข้อมูลการส่งกลับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)/i,
+            locationPattern: /สถานที่ส่งคืน\s+Chic\s+Network\s*-\s*([^\n]+?Airport)\b/i
+        }
+    ];
+
+    for (const labeledEvent of labeledEvents) {
+        const dateMatch = text.match(labeledEvent.datePattern);
+        const locationMatch = text.match(labeledEvent.locationPattern);
+
+        if (!dateMatch || !locationMatch) {
+            continue;
+        }
+
+        events.push({
+            location: titleCase(locationMatch[1]),
+            date: dateMatch[1],
+            time: dateMatch[2]
+        });
+    }
+
     for (
         let index = 0;
         index < lines.length;
