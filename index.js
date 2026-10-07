@@ -98,15 +98,18 @@ function getEventGroupId(event) {
 }
 
 function isAllowedSourceGroup(event) {
-    const configuredSourceGroupId =
-        cleanText(
-            process.env.SOURCE_GROUP_ID ||
-            ""
-        );
+    const configuredSourceGroupIds = [
+        process.env.SOURCE_GROUP_ID,
+        // Temporary/fallback source group requested by the operator.
+        "C04cfcf9eeeae0b36bd8d22122d252928"
+    ]
+        .map((groupId) => cleanText(groupId || ""))
+        .filter(Boolean);
 
-    return !configuredSourceGroupId ||
-        getEventGroupId(event) ===
-            configuredSourceGroupId;
+    return configuredSourceGroupIds.length === 0 ||
+        configuredSourceGroupIds.includes(
+            getEventGroupId(event)
+        );
 }
 
 async function sendResultMessage(event, text) {
