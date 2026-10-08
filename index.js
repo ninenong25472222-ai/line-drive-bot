@@ -112,6 +112,17 @@ function isAllowedSourceGroup(event) {
         );
 }
 
+// LINE and AppSheet use one workbook. Keep the LINE workbook as the
+// canonical spreadsheet so both workflows write to the same file while
+// remaining separated by tabs (Booking, Other, Bookings and Car_Master).
+function getUnifiedSpreadsheetId() {
+    return cleanText(
+        process.env.GOOGLE_SHEET_ID ||
+        process.env.APPSHEET_SPREADSHEET_ID ||
+        ""
+    );
+}
+
 async function sendResultMessage(event, text) {
     const destinationGroupId =
         cleanText(
@@ -369,9 +380,9 @@ async function backfillSheetRowIfMissing({
 }
 
 async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl }) {
-    const spreadsheetId = cleanText(process.env.APPSHEET_SPREADSHEET_ID || "");
+    const spreadsheetId = getUnifiedSpreadsheetId();
     if (!spreadsheetId) {
-        console.warn("APPSHEET_LINE_SYNC_SKIPPED: APPSHEET_SPREADSHEET_ID is not configured");
+        console.warn("APPSHEET_LINE_SYNC_SKIPPED: unified spreadsheet is not configured");
         return;
     }
     if (!booking?.customerName || !booking?.pickupDate || !booking?.returnDate) {
@@ -1398,7 +1409,7 @@ const PORT =
     );
 
 async function runAppSheetSync() {
-    const spreadsheetId = String(process.env.APPSHEET_SPREADSHEET_ID || "").trim();
+    const spreadsheetId = getUnifiedSpreadsheetId();
     if (!spreadsheetId) return;
     try {
         const result = await syncAppSheetBookings({
@@ -1413,7 +1424,7 @@ async function runAppSheetSync() {
     }
 }
 
-if (process.env.APPSHEET_SPREADSHEET_ID) {
+if (getUnifiedSpreadsheetId()) {
     setTimeout(() => void runAppSheetSync(), 15000);
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
 }
