@@ -2,6 +2,7 @@ const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
+const { syncCombinedSpreadsheet } = require("./services/combinedSheetService");
 
 require("dotenv").config();
 
@@ -112,16 +113,9 @@ function isAllowedSourceGroup(event) {
         );
 }
 
-// LINE and AppSheet use one workbook. Keep the LINE workbook as the
-// canonical spreadsheet so both workflows write to the same file while
-// remaining separated by tabs (Booking, Other, Bookings and Car_Master).
-function getUnifiedSpreadsheetId() {
-    return cleanText(
-        process.env.GOOGLE_SHEET_ID ||
-        process.env.APPSHEET_SPREADSHEET_ID ||
-        ""
-    );
-}
+function getLineSpreadsheetId() { return cleanText(process.env.GOOGLE_SHEET_ID || ""); }
+function getAppSheetSpreadsheetId() { return cleanText(process.env.APPSHEET_SPREADSHEET_ID || ""); }
+function getCombinedSpreadsheetId() { return cleanText(process.env.COMBINED_SPREADSHEET_ID || ""); }
 
 async function sendResultMessage(event, text) {
     const destinationGroupId =
@@ -380,9 +374,9 @@ async function backfillSheetRowIfMissing({
 }
 
 async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl }) {
-    const spreadsheetId = getUnifiedSpreadsheetId();
+    const spreadsheetId = getAppSheetSpreadsheetId();
     if (!spreadsheetId) {
-        console.warn("APPSHEET_LINE_SYNC_SKIPPED: unified spreadsheet is not configured");
+        console.warn("APPSHEET_LINE_SYNC_SKIPPED: AppSheet spreadsheet is not configured");
         return;
     }
     if (!booking?.customerName || !booking?.pickupDate || !booking?.returnDate) {
@@ -1409,7 +1403,7 @@ const PORT =
     );
 
 async function runAppSheetSync() {
-    const spreadsheetId = getUnifiedSpreadsheetId();
+    const spreadsheetId = getAppSheetSpreadsheetId();
     if (!spreadsheetId) return;
     try {
         const result = await syncAppSheetBookings({
@@ -1424,9 +1418,30 @@ async function runAppSheetSync() {
     }
 }
 
-if (getUnifiedSpreadsheetId()) {
+async function runCombinedSheetSync() {
+    const combinedSpreadsheetId = getCombinedSpreadsheetId();
+    if (!combinedSpreadsheetId) return;
+    try {
+        const result = await syncCombinedSpreadsheet({
+            auth,
+            combinedSpreadsheetId,
+            lineSpreadsheetId: getLineSpreadsheetId(),
+            appSheetSpreadsheetId: getAppSheetSpreadsheetId()
+        });
+        console.log("COMBINED_SHEET_SYNC:", result);
+    } catch (error) {
+        console.error("COMBINED_SHEET_SYNC_ERROR:", error?.response?.data || error?.message || error);
+    }
+}
+
+if (getAppSheetSpreadsheetId()) {
     setTimeout(() => void runAppSheetSync(), 15000);
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
+}
+
+if (getCombinedSpreadsheetId()) {
+    setTimeout(() => void runCombinedSheetSync(), 20000);
+    setInterval(() => void runCombinedSheetSync(), Math.max(60000, Number(process.env.COMBINED_SYNC_INTERVAL_MS || 300000)));
 }
 
 app.listen(
