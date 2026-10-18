@@ -1419,7 +1419,7 @@ async function runAppSheetSync() {
 }
 
 async function backfillLineSheetsToSupabase() {
-    if (process.env.SUPABASE_BACKFILL_ONCE !== "true" || !getLineSpreadsheetId()) return;
+    if (process.env.SUPABASE_BACKFILL_ONCE === "false" || !getLineSpreadsheetId()) return;
     const sheets = google.sheets({ version: "v4", auth });
     const results = { scanned: 0, imported: 0, duplicates: 0, skipped: 0 };
     for (const sheetTitle of [process.env.LINE_BOOKING_SHEET || "Booking", process.env.LINE_OTHER_SHEET || "Other"]) {
