@@ -58,34 +58,31 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         updated_at: new Date().toISOString()
     };
 
+    let bookingTableAvailable = true;
     if (details.file_hash) {
-        const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
-            params: {
-                select: "id",
-                file_hash: `eq.${details.file_hash}`,
-                limit: 1
-            },
-            headers: {
-                apikey: rentalProKey,
-                Authorization: `Bearer ${rentalProKey}`
-            },
-            timeout: 30000
-        });
-
-        if (Array.isArray(existing.data) && existing.data.length > 0) {
-            return { skipped: true, duplicate: true };
+        try {
+            const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
+                params: { select: "id", file_hash: `eq.${details.file_hash}`, limit: 1 },
+                headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}` },
+                timeout: 30000
+            });
+            if (Array.isArray(existing.data) && existing.data.length > 0) return { skipped: true, duplicate: true };
+        } catch (error) {
+            bookingTableAvailable = false;
+            console.warn("RENTALPRO_BOOKINGS_TABLE_UNAVAILABLE: keeping legacy audit log path");
         }
     }
 
-    await axios.post(`${rentalProUrl}/rest/v1/rental_bookings`, bookingRow, {
-        headers: {
-            apikey: rentalProKey,
-            Authorization: `Bearer ${rentalProKey}`,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal"
-        },
-        timeout: 30000
-    });
+    if (bookingTableAvailable) {
+        try {
+            await axios.post(`${rentalProUrl}/rest/v1/rental_bookings`, bookingRow, {
+                headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+                timeout: 30000
+            });
+        } catch (error) {
+            console.warn("RENTALPRO_BOOKINGS_WRITE_FAILED: keeping legacy audit log path");
+        }
+    }
 
     await axios.post(`${rentalProUrl}/rest/v1/audit_logs`, {
         actor_id: null,
