@@ -1,1 +1,424 @@
-<!doctype html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rental Desk</title><style>body{margin:0;background:#f5f9fc;color:#183047;font-family:Arial,sans-serif}.app{max-width:1100px;margin:auto;padding:18px 12px}.top{display:flex;justify-content:space-between}.ey{color:#188bd0;font-weight:bold;font-size:12px}.h{font-size:28px;margin:4px 0}.muted{color:#718398;font-size:13px}.btn,.ctl{font:inherit;border-radius:11px}.btn{border:0;padding:10px 14px;color:#188bd0;background:#fff}.hero{margin:14px 0;padding:20px;border-radius:22px;color:#fff;background:linear-gradient(120deg,#126da7,#44afe6)}.stats{display:flex;gap:25px}.stats b{display:block;font-size:24px}.stats span{font-size:11px}.panel,.day{background:#fff;border:1px solid #dceaf3;border-radius:18px}.panel{padding:12px}.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px}.ctl{border:1px solid #dceaf3;padding:11px;min-width:0}.day{margin:14px 0;overflow:hidden}.dh{padding:13px;background:#f1faff;border-bottom:1px solid #dceaf3;display:flex;justify-content:space-between}.cards{padding:10px;display:grid;gap:8px}.card{border:1px solid #dceaf3;border-radius:13px;overflow:hidden}.sum{display:grid;grid-template-columns:7px 1fr auto;gap:10px;padding:13px;cursor:pointer}.bar{background:#188bd0}.bar.o{background:#9a86d6}.badge{font-size:10px;background:#e9f6ff;color:#126b9f;border-radius:99px;padding:3px 8px}.badge.o{background:#fff0e3;color:#b8621e}.name{font-weight:bold;font-size:14px}.meta{color:#718398;font-size:11px;margin-top:5px}.det{display:none;grid-template-columns:1fr 1fr;gap:10px;padding:13px;background:#fbfdff;border-top:1px solid #dceaf3;font-size:12px}.open .det{display:grid}.det label{display:block;color:#718398;font-size:10px}.wide{grid-column:1/-1}.drive{background:#f28d3d;color:#fff;padding:8px;border-radius:9px;text-decoration:none}@media(max-width:700px){.filters{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.det{grid-template-columns:1fr}.wide{grid-column:auto}}</style></head><body><main class="app"><header class="top"><div><div class="ey">RENTAL DESK · ภาพรวมงาน</div><h1 class="h">ตารางรถเช่า</h1><div class="muted">วันรับรถและคืนรถในหน้าเดียว</div></div><button class="btn" id="refresh">↻ รีเฟรช</button></header><section class="hero"><small>ภาพรวมรายการ</small><h2 id="today">กำลังโหลด...</h2><div class="stats"><div><b id="total">—</b><span>รายการ</span></div><div><b id="soon">—</b><span>ภายใน 48 ชม.</span></div><div><b id="others">—</b><span>Other</span></div></div></section><section class="panel"><div class="filters"><input class="ctl search" id="q" placeholder="ค้นหาชื่อ Booking รถ หรือโทร"><select class="ctl" id="source"><option value="">ทุกแหล่งข้อมูล</option><option>LINE</option><option>AppSheet</option></select><select class="ctl" id="kind"><option value="">ทุกประเภท</option><option value="booking">Booking</option><option value="other">Other</option></select><select class="ctl" id="type"><option value="pickup">เรียงวันรับรถ</option><option value="return">เรียงวันคืนรถ</option></select></div></section><button class="btn" id="calbtn">▦ ปฏิทิน</button><section id="list"></section><section id="calendar" style="display:none;background:#fff;border:1px solid #dceaf3;border-radius:18px;padding:14px;margin-top:14px"><h3>ปฏิทินวันรับรถ</h3><div id="calgrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px"></div></section></main><script>var data=[];function $(x){return document.getElementById(x)}function oth(r){return String(r.source_label||'').toLowerCase().indexOf('other')>=0}function esc(x){return String(x||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}function dt(v){var m=String(v||'').match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(!m)return null;var y=+m[1];if(y>2400)y-=543;return new Date(y,+m[2]-1,+m[3])}function txt(v,t){var d=dt(v);return d?d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'})+(t?' · '+t:''):'ไม่ระบุวัน'}function rows(){var q=$("q").value.toLowerCase(),s=$("source").value,k=$("kind").value;return data.filter(function(r){return(!s||String(r.source_label||r.source).indexOf(s)>=0)&&(!k||(k==='other'?oth(r):!oth(r)))&&(!q||JSON.stringify(r).toLowerCase().indexOf(q)>=0)})}function make(r){var o=oth(r),a=document.createElement('article');a.className='card';a.innerHTML='<div class="sum"><i class="bar '+(o?'o':'')+'"></i><div><span class="badge '+(o?'o':'')+'">'+esc(o?'Other':r.source_label||r.source||'รายการ')+'</span> <span class="name">'+esc(r.customer_name||r.company||'ไม่ระบุชื่อ')+'</span><div class="meta">รับ <b>'+txt(r.pickup_date,r.pickup_time)+'</b> · คืน <b>'+txt(r.return_date,r.return_time)+'</b></div></div><span>⌄</span></div><div class="det"><div><label>Booking</label><b>'+esc(r.booking_no||'-')+'</b></div><div><label>รถ</label><b>'+esc(r.car||'-')+'</b></div><div><label>สถานที่รับ</label><b>'+esc(r.pickup_location||'-')+'</b></div><div><label>สถานที่คืน</label><b>'+esc(r.return_location||'-')+'</b></div><div><label>ลูกค้า / โทร</label><b>'+esc((r.customer_name||'-')+' · '+(r.customer_phone||'-'))+'</b></div><div><label>ไฟล์</label><b>'+esc(r.file_name||'-')+'</b></div>'+(r.drive_url?'<div class="wide"><a class="drive" target="_blank" href="'+esc(r.drive_url)+'">เปิดไฟล์ Google Drive ↗</a></div>':'')+'</div>';a.querySelector('.sum').onclick=function(){a.classList.toggle('open')};return a}function render(){var a=rows(),t=$("type").value,g={};a.forEach(function(r){var k=r[t+'_date']||'ไม่ระบุวัน';(g[k]||(g[k]=[])).push(r)});var l=$("list");l.innerHTML='';Object.keys(g).sort(function(a,b){return(dt(a)||new Date(8640000000000000))-(dt(b)||new Date(8640000000000000))}).forEach(function(k){var s=document.createElement('section');s.className='day';s.innerHTML='<div class="dh"><b>'+esc(k==='ไม่ระบุวัน'?k:txt(k,''))+'</b><span class="muted">'+g[k].length+' รายการ</span></div><div class="cards"></div>';g[k].forEach(function(r){s.querySelector('.cards').appendChild(make(r))});l.appendChild(s)});$("total").textContent=a.length;$("others").textContent=a.filter(oth).length;$("soon").textContent=0;$("today").textContent=new Date().toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}function load(){fetch('/api/bookings').then(function(r){return r.json()}).then(function(x){data=x;render()}).catch(function(){$("list").innerHTML='<div class="muted" style="padding:40px;text-align:center">โหลดข้อมูลไม่สำเร็จ</div>'})}["q","source","kind","type"].forEach(function(id){$(id).oninput=render});$("refresh").onclick=load;function showCalendar(){var box=$("calendar"),grid=$("calgrid"),n=new Date(),y=n.getFullYear(),m=n.getMonth(),days=new Date(y,m+1,0).getDate(),out="<b style='grid-column:1/-1'>"+n.toLocaleDateString("th-TH",{month:"long",year:"numeric"})+"</b>";for(var i=0;i<new Date(y,m,1).getDay();i++)out+="<span></span>";for(var d=1;d<=days;d++){var k=new Date(y,m,d).toISOString().slice(0,10),hits=data.filter(function(r){var x=dt(r.pickup_date);return x&&x.toISOString().slice(0,10)==k});out+="<div style='min-height:55px;border:1px solid #dceaf3;border-radius:8px;padding:5px'><b>"+d+"</b>"+hits.map(function(r){return "<small style='display:block;background:#e9f6ff;margin-top:3px;padding:2px;border-radius:4px;overflow:hidden'>"+esc(r.customer_name||r.company||"รายการ")+"</small>"}).join("")+"</div>"}grid.innerHTML=out}$("calbtn").onclick=function(){var x=$("calendar");x.style.display=x.style.display==="none"?"block":"none";if(x.style.display==="block")showCalendar()};load();</script></body></html>
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rental Desk</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14293d;--mut:#66788b;--paper:#f4f8fb;--card:#fff;--line:#d9e6ef;--p:#1478b8;--r:#0f8a6a;--o:#7b61c9;--warn:#b45309;--warnbg:#fff3df;--err:#b42318}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 'IBM Plex Sans Thai',Tahoma,sans-serif}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:3px solid #6db4e6;outline-offset:2px}
+.app{max-width:920px;margin:0 auto;padding:16px 14px 60px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+h1{font-size:26px;line-height:1.2;margin:0}
+.muted{color:var(--mut);font-size:13px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:11px;padding:9px 14px;min-height:42px;font-weight:500}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.today{margin:16px 0 10px;font-size:18px;font-weight:600}
+.stats{display:flex;flex-wrap:wrap;gap:8px 22px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:14px}
+.stats div{min-width:92px}.stats b{font-size:22px;font-weight:700;display:block;line-height:1.2}.stats span{font-size:12px;color:var(--mut)}
+.stats .w b{color:var(--warn)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px}
+.ctl{width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;min-height:44px}
+.row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#e8f3fb;color:#0f5f93;border:0;border-radius:99px;padding:6px 14px;font-weight:500}
+.err{background:#fdecea;border:1px solid #f5c2bd;color:var(--err);border-radius:12px;padding:12px 14px;margin:12px 0;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.login{max-width:380px;margin:18px auto;display:grid;gap:10px}.login h2{margin:0;font-size:18px}
+.login .go{background:var(--p);color:#fff;border:0;border-radius:11px;min-height:46px;font-weight:600}
+.day{margin:16px 0}
+.dh{position:sticky;top:0;z-index:4;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;background:#e9f2f8;border-radius:11px;font-weight:600;margin-bottom:8px}
+.dh.td{background:var(--ink);color:#fff}.dh.td .muted{color:#c9d8e4}
+.dh.bad{background:var(--warnbg);color:var(--warn)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:8px;overflow:hidden}
+.sum{display:grid;grid-template-columns:5px 56px 1fr 20px;gap:10px;align-items:start;width:100%;text-align:left;border:0;background:none;padding:12px 12px 12px 0}
+.bar{background:var(--p);align-self:stretch;border-radius:0 4px 4px 0}.card.r .bar{background:var(--r)}.card.o .bar{background:var(--o)}
+.tm{font-size:19px;font-weight:700;line-height:1.3}
+.mn{display:block;min-width:0}
+.tag,.badge{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:1px 9px;margin-right:4px;vertical-align:1px}
+.tag.p{background:#e3f1fa;color:#0f5f93}.tag.r{background:#dff3ec;color:#0b6b52}
+.badge{background:#eef1f5;color:#4b5b6b}.badge.o{background:#ece7fa;color:#5a42a8}.badge.w{background:var(--warnbg);color:var(--warn)}
+.name{display:block;font-weight:600;margin-top:2px}
+.meta{display:block;color:var(--mut);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chev{color:var(--mut);transition:transform .2s}.open .chev{transform:rotate(180deg)}
+.det{display:none;grid-template-columns:1fr 1fr;gap:10px 14px;padding:12px 14px;background:#fbfdff;border-top:1px solid var(--line);font-size:14px}
+.open .det{display:grid}
+.det label{display:block;color:var(--mut);font-size:12px}.det b{font-weight:500;word-break:break-word}
+.wide{grid-column:1/-1}.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;background:#e8f3fb;color:#0f5f93;font-weight:600;text-decoration:none}
+.acts a.drive{background:#fdebd8;color:#9a4a0b}
+.more{display:block;margin:12px auto}
+.empty{text-align:center;color:var(--mut);padding:40px 12px}
+.sk{height:64px;border-radius:14px;margin-bottom:8px;background:linear-gradient(90deg,#fff 25%,#e9f2f8 50%,#fff 75%);background-size:200% 100%;animation:sh 1.2s infinite}@keyframes sh{to{background-position:-200% 0}}
+.calh{display:flex;align-items:center;gap:8px;margin-bottom:10px}.calh b{flex:1;text-align:center}
+.calg{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cw{text-align:center;font-size:12px;color:var(--mut)}
+.cd{min-height:64px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:4px;text-align:left;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cd b{font-size:13px}.cd.td{border-color:var(--p);box-shadow:inset 0 0 0 1px var(--p)}.cd.sel{background:#e3f1fa}
+.cd small{font-size:10.5px;line-height:1.3;border-radius:4px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd .cp{background:#e3f1fa;color:#0f5f93}.cd .cr{background:#dff3ec;color:#0b6b52}.cd .mo{color:var(--mut)}
+@media(max-width:700px){.filters{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.det{grid-template-columns:1fr}.wide{grid-column:auto}.cd small{font-size:9.5px}.cd{min-height:56px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="top">
+  <div><h1>Rental Desk</h1><div class="muted" id="upd">à¸à¸³à¸¥à¸±à¸‡à¹‚à¸«à¸¥à¸”â€¦</div></div>
+  <button class="btn" id="rf">â†» à¸£à¸µà¹€à¸Ÿà¸£à¸Š</button>
+</header>
+
+<div class="err" id="err" role="alert" hidden><span id="errMsg"></span><button class="btn" id="retry">à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆ</button></div>
+
+<form class="panel login" id="login" hidden>
+  <h2>à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š</h2>
+  <label class="muted" for="em">à¸­à¸µà¹€à¸¡à¸¥</label><input class="ctl" id="em" type="email" autocomplete="username" required>
+  <label class="muted" for="pw">à¸£à¸«à¸±à¸ªà¸œà¹ˆà¸²à¸™</label><input class="ctl" id="pw" type="password" autocomplete="current-password" required>
+  <div class="muted" id="loginErr" style="color:var(--err)" role="alert"></div>
+  <button class="go" type="submit">à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š</button>
+</form>
+
+<div id="main">
+  <div class="today" id="today"></div>
+  <div class="stats">
+    <div><b id="sTotal">â€”</b><span>à¸£à¸²à¸¢à¸à¸²à¸£</span></div>
+    <div><b id="sSoon">â€”</b><span>à¸£à¸±à¸š/à¸„à¸·à¸™ à¸ à¸²à¸¢à¹ƒà¸™ 48 à¸Šà¸¡.</span></div>
+    <div><b id="sOther">â€”</b><span>Other</span></div>
+    <div class="w"><b id="sBad">â€”</b><span>à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸§à¸±à¸™à¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¸„à¸£à¸š</span></div>
+  </div>
+
+  <section class="panel filters">
+    <input class="ctl search" id="q" type="search" placeholder="à¸„à¹‰à¸™à¸«à¸²à¸Šà¸·à¹ˆà¸­ à¹€à¸¥à¸‚à¸ˆà¸­à¸‡ à¸£à¸– à¹€à¸šà¸­à¸£à¹Œà¹‚à¸—à¸£ à¸ªà¸–à¸²à¸™à¸—à¸µà¹ˆ" aria-label="à¸„à¹‰à¸™à¸«à¸²">
+    <select class="ctl" id="period" aria-label="à¸Šà¹ˆà¸§à¸‡à¹€à¸§à¸¥à¸²">
+      <option value="upcoming">à¸•à¸±à¹‰à¸‡à¹à¸•à¹ˆà¸§à¸±à¸™à¸™à¸µà¹‰</option><option value="today">à¹€à¸‰à¸žà¸²à¸°à¸§à¸±à¸™à¸™à¸µà¹‰</option><option value="week">7 à¸§à¸±à¸™à¸‚à¹‰à¸²à¸‡à¸«à¸™à¹‰à¸²</option>
+      <option value="month">30 à¸§à¸±à¸™à¸‚à¹‰à¸²à¸‡à¸«à¸™à¹‰à¸²</option><option value="past">à¸—à¸µà¹ˆà¸œà¹ˆà¸²à¸™à¸¡à¸²à¹à¸¥à¹‰à¸§</option><option value="all">à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”</option>
+    </select>
+    <select class="ctl" id="mode" aria-label="à¸›à¸£à¸°à¹€à¸ à¸—à¸‡à¸²à¸™">
+      <option value="both">à¸£à¸±à¸šà¹à¸¥à¸°à¸„à¸·à¸™à¸£à¸–</option><option value="pickup">à¹€à¸‰à¸žà¸²à¸°à¸£à¸±à¸šà¸£à¸–</option><option value="return">à¹€à¸‰à¸žà¸²à¸°à¸„à¸·à¸™à¸£à¸–</option>
+    </select>
+    <select class="ctl" id="source" aria-label="à¹à¸«à¸¥à¹ˆà¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥"><option value="">à¸—à¸¸à¸à¹à¸«à¸¥à¹ˆà¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥</option></select>
+    <select class="ctl" id="kind" aria-label="à¸Šà¸™à¸´à¸”à¸£à¸²à¸¢à¸à¸²à¸£">
+      <option value="">Booking + Other</option><option value="booking">à¹€à¸‰à¸žà¸²à¸° Booking</option><option value="other">à¹€à¸‰à¸žà¸²à¸° Other</option>
+    </select>
+  </section>
+
+  <div class="row2">
+    <button class="btn" id="calbtn" aria-expanded="false" aria-controls="calendar">â–¦ à¸›à¸à¸´à¸—à¸´à¸™</button>
+    <button class="chip" id="dayChip" hidden></button>
+  </div>
+
+  <section class="panel" id="calendar" hidden>
+    <div class="calh">
+      <button class="btn" id="cPrev" aria-label="à¹€à¸”à¸·à¸­à¸™à¸à¹ˆà¸­à¸™">â€¹</button><b id="calTitle"></b>
+      <button class="btn" id="cNext" aria-label="à¹€à¸”à¸·à¸­à¸™à¸–à¸±à¸”à¹„à¸›">â€º</button><button class="btn" id="cToday">à¹€à¸”à¸·à¸­à¸™à¸™à¸µà¹‰</button>
+    </div>
+    <div class="calg" id="calgrid"></div>
+    <div class="muted" style="margin-top:8px">â–² à¸£à¸±à¸šà¸£à¸– Â· â–¼ à¸„à¸·à¸™à¸£à¸– Â· à¹à¸•à¸°à¸§à¸±à¸™à¸—à¸µà¹ˆà¹€à¸žà¸·à¹ˆà¸­à¸”à¸¹à¹€à¸‰à¸žà¸²à¸°à¸§à¸±à¸™à¸™à¸±à¹‰à¸™</div>
+  </section>
+
+  <section id="list" aria-live="polite"></section>
+</div>
+</main>
+
+<script>
+/* ====== à¸•à¸±à¹‰à¸‡à¸„à¹ˆà¸² ====== */
+var CONFIG = {
+  // à¹‚à¸«à¸¡à¸” 1: à¹€à¸£à¸µà¸¢à¸ API à¸‚à¸­à¸‡à¸„à¸¸à¸“à¹€à¸­à¸‡ (à¸•à¹‰à¸­à¸‡à¸ªà¹ˆà¸‡ JSON array à¸—à¸µà¹ˆà¸¡à¸µà¸Ÿà¸´à¸¥à¸”à¹Œà¸•à¸²à¸¡à¸”à¹‰à¸²à¸™à¸¥à¹ˆà¸²à¸‡)
+  API_URL: '/api/bookings',
+  // à¹‚à¸«à¸¡à¸” 2: à¹€à¸£à¸µà¸¢à¸ Supabase à¹‚à¸”à¸¢à¸•à¸£à¸‡ â€” à¹ƒà¸ªà¹ˆ 2 à¸„à¹ˆà¸²à¸™à¸µà¹‰à¹à¸¥à¹‰à¸§à¹‚à¸«à¸¡à¸”à¸™à¸µà¹‰à¸ˆà¸°à¸–à¸¹à¸à¹ƒà¸Šà¹‰à¹à¸—à¸™ API_URL
+  SUPABASE_URL: '',          // à¹€à¸Šà¹ˆà¸™ 'https://xxxx.supabase.co'
+  SUPABASE_ANON_KEY: '',     // à¹ƒà¸ªà¹ˆà¹€à¸‰à¸žà¸²à¸° anon (public) key à¸«à¹‰à¸²à¸¡à¹ƒà¸ªà¹ˆ service_role à¹€à¸”à¹‡à¸”à¸‚à¸²à¸”
+  TABLE: 'bookings',
+  REQUIRE_LOGIN: true,       // true = à¸•à¹‰à¸­à¸‡à¸¥à¹‡à¸­à¸à¸­à¸´à¸™à¸”à¹‰à¸§à¸¢ Supabase Auth (à¸•à¹‰à¸­à¸‡à¹€à¸›à¸´à¸” RLS à¹ƒà¸«à¹‰ authenticated à¸­à¹ˆà¸²à¸™à¹„à¸”à¹‰à¹€à¸—à¹ˆà¸²à¸™à¸±à¹‰à¸™)
+  LOOKBACK_DAYS: 90          // à¸”à¸¶à¸‡à¹€à¸‰à¸žà¸²à¸°à¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸„à¸·à¸™à¸£à¸–à¹„à¸¡à¹ˆà¹€à¸à¸´à¸™à¸à¸µà¹ˆà¸§à¸±à¸™à¸à¹ˆà¸­à¸™ (0 = à¸”à¸¶à¸‡à¸—à¸±à¹‰à¸‡à¸«à¸¡à¸”)
+};
+/* à¸Ÿà¸´à¸¥à¸”à¹Œà¸—à¸µà¹ˆà¸«à¸™à¹‰à¸²à¸™à¸µà¹‰à¹ƒà¸Šà¹‰: customer_name, company, customer_phone, booking_no, car,
+   pickup_date, pickup_time, pickup_location, return_date, return_time, return_location,
+   source_label (à¸«à¸£à¸·à¸­ source), file_name, drive_url */
+
+var $ = function (id) { return document.getElementById(id); };
+var SB = !!CONFIG.SUPABASE_URL;
+var rows = [], loading = false, LIMIT = 150, lastLoad = 0;
+var view = { day: '', cal: null };
+
+/* ====== à¸•à¸±à¸§à¸Šà¹ˆà¸§à¸¢ ====== */
+var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"'`]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]; }); };
+var safeUrl = function (u) { u = String(u || '').trim(); return /^https:\/\//i.test(u) ? u : ''; };
+var telOf = function (p) { return String(p || '').replace(/[^0-9+]/g, ''); };
+var pad = function (n) { return String(n).padStart(2, '0'); };
+function todayISO() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date()); }
+function addDays(iso, n) { var d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function thaiDate(iso, o) { return new Date(iso + 'T00:00:00Z').toLocaleDateString('th-TH', Object.assign({ timeZone: 'UTC' }, o || { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })); }
+function mkISO(y, m, d) {
+  if (y > 2400) y -= 543;
+  var t = new Date(Date.UTC(y, m - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return '';
+  return String(y).padStart(4, '0') + '-' + pad(m) + '-' + pad(d);
+}
+function pdate(v) {                       // à¸£à¸­à¸‡à¸£à¸±à¸š yyyy-mm-dd, yyyy/m/d, dd/mm/yyyy, dd-mm-yyyy, à¸›à¸µ à¸ž.à¸¨.
+  var s = String(v == null ? '' : v).trim(), m;
+  if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return mkISO(+m[1], +m[2], +m[3]);
+  if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return mkISO(+m[3], +m[2], +m[1]);
+  return '';
+}
+function ptime(v) {                       // 09:30:00 / 9.30 â†’ 09:30
+  var m = String(v == null ? '' : v).match(/(\d{1,2})[:.](\d{2})/);
+  return m && +m[1] < 24 && +m[2] < 60 ? pad(+m[1]) + ':' + m[2] : '';
+}
+function prep(r) {
+  var o = Object.assign({}, r);
+  o._p = pdate(r.pickup_date); o._r = pdate(r.return_date);
+  o._pt = ptime(r.pickup_time); o._rt = ptime(r.return_time);
+  o._src = String(r.source_label || r.source || '');
+  o._oth = o._src.toLowerCase().indexOf('other') >= 0;
+  o._bad = !o._p || !o._r;
+  o._idx = [r.customer_name, r.company, r.booking_no, r.car, r.customer_phone, r.pickup_location, r.return_location, r.file_name].join(' ').toLowerCase();
+  return o;
+}
+
+/* ====== à¸•à¸±à¸§à¸à¸£à¸­à¸‡ / à¸£à¸²à¸¢à¸à¸²à¸£à¸‡à¸²à¸™ ====== */
+function base() {
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value;
+  return rows.filter(function (r) {
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && (!q || r._idx.indexOf(q) >= 0);
+  });
+}
+function events(list) {
+  var m = $('mode').value, out = [];
+  list.forEach(function (r) {
+    var e = [];
+    if (m !== 'return') e.push({ r: r, t: 'p', d: r._p, tm: r._pt });
+    if (m !== 'pickup') e.push({ r: r, t: 'r', d: r._r, tm: r._rt });
+    var dated = e.filter(function (x) { return x.d; });
+    if (dated.length) out = out.concat(dated); else out.push(e[0]);   // à¹„à¸¡à¹ˆà¸¡à¸µà¸§à¸±à¸™à¹€à¸¥à¸¢ â†’ à¹à¸ªà¸”à¸‡à¸„à¸£à¸±à¹‰à¸‡à¹€à¸”à¸µà¸¢à¸§
+  });
+  return out;
+}
+function inPeriod(e, today) {
+  if (view.day) return e.d === view.day;
+  var p = $('period').value;
+  if (!e.d) return p === 'all' || p === 'upcoming';
+  if (p === 'all') return true;
+  if (p === 'past') return e.d < today;
+  if (p === 'upcoming') return e.d >= today;
+  if (p === 'today') return e.d === today;
+  return e.d >= today && e.d <= addDays(today, p === 'week' ? 6 : 29);
+}
+function inWin(d, t) {
+  var ts = Date.parse(d + 'T' + (t || '23:59') + ':00+07:00'), now = Date.now();
+  return ts >= now && ts <= now + 48 * 3600000;
+}
+
+function card(e) {
+  var r = e.r, p = e.t === 'p', place = p ? r.pickup_location : r.return_location;
+  var url = safeUrl(r.drive_url), tel = telOf(r.customer_phone);
+  var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
+  var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' Â· ' + t : '') : 'à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸à¸§à¸±à¸™'; };
+  return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
+    '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
+    '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'à¸£à¸±à¸šà¸£à¸–' : 'à¸„à¸·à¸™à¸£à¸–') + '</span>' +
+    (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
+    (r._bad ? '<span class="badge w">à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹„à¸¡à¹ˆà¸„à¸£à¸š</span>' : '') +
+    '<span class="name">' + esc(r.customer_name || r.company || 'à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸à¸Šà¸·à¹ˆà¸­') + '</span>' +
+    '<span class="meta">ðŸš— ' + esc(r.car || 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸à¸£à¸–') + ' Â· ðŸ“ ' + esc(place || 'à¹„à¸¡à¹ˆà¸£à¸°à¸šà¸¸à¸ªà¸–à¸²à¸™à¸—à¸µà¹ˆ') + '</span></span>' +
+    '<span class="chev" aria-hidden="true">âŒ„</span></button>' +
+    '<div class="det">' +
+    '<div><label>à¹€à¸¥à¸‚à¸ˆà¸­à¸‡</label><b>' + esc(r.booking_no || '-') + '</b></div>' +
+    '<div><label>à¸¥à¸¹à¸à¸„à¹‰à¸² / à¹‚à¸—à¸£</label><b>' + esc((r.customer_name || '-') + ' Â· ' + (r.customer_phone || '-')) + '</b></div>' +
+    '<div><label>à¸£à¸±à¸šà¸£à¸–</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
+    '<div><label>à¸„à¸·à¸™à¸£à¸–</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
+    (r.file_name ? '<div class="wide"><label>à¹„à¸Ÿà¸¥à¹Œ</label><b>' + esc(r.file_name) + '</b></div>' : '') +
+    '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">à¹‚à¸—à¸£</a>' : '') +
+    (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">à¹à¸œà¸™à¸—à¸µà¹ˆ</a>' : '') +
+    (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">à¹€à¸›à¸´à¸”à¹„à¸Ÿà¸¥à¹Œ Google Drive</a>' : '') + '</div>' +
+    '</div></article>';
+}
+
+function render() {
+  var today = todayISO(), list = base(), p = $('period').value;
+  var ev = events(list).filter(function (e) { return inPeriod(e, today); });
+  var sign = (!view.day && p === 'past') ? -1 : 1;
+  ev.sort(function (a, b) {
+    return sign * (a.d || '9999').localeCompare(b.d || '9999') ||
+      (a.tm || '99:99').localeCompare(b.tm || '99:99') || a.t.localeCompare(b.t);
+  });
+  // à¸ªà¸–à¸´à¸•à¸´
+  $('today').textContent = 'à¸§à¸±à¸™à¸™à¸µà¹‰ ' + thaiDate(today);
+  $('sTotal').textContent = list.length;
+  $('sOther').textContent = list.filter(function (r) { return r._oth; }).length;
+  $('sBad').textContent = list.filter(function (r) { return r._bad; }).length;
+  $('sSoon').textContent = list.filter(function (r) { return (r._p && inWin(r._p, r._pt)) || (r._r && inWin(r._r, r._rt)); }).length;
+  // à¸Šà¸´à¸›à¸§à¸±à¸™à¸—à¸µà¹ˆà¹€à¸¥à¸·à¸­à¸
+  $('dayChip').hidden = !view.day;
+  if (view.day) $('dayChip').textContent = 'à¹à¸ªà¸”à¸‡à¹€à¸‰à¸žà¸²à¸° ' + thaiDate(view.day, { day: 'numeric', month: 'long' }) + '  âœ•';
+  // à¸£à¸²à¸¢à¸à¸²à¸£
+  var html = '', shown = 0, i = 0;
+  while (i < ev.length && shown < LIMIT) {
+    var d = ev[i].d, g = [];
+    while (i < ev.length && ev[i].d === d) { g.push(ev[i]); i++; }
+    shown += g.length;
+    var cls = !d ? 'bad' : (d === today ? 'td' : '');
+    html += '<section class="day"><div class="dh ' + cls + '"><span>' + (d ? (d === today ? 'à¸§à¸±à¸™à¸™à¸µà¹‰ Â· ' : '') + esc(thaiDate(d)) : 'à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸§à¸±à¸™à¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¸„à¸£à¸š') +
+      '</span><span class="muted">' + g.length + ' à¸‡à¸²à¸™</span></div>' + g.map(card).join('') + '</section>';
+  }
+  if (i < ev.length) html += '<button class="btn more" type="button" data-more="1">à¹à¸ªà¸”à¸‡à¹€à¸žà¸´à¹ˆà¸¡ (à¹€à¸«à¸¥à¸·à¸­ ' + (ev.length - i) + ' à¸‡à¸²à¸™)</button>';
+  if (!ev.length) html = '<div class="empty">à¹„à¸¡à¹ˆà¸¡à¸µà¸‡à¸²à¸™à¹ƒà¸™à¸Šà¹ˆà¸§à¸‡à¸™à¸µà¹‰<br><span class="muted">à¸¥à¸­à¸‡à¹€à¸›à¸¥à¸µà¹ˆà¸¢à¸™à¸Šà¹ˆà¸§à¸‡à¹€à¸§à¸¥à¸² à¸«à¸£à¸·à¸­à¸¥à¹‰à¸²à¸‡à¸„à¸³à¸„à¹‰à¸™à¸«à¸²</span></div>';
+  $('list').innerHTML = html;
+}
+
+/* ====== à¸›à¸à¸´à¸—à¸´à¸™ ====== */
+function renderCal() {
+  var today = todayISO();
+  if (!view.cal) view.cal = { y: +today.slice(0, 4), m: +today.slice(5, 7) - 1 };
+  var y = view.cal.y, m = view.cal.m;
+  var first = new Date(Date.UTC(y, m, 1)).getUTCDay(), n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  $('calTitle').textContent = new Date(Date.UTC(y, m, 1)).toLocaleDateString('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  var by = {};
+  base().forEach(function (r) {
+    if (r._p) (by[r._p] = by[r._p] || []).push({ t: 'p', r: r });
+    if (r._r) (by[r._r] = by[r._r] || []).push({ t: 'r', r: r });
+  });
+  var h = ['à¸­à¸²', 'à¸ˆ', 'à¸­', 'à¸ž', 'à¸žà¸¤', 'à¸¨', 'à¸ª'].map(function (d) { return '<div class="cw">' + d + '</div>'; }).join('') + '<div></div>'.repeat(first);
+  for (var d = 1; d <= n; d++) {
+    var iso = y + '-' + pad(m + 1) + '-' + pad(d), ev = by[iso] || [];
+    h += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="à¸§à¸±à¸™à¸—à¸µà¹ˆ ' + d + ' à¸¡à¸µ ' + ev.length + ' à¸‡à¸²à¸™"><b>' + d + '</b>' +
+      ev.slice(0, 2).map(function (x) { return '<small class="c' + x.t + '">' + (x.t === 'p' ? 'â–²' : 'â–¼') + ' ' + esc(x.r.customer_name || x.r.company || 'à¸£à¸²à¸¢à¸à¸²à¸£') + '</small>'; }).join('') +
+      (ev.length > 2 ? '<small class="mo">+' + (ev.length - 2) + ' à¸‡à¸²à¸™</small>' : '') + '</button>';
+  }
+  $('calgrid').innerHTML = h;
+}
+function refreshAll() { render(); if (!$('calendar').hidden) renderCal(); }
+
+/* ====== à¹‚à¸«à¸¥à¸”à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ (API à¸‚à¸­à¸‡à¸„à¸¸à¸“ à¸«à¸£à¸·à¸­ Supabase) ====== */
+var auth = null;
+try { auth = JSON.parse(sessionStorage.getItem('rd_auth') || 'null'); } catch (e) {}
+function setAuth(j) {
+  if (!j) { auth = null; try { sessionStorage.removeItem('rd_auth'); } catch (e) {} return; }
+  auth = { token: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  try { sessionStorage.setItem('rd_auth', JSON.stringify(auth)); } catch (e) {}
+}
+function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
+function sbFetch(path, opt) {
+  opt = opt || {};
+  opt.headers = Object.assign({ apikey: CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, opt.headers || {});
+  return fetch(CONFIG.SUPABASE_URL + path, opt);
+}
+async function getToken() {
+  if (!auth) return null;
+  if (auth.exp - Date.now() < 60000 && auth.refresh) {
+    var r = await sbFetch('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: auth.refresh }) });
+    if (!r.ok) { setAuth(null); return null; }
+    setAuth(await r.json());
+  }
+  return auth && auth.token;
+}
+async function fetchRows(signal) {
+  if (!SB) {
+    var r0 = await fetch(CONFIG.API_URL, { signal: signal, credentials: 'same-origin' });
+    if (!r0.ok) throw httpErr(r0.status);
+    var j0 = await r0.json();
+    if (!Array.isArray(j0)) throw new Error('à¸£à¸¹à¸›à¹à¸šà¸šà¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡ (à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ array)');
+    return j0;
+  }
+  var tk = null;
+  if (CONFIG.REQUIRE_LOGIN) { tk = await getToken(); if (!tk) throw httpErr(401); }
+  var headers = { Authorization: 'Bearer ' + (tk || CONFIG.SUPABASE_ANON_KEY) };
+  var q = 'select=*&order=pickup_date.asc.nullslast';
+  if (CONFIG.LOOKBACK_DAYS > 0) {
+    q += '&or=(return_date.gte.' + addDays(todayISO(), -CONFIG.LOOKBACK_DAYS) + ',return_date.is.null,pickup_date.is.null)';
+  }
+  var out = [];
+  for (var off = 0; off < 20000; off += 1000) {            // Supabase à¸ªà¹ˆà¸‡à¸ªà¸¹à¸‡à¸ªà¸¸à¸” 1,000 à¹à¸–à¸§à¸•à¹ˆà¸­à¸„à¸£à¸±à¹‰à¸‡
+    var r = await sbFetch('/rest/v1/' + encodeURIComponent(CONFIG.TABLE) + '?' + q + '&limit=1000&offset=' + off, { headers: headers, signal: signal });
+    if (!r.ok) throw httpErr(r.status);
+    var j = await r.json();
+    out = out.concat(j);
+    if (j.length < 1000) break;
+  }
+  return out;
+}
+function errText(e) {
+  if (e.name === 'AbortError') return 'à¹‚à¸«à¸¥à¸”à¸™à¸²à¸™à¹€à¸à¸´à¸™à¹„à¸› (à¹€à¸à¸´à¸™ 25 à¸§à¸´à¸™à¸²à¸—à¸µ) à¸à¸” â€œà¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆâ€ à¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡';
+  if (e.status === 401) return 'à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š à¸«à¸£à¸·à¸­à¹€à¸‹à¸ªà¸Šà¸±à¸™à¸«à¸¡à¸”à¸­à¸²à¸¢à¸¸';
+  if (e.status === 403) return 'à¹„à¸¡à¹ˆà¸¡à¸µà¸ªà¸´à¸—à¸˜à¸´à¹Œà¸­à¹ˆà¸²à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸š RLS policy à¸‚à¸­à¸‡à¸•à¸²à¸£à¸²à¸‡';
+  if (e.status === 404) return 'à¹„à¸¡à¹ˆà¸žà¸šà¸•à¸²à¸£à¸²à¸‡à¸«à¸£à¸·à¸­à¸›à¸¥à¸²à¸¢à¸—à¸²à¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ (404) â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸Šà¸·à¹ˆà¸­à¸•à¸²à¸£à¸²à¸‡/URL';
+  if (e.status >= 500) return 'à¹€à¸‹à¸´à¸£à¹Œà¸Ÿà¹€à¸§à¸­à¸£à¹Œà¸¡à¸µà¸›à¸±à¸à¸«à¸² (' + e.status + ') à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆà¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡à¸ à¸²à¸¢à¸«à¸¥à¸±à¸‡';
+  if (e.status) return 'à¹‚à¸«à¸¥à¸”à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ (' + e.status + ')';
+  return 'à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¹€à¸‹à¸´à¸£à¹Œà¸Ÿà¹€à¸§à¸­à¸£à¹Œà¹„à¸¡à¹ˆà¹„à¸”à¹‰ â€” à¸•à¸£à¸§à¸ˆà¸ªà¸­à¸šà¸­à¸´à¸™à¹€à¸—à¸­à¸£à¹Œà¹€à¸™à¹‡à¸•';
+}
+function fillSources() {
+  var sel = $('source'), cur = sel.value, set = {};
+  rows.forEach(function (r) { if (r._src) set[r._src] = 1; });
+  sel.innerHTML = '<option value="">à¸—à¸¸à¸à¹à¸«à¸¥à¹ˆà¸‡à¸‚à¹‰à¸­à¸¡à¸¹à¸¥</option>' + Object.keys(set).sort().map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+  if (set[cur]) sel.value = cur;
+}
+function showLogin(show) { $('login').hidden = !show; $('main').hidden = show; }
+
+async function load(silent) {
+  if (loading) return;
+  loading = true;
+  var ctrl = new AbortController(), to = setTimeout(function () { ctrl.abort(); }, 25000);
+  $('rf').disabled = true;
+  if (!silent && !rows.length) $('list').innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>';
+  try {
+    rows = (await fetchRows(ctrl.signal)).map(prep);
+    lastLoad = Date.now();
+    $('err').hidden = true; showLogin(false);
+    $('upd').textContent = 'à¸­à¸±à¸›à¹€à¸”à¸•à¸¥à¹ˆà¸²à¸ªà¸¸à¸” ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+    fillSources(); refreshAll();
+  } catch (e) {
+    if (SB && CONFIG.REQUIRE_LOGIN && e.status === 401) { setAuth(null); showLogin(true); $('err').hidden = true; $('upd').textContent = 'à¸à¸£à¸¸à¸“à¸²à¹€à¸‚à¹‰à¸²à¸ªà¸¹à¹ˆà¸£à¸°à¸šà¸š'; }
+    else {
+      $('errMsg').textContent = errText(e); $('err').hidden = false; $('upd').textContent = 'à¹‚à¸«à¸¥à¸”à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ';
+      if (!rows.length) $('list').innerHTML = '';
+    }
+  } finally { clearTimeout(to); loading = false; $('rf').disabled = false; }
+}
+
+/* ====== à¹€à¸«à¸•à¸¸à¸à¸²à¸£à¸“à¹Œ ====== */
+$('login').addEventListener('submit', async function (ev) {
+  ev.preventDefault();
+  $('loginErr').textContent = '';
+  try {
+    var r = await sbFetch('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email: $('em').value.trim(), password: $('pw').value }) });
+    if (!r.ok) { $('loginErr').textContent = 'à¸­à¸µà¹€à¸¡à¸¥à¸«à¸£à¸·à¸­à¸£à¸«à¸±à¸ªà¸œà¹ˆà¸²à¸™à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡'; return; }
+    setAuth(await r.json()); $('pw').value = ''; load();
+  } catch (e) { $('loginErr').textContent = 'à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­à¹„à¸¡à¹ˆà¹„à¸”à¹‰ à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆà¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡'; }
+});
+$('list').addEventListener('click', function (e) {
+  var b = e.target.closest('.sum');
+  if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
+  if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
+});
+$('calgrid').addEventListener('click', function (e) {
+  var c = e.target.closest('[data-d]'); if (!c) return;
+  view.day = view.day === c.dataset.d ? '' : c.dataset.d;
+  LIMIT = 150; refreshAll(); $('list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('dayChip').onclick = function () { view.day = ''; refreshAll(); };
+$('calbtn').onclick = function () {
+  var h = !$('calendar').hidden; $('calendar').hidden = h;
+  $('calbtn').setAttribute('aria-expanded', String(!h)); $('calbtn').classList.toggle('on', !h);
+  if (!h) renderCal();
+};
+function moveCal(n) { view.cal.m += n; if (view.cal.m < 0) { view.cal.m = 11; view.cal.y--; } if (view.cal.m > 11) { view.cal.m = 0; view.cal.y++; } renderCal(); }
+$('cPrev').onclick = function () { moveCal(-1); };
+$('cNext').onclick = function () { moveCal(1); };
+$('cToday').onclick = function () { view.cal = null; renderCal(); };
+var timer;
+$('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { LIMIT = 150; refreshAll(); }, 150); });
+['period', 'mode', 'source', 'kind'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
+$('rf').onclick = function () { load(); };
+$('retry').onclick = function () { load(); };
+document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); });
+setInterval(function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); }, 60000);
+
+$('today').textContent = 'à¸§à¸±à¸™à¸™à¸µà¹‰ ' + thaiDate(todayISO());
+load();
+</script>
+</body>
+</html>
