@@ -58,6 +58,20 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         updated_at: new Date().toISOString()
     };
 
+    const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL);
+    const publishableKey = clean(process.env.SUPABASE_ANON_KEY);
+    if (functionUrl && publishableKey) {
+        try {
+            const response = await axios.post(functionUrl, bookingRow, {
+                headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}`, "Content-Type": "application/json" },
+                timeout: 30000
+            });
+            return { skipped: false, supabase: true, data: response.data };
+        } catch (error) {
+            console.warn("SUPABASE_FUNCTION_WRITE_FAILED: falling back to legacy Supabase path");
+        }
+    }
+
     let bookingTableAvailable = true;
     if (details.file_hash) {
         try {
