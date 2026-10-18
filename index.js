@@ -1418,6 +1418,43 @@ async function runAppSheetSync() {
     }
 }
 
+async function backfillLineSheetsToSupabase() {
+    if (process.env.SUPABASE_BACKFILL_ONCE !== "true" || !getLineSpreadsheetId()) return;
+    const sheets = google.sheets({ version: "v4", auth });
+    const results = { scanned: 0, imported: 0, duplicates: 0, skipped: 0 };
+    for (const sheetTitle of [process.env.LINE_BOOKING_SHEET || "Booking", process.env.LINE_OTHER_SHEET || "Other"]) {
+        const result = await sheets.spreadsheets.values.get({
+            spreadsheetId: getLineSpreadsheetId(),
+            range: `${sheetTitle}!A:N`,
+            valueRenderOption: "FORMATTED_VALUE"
+        });
+        const [, ...rows] = result.data.values || [];
+        for (let index = 0; index < rows.length; index += 1) {
+            const row = rows[index] || [];
+            if (!row.some((value) => cleanText(value))) { results.skipped += 1; continue; }
+            results.scanned += 1;
+            const fileName = cleanText(row[12]) || `${sheetTitle}-${index + 2}`;
+            const driveUrl = cleanText(row[13]);
+            const fileHash = crypto.createHash("sha256")
+                .update(`legacy-line:${getLineSpreadsheetId()}:${sheetTitle}:${index + 2}:${fileName}:${driveUrl}`)
+                .digest("hex");
+            const saved = await savePartnerUpload({
+                booking: {
+                    company: cleanText(row[1]) || (sheetTitle === "Other" ? "Other" : "LINE"),
+                    bookingNo: cleanText(row[2]), customerName: cleanText(row[3]), customerPhone: cleanText(row[4]),
+                    pickupDate: cleanText(row[5]), pickupTime: cleanText(row[6]), pickupLocation: cleanText(row[7]),
+                    returnDate: cleanText(row[8]), returnTime: cleanText(row[9]), returnLocation: cleanText(row[10]), car: cleanText(row[11])
+                },
+                fileName, fileHash, driveUrl, source: "LINE", sourceLabel: `LINE / legacy ${sheetTitle}`
+            });
+            if (saved?.duplicate) results.duplicates += 1;
+            else if (saved?.skipped) results.skipped += 1;
+            else results.imported += 1;
+        }
+    }
+    console.log("SUPABASE_LINE_BACKFILL:", results);
+}
+
 async function runCombinedSheetSync() {
     const combinedSpreadsheetId = getCombinedSpreadsheetId();
     if (!combinedSpreadsheetId) return;
@@ -1437,6 +1474,10 @@ async function runCombinedSheetSync() {
 if (getAppSheetSpreadsheetId()) {
     setTimeout(() => void runAppSheetSync(), 15000);
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
+}
+
+if (process.env.SUPABASE_BACKFILL_ONCE === "true") {
+    setTimeout(() => void backfillLineSheetsToSupabase(), 25000);
 }
 
 if (getCombinedSpreadsheetId()) {
