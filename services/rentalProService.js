@@ -8,11 +8,6 @@ function clean(value = "") {
 }
 
 async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, driveUrl, source = "LINE", sourceLabel = "LINE / Partner" }) {
-    if (!rentalProUrl || !rentalProKey) {
-        console.warn("RENTALPRO_SYNC_SKIPPED: missing RENTALPRO_SUPABASE_URL or RENTALPRO_SUPABASE_SERVICE_ROLE_KEY");
-        return { skipped: true };
-    }
-
     const details = {
         source,
         source_label: sourceLabel,
@@ -70,6 +65,11 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         } catch (error) {
             console.warn("SUPABASE_FUNCTION_WRITE_FAILED: falling back to legacy Supabase path");
         }
+    }
+
+    if (!rentalProUrl || !rentalProKey) {
+        console.warn("RENTALPRO_SYNC_SKIPPED: missing legacy Supabase variables and new function write failed");
+        return { skipped: true };
     }
 
     let bookingTableAvailable = true;
