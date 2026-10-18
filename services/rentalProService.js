@@ -35,13 +35,34 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         drive_url: clean(driveUrl)
     };
 
+    const bookingRow = {
+        source: details.source,
+        source_label: details.source_label,
+        status: details.status,
+        company: details.company,
+        booking_no: details.booking_no,
+        customer_name: details.customer_name,
+        customer_phone: details.customer_phone,
+        customer_email: details.customer_email,
+        pickup_date: details.pickup_date,
+        pickup_time: details.pickup_time,
+        pickup_location: details.pickup_location,
+        return_date: details.return_date,
+        return_time: details.return_time,
+        return_location: details.return_location,
+        car: details.car,
+        file_name: details.file_name,
+        file_hash: details.file_hash,
+        drive_file_id: details.drive_file_id,
+        drive_url: details.drive_url,
+        updated_at: new Date().toISOString()
+    };
+
     if (details.file_hash) {
-        const existing = await axios.get(`${rentalProUrl}/rest/v1/audit_logs`, {
+        const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
             params: {
                 select: "id",
-                action: "eq.partner_upload_received",
-                entity_type: "eq.partner_upload",
-                "details->>file_hash": `eq.${details.file_hash}`,
+                file_hash: `eq.${details.file_hash}`,
                 limit: 1
             },
             headers: {
@@ -55,6 +76,16 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
             return { skipped: true, duplicate: true };
         }
     }
+
+    await axios.post(`${rentalProUrl}/rest/v1/rental_bookings`, bookingRow, {
+        headers: {
+            apikey: rentalProKey,
+            Authorization: `Bearer ${rentalProKey}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal"
+        },
+        timeout: 30000
+    });
 
     await axios.post(`${rentalProUrl}/rest/v1/audit_logs`, {
         actor_id: null,
