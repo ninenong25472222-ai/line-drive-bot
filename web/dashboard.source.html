@@ -122,6 +122,11 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <button class="chip" id="dayChip" hidden></button>
   </div>
 
+  <div class="row2" id="reparsePanel" hidden>
+    <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด</button>
+    <span class="muted" id="reparseStatus" role="status"></span>
+  </div>
+
   <section class="panel" id="calendar" hidden>
     <div class="calh">
       <button class="btn" id="cPrev" aria-label="เดือนก่อน">‹</button><b id="calTitle"></b>
@@ -176,7 +181,7 @@ var CONFIG = {
 
 var $ = function (id) { return document.getElementById(id); };
 var SB = !!CONFIG.SUPABASE_URL;
-var rows = [], loading = false, LIMIT = 150, lastLoad = 0;
+var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null;
 var view = { day: '', cal: null, editingId: '' };
 
 /* ====== ตัวช่วย ====== */
@@ -275,7 +280,6 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
-    (r.id && url ? '<button class="reparse" type="button" data-reparse="' + esc(r.id) + '">อ่านไฟล์อีกครั้ง</button>' : '') +
     (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' : '') + '</div>' +
     '</div></article>';
 }
@@ -396,28 +400,70 @@ function errText(e) {
   if (e.status) return 'โหลดข้อมูลไม่สำเร็จ (' + e.status + ')';
   return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต';
 }
-async function reparseBooking(id, button) {
-  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่ออ่านและบันทึกข้อมูลจากไฟล์อีกครั้ง');
+function incompleteFileRows() {
+  return rows.filter(function (row) { return !row._oth && row._bad && row.id && safeUrl(row.drive_url); });
+}
+function updateReparseAction() {
+  var targets = incompleteFileRows(), panel = $('reparsePanel'), button = $('reparseAll');
+  panel.hidden = !targets.length && !(batchReparse && (batchReparse.running || batchReparse.note));
+  if (batchReparse && batchReparse.running) {
+    button.disabled = true;
+    button.textContent = 'กำลังอ่านไฟล์ ' + batchReparse.done + '/' + batchReparse.total;
+    $('reparseStatus').textContent = batchReparse.note;
+    return;
+  }
+  button.disabled = !targets.length;
+  button.textContent = 'อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด (' + targets.length + ')';
+  if (!batchReparse || !batchReparse.note) $('reparseStatus').textContent = targets.length ? 'ระบบจะเติมเฉพาะช่องที่ว่าง' : '';
+}
+async function requestReparse(id, token) {
+  var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
+    method: 'POST',
+    headers: { 'X-Booking-Edit-Token': token }
+  });
+  var result = await response.json().catch(function () { return {}; });
+  if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
+  return result;
+}
+function applyReparseResult(id, result) {
+  rows = rows.map(function (row) { return String(row.id) === String(id) ? prep(result.booking) : row; });
+  fillSources(); refreshAll();
+}
+function reparseErrorText(error) {
+  if (error.status === 403) return 'รหัสผู้ดูแลไม่ถูกต้อง';
+  if (error.status === 503) return 'ยังไม่ได้ตั้งค่ารหัสผู้ดูแลบนระบบ';
+  return error.detail || 'อ่านไฟล์ไม่สำเร็จ';
+}
+async function reparseAllIncomplete() {
+  if (batchReparse && batchReparse.running) return;
+  var targets = incompleteFileRows();
+  if (!targets.length) return;
+  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่ออ่านและบันทึกข้อมูลจากไฟล์');
   if (!token) return;
-  button.disabled = true;
-  var original = button.textContent;
-  button.textContent = 'กำลังอ่านไฟล์…';
+  batchReparse = { running: true, done: 0, total: targets.length, filled: 0, failed: 0, note: 'กำลังเตรียมอ่านไฟล์…' };
+  updateReparseAction();
   try {
-    var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
-      method: 'POST',
-      headers: { 'X-Booking-Edit-Token': token }
-    });
-    var result = await response.json().catch(function () { return {}; });
-    if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
+    for (var i = 0; i < targets.length; i++) {
+      batchReparse.note = 'กำลังอ่านไฟล์ ' + (i + 1) + ' จาก ' + targets.length;
+      updateReparseAction();
+      try {
+        var result = await requestReparse(targets[i].id, token);
+        batchReparse.filled += (result.updatedFields || []).length;
+        applyReparseResult(targets[i].id, result);
+      } catch (error) {
+        batchReparse.failed++;
+        if (error.status === 403 || error.status === 503) throw error;
+      }
+      batchReparse.done = i + 1;
+      updateReparseAction();
+    }
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
-    rows = rows.map(function (row) { return String(row.id) === String(id) ? prep(result.booking) : row; });
-    fillSources(); refreshAll();
-    window.alert(result.updatedFields && result.updatedFields.length ? 'อ่านไฟล์แล้ว และเติมข้อมูล: ' + result.updatedFields.join(', ') : 'อ่านไฟล์แล้ว ข้อมูลในรายการครบอยู่แล้ว');
+    batchReparse.note = 'เสร็จแล้ว: อ่าน ' + batchReparse.done + ' ไฟล์ · เติม ' + batchReparse.filled + ' ช่อง' + (batchReparse.failed ? ' · อ่านไม่สำเร็จ ' + batchReparse.failed + ' ไฟล์' : '');
   } catch (error) {
-    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : (error.detail || 'อ่านไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง'));
+    batchReparse.note = reparseErrorText(error);
   } finally {
-    button.disabled = false;
-    button.textContent = original;
+    batchReparse.running = false;
+    updateReparseAction();
   }
 }
 function fillSources() {
@@ -439,7 +485,7 @@ async function load(silent) {
     lastLoad = Date.now();
     $('err').hidden = true; showLogin(false);
     $('upd').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
-    fillSources(); refreshAll();
+    fillSources(); refreshAll(); updateReparseAction();
   } catch (e) {
     if (SB && CONFIG.REQUIRE_LOGIN && e.status === 401) { setAuth(null); showLogin(true); $('err').hidden = true; $('upd').textContent = 'กรุณาเข้าสู่ระบบ'; }
     else {
@@ -464,8 +510,6 @@ $('list').addEventListener('click', function (e) {
   if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
   var edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
-  var reparse = e.target.closest('[data-reparse]');
-  if (reparse) { reparseBooking(reparse.dataset.reparse, reparse); return; }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
 });
 $('editClose').onclick = closeEdit;
@@ -489,7 +533,7 @@ $('editForm').addEventListener('submit', async function (e) {
     var updated = await response.json();
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
-    closeEdit(); fillSources(); refreshAll();
+    closeEdit(); fillSources(); refreshAll(); updateReparseAction();
   } catch (error) {
     $('editErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
   } finally { $('editSave').disabled = false; }
@@ -514,6 +558,7 @@ $('q').addEventListener('input', function () { clearTimeout(timer); timer = setT
 ['period', 'mode', 'source', 'kind'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
 $('rf').onclick = function () { load(); };
 $('retry').onclick = function () { load(); };
+$('reparseAll').onclick = reparseAllIncomplete;
 document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); });
 setInterval(function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); }, 60000);
 
