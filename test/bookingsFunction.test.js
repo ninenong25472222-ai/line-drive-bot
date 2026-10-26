@@ -16,8 +16,8 @@ test("does not use a Supabase service-role key for the public endpoint", async (
     try {
         const response = await handler({ httpMethod: "GET" });
 
-        assert.equal(response.statusCode, 503);
-        assert.match(response.body, /Dashboard access is not configured/);
+        assert.equal(response.statusCode, 500);
+        assert.match(response.body, /Missing Netlify Supabase/);
     } finally {
         if (originalUrl === undefined) delete process.env.SUPABASE_URL;
         else process.env.SUPABASE_URL = originalUrl;

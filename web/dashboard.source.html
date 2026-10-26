@@ -151,6 +151,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <label>เวลาคืนรถ<input class="ctl" name="return_time" type="time"></label>
       <label class="wide">สถานที่คืนรถ<input class="ctl" name="return_location"></label>
       <label>สถานะ<select class="ctl" name="status"><option value="รอตรวจสอบ">รอตรวจสอบ</option><option value="ยืนยันแล้ว">ยืนยันแล้ว</option><option value="ผิดพลาด">ผิดพลาด — รอย้ายเข้าคิวลบ</option><option value="ยกเลิก">ยกเลิก — รอย้ายเข้าคิวลบ</option></select></label>
+      <label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>
     </div>
     <div class="muted" id="editErr" role="alert"></div>
     <div class="modalFoot"><button class="btn" id="editCancel" type="button">ยกเลิก</button><button class="btn save" id="editSave" type="submit">บันทึกข้อมูล</button></div>
@@ -162,12 +163,11 @@ h1{font-size:26px;line-height:1.2;margin:0}
 var CONFIG = {
   // โหมด 1: เรียก API ของคุณเอง (ต้องส่ง JSON array ที่มีฟิลด์ตามด้านล่าง)
   API_URL: '/api/bookings',
-  // ใช้ Supabase Auth สำหรับเข้าสู่ระบบเท่านั้น ข้อมูลจะวิ่งผ่าน API_URL เพื่อไม่เปิดเผยข้อมูลลูกค้าโดยตรง
-  SUPABASE_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co',
-  SUPABASE_ANON_KEY: 'sb_publishable_LGTEvWzmUxYrpMp2hUdffg__674Yux3',
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: '',
   TABLE: 'bookings',
-  REQUIRE_LOGIN: true,       // true = ต้องล็อกอินด้วย Supabase Auth (ต้องเปิด RLS ให้ authenticated อ่านได้เท่านั้น)
-  EDIT_API_URL: '/api/bookings', // ต้องมี Supabase login และ DASHBOARD_ALLOWED_EMAILS บน Netlify ก่อนจึงแก้ไขได้
+  REQUIRE_LOGIN: false,      // เปิดดู Dashboard ได้ทันที
+  EDIT_API_URL: '/api/bookings', // กดแก้ไขแล้วจะขอรหัสผู้ดูแลเฉพาะครั้ง
   LOOKBACK_DAYS: 90          // ดึงเฉพาะรายการที่คืนรถไม่เกินกี่วันก่อน (0 = ดึงทั้งหมด)
 };
 /* ฟิลด์ที่หน้านี้ใช้: customer_name, company, customer_phone, booking_no, car,
@@ -246,7 +246,7 @@ function inWin(d, t) {
   var ts = Date.parse(d + 'T' + (t || '23:59') + ':00+07:00'), now = Date.now();
   return ts >= now && ts <= now + 48 * 3600000;
 }
-function canEdit() { return Boolean(SB && CONFIG.REQUIRE_LOGIN && auth && auth.token); }
+function editToken() { try { return sessionStorage.getItem('rd_edit_token') || ''; } catch (e) { return ''; } }
 
 function card(e) {
   var r = e.r, p = e.t === 'p', place = p ? r.pickup_location : r.return_location;
@@ -270,7 +270,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
-    (canEdit() && r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' : '') + '</div>' +
     '</div></article>';
 }
 
@@ -344,7 +344,7 @@ function closeEdit() {
 }
 function openEdit(id) {
   var row = rows.find(function (r) { return String(r.id) === String(id); });
-  if (!row || !canEdit()) return;
+  if (!row) return;
   view.editingId = String(id);
   ['customer_name', 'customer_phone', 'booking_no', 'car', 'pickup_location', 'return_location', 'status'].forEach(function (name) {
     $('editForm').elements[name].value = row[name] || (name === 'status' ? 'รอตรวจสอบ' : '');
@@ -353,6 +353,7 @@ function openEdit(id) {
   $('editForm').elements.return_date.value = row._r || '';
   $('editForm').elements.pickup_time.value = row._pt || '';
   $('editForm').elements.return_time.value = row._rt || '';
+  $('editForm').elements.edit_token.value = editToken();
   $('editErr').textContent = '';
   $('editModal').hidden = false;
 }
@@ -440,24 +441,25 @@ $('editCancel').onclick = closeEdit;
 $('editModal').addEventListener('click', function (e) { if (e.target === $('editModal')) closeEdit(); });
 $('editForm').addEventListener('submit', async function (e) {
   e.preventDefault();
-  var token = await getToken();
-  if (!view.editingId || !token) { $('editErr').textContent = 'กรุณาเข้าสู่ระบบใหม่ก่อนบันทึก'; return; }
+  var token = String($('editForm').elements.edit_token.value || '').trim();
+  if (!view.editingId || !token) { $('editErr').textContent = 'กรอกรหัสผู้ดูแลก่อนบันทึก'; return; }
   var form = new FormData($('editForm')), payload = {};
-  form.forEach(function (value, key) { payload[key] = String(value).trim(); });
+  form.forEach(function (value, key) { if (key !== 'edit_token') payload[key] = String(value).trim(); });
   $('editSave').disabled = true;
   $('editErr').textContent = '';
   try {
     var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(view.editingId), {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': token },
       body: JSON.stringify(payload)
     });
     if (!response.ok) throw httpErr(response.status);
     var updated = await response.json();
+    try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     closeEdit(); fillSources(); refreshAll();
   } catch (error) {
-    $('editErr').textContent = error.status === 403 ? 'บัญชีนี้ไม่มีสิทธิ์แก้ไขข้อมูล' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+    $('editErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
   } finally { $('editSave').disabled = false; }
 });
 $('calgrid').addEventListener('click', function (e) {

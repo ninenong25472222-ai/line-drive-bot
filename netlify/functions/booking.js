@@ -68,26 +68,19 @@ exports.handler = async function handler(event) {
   if (event.httpMethod !== "PATCH") return json(405, { error: "Method not allowed" });
 
   const supabaseUrl = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
-  const anonKey = String(process.env.SUPABASE_ANON_KEY || "");
   const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
-  const allowedEmails = configuredEmails();
-  const id = bookingIdFromPath(event.path);
+  const editToken = String(process.env.BOOKING_EDIT_TOKEN || "");
+  const suppliedToken = String(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"] || "");
+  const id = bookingIdFromPath(event.path || event.rawUrl || "");
 
-  // Fail closed. The service-role key is used only after a logged-in user has
-  // been checked against the explicit admin allow-list.
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !allowedEmails.size) {
+  // Fail closed. This endpoint is protected by an operator-controlled secret
+  // and is separate from the public, read-only dashboard route.
+  if (!supabaseUrl || !serviceRoleKey || !editToken) {
     return json(503, { error: "Booking editing is not configured" });
   }
   if (!id) return json(400, { error: "Missing booking id" });
 
-  let user;
-  try {
-    user = await getAuthorizedUser(event, supabaseUrl, anonKey);
-  } catch {
-    return json(401, { error: "Unauthorized" });
-  }
-
-  if (!user?.email || !allowedEmails.has(String(user.email).toLowerCase())) {
+  if (!suppliedToken || suppliedToken !== editToken) {
     return json(403, { error: "Forbidden" });
   }
 
