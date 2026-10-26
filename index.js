@@ -3,6 +3,7 @@ const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 const { syncCombinedSpreadsheet } = require("./services/combinedSheetService");
+const { queueExpiredBookings } = require("./services/bookingLifecycleService");
 const {
     getEventGroupId,
     isAllowedSourceGroup,
@@ -1355,6 +1356,38 @@ app.get("/health", (req, res) => {
     res.status(200).json({
         status: "ok"
     });
+});
+
+async function runPendingDeletionQueue() {
+    const result = await queueExpiredBookings({
+        drive: google.drive({
+            version: "v3",
+            auth
+        }),
+        supabaseUrl: process.env.RENTALPRO_SUPABASE_URL,
+        serviceRoleKey: process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY,
+        pendingFolderId: cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")
+    });
+    console.log("PENDING_DELETION_QUEUE:", result);
+    return result;
+}
+
+// Call this from a Render cron job. It deliberately moves files only to the
+// pending-review folder and never permanently deletes a Drive file.
+app.post("/maintenance/pending-deletion", async (req, res) => {
+    const expectedToken = cleanText(process.env.MAINTENANCE_TOKEN || "");
+    const suppliedToken = cleanText(req.get("authorization") || "").replace(/^Bearer\s+/i, "");
+
+    if (!expectedToken || suppliedToken !== expectedToken) {
+        return res.sendStatus(401);
+    }
+
+    try {
+        return res.status(200).json(await runPendingDeletionQueue());
+    } catch (error) {
+        console.error("PENDING_DELETION_MAINTENANCE_ERROR:", error?.message || error);
+        return res.sendStatus(500);
+    }
 });
 
 // ============================

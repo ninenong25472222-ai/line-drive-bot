@@ -6,6 +6,7 @@ const {
     isAllowedSourceGroup,
     canSendToDestination
 } = require("../services/lineRouting");
+const { shouldQueueForDeletion } = require("../services/bookingLifecycleService");
 
 const primaryGroupId = "C6a954d191660bcbeb24433dc8f24483d";
 const eventFrom = (groupId) => ({ source: { type: "group", groupId } });
@@ -25,4 +26,11 @@ test("only allows a distinct configured destination group", () => {
     assert.equal(canSendToDestination(eventFrom(primaryGroupId), "Cdestination"), true);
     assert.equal(canSendToDestination(eventFrom(primaryGroupId), primaryGroupId), false);
     assert.equal(canSendToDestination(eventFrom(primaryGroupId), ""), false);
+});
+
+test("queues only cancelled, incorrect, or two-day-expired bookings", () => {
+    assert.equal(shouldQueueForDeletion({ status: "ยกเลิก" }, "2026-10-24"), true);
+    assert.equal(shouldQueueForDeletion({ return_date: "2026-10-24" }, "2026-10-24"), true);
+    assert.equal(shouldQueueForDeletion({ return_date: "2026-10-25" }, "2026-10-24"), false);
+    assert.equal(shouldQueueForDeletion({ status: "ผิดพลาด", deletion_status: "pending_confirmation" }, "2026-10-24"), false);
 });

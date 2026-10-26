@@ -6,3 +6,8 @@
   from = "/api/bookings"
   to = "/.netlify/functions/bookings"
   status = 200
+
+[[redirects]]
+  from = "/api/bookings/*"
+  to = "/.netlify/functions/booking/:splat"
+  status = 200
