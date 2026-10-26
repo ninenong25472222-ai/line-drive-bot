@@ -10,9 +10,9 @@ exports.handler = async function handler(event) {
   }
 
   const url = process.env.SUPABASE_URL;
-  // Read-only endpoint: use the publishable/anon key with the database's
-  // explicit SELECT policy. Keep the service-role key out of Netlify.
-  const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // This public read-only endpoint must use only the publishable/anon key.
+  // Never fall back to a service-role key, which would bypass RLS.
+  const key = process.env.SUPABASE_ANON_KEY;
   if (!url || !key) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: "Missing Netlify Supabase environment variables" }) };
   }

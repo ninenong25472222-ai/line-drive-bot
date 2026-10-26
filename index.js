@@ -3,6 +3,11 @@ const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 const { syncCombinedSpreadsheet } = require("./services/combinedSheetService");
+const {
+    getEventGroupId,
+    isAllowedSourceGroup,
+    canSendToDestination
+} = require("./services/lineRouting");
 
 require("dotenv").config();
 
@@ -91,28 +96,6 @@ function shortText(
 // LINE GROUP ROUTING
 // ============================
 
-function getEventGroupId(event) {
-    return cleanText(
-        event?.source?.groupId ||
-        ""
-    );
-}
-
-function isAllowedSourceGroup(event) {
-    const configuredSourceGroupIds = [
-        process.env.SOURCE_GROUP_ID,
-        // Temporary/fallback source group requested by the operator.
-        "C04cfcf9eeeae0b36bd8d22122d252928"
-    ]
-        .map((groupId) => cleanText(groupId || ""))
-        .filter(Boolean);
-
-    return configuredSourceGroupIds.length === 0 ||
-        configuredSourceGroupIds.includes(
-            getEventGroupId(event)
-        );
-}
-
 function getLineSpreadsheetId() { return cleanText(process.env.GOOGLE_SHEET_ID || ""); }
 function getAppSheetSpreadsheetId() { return cleanText(process.env.APPSHEET_SPREADSHEET_ID || ""); }
 function getCombinedSpreadsheetId() { return cleanText(process.env.COMBINED_SPREADSHEET_ID || ""); }
@@ -127,10 +110,7 @@ async function sendResultMessage(event, text) {
     const sourceGroupId =
         getEventGroupId(event);
 
-    if (
-        destinationGroupId &&
-        destinationGroupId !== sourceGroupId
-    ) {
+    if (canSendToDestination(event, destinationGroupId)) {
         await client.pushMessage({
             to: destinationGroupId,
             messages: [
@@ -149,17 +129,18 @@ async function sendResultMessage(event, text) {
         return;
     }
 
-    await client.replyMessage({
-        replyToken:
-            event.replyToken,
-
-        messages: [
-            {
-                type: "text",
-                text
-            }
-        ]
-    });
+    // Never reply in a source group. A missing or matching destination is a
+    // configuration error, not a reason to send the result back to Group 1.
+    console.error(
+        "LINE_RESULT_NOT_SENT_INVALID_DESTINATION_CONFIGURATION",
+        {
+            hasDestinationGroup: Boolean(destinationGroupId),
+            matchesSourceGroup: Boolean(
+                destinationGroupId &&
+                destinationGroupId === sourceGroupId
+            )
+        }
+    );
 }
 
 async function ensureSheetTab(
@@ -470,7 +451,10 @@ async function handleEvent(event) {
             event?.source?.groupId || ""
         );
 
-        if (!isAllowedSourceGroup(event)) {
+        if (!isAllowedSourceGroup(
+            event,
+            process.env.SOURCE_GROUP_ID
+        )) {
             console.log(
                 "IGNORED_FILE_FROM_UNCONFIGURED_GROUP:",
                 getEventGroupId(event).slice(-6)
