@@ -162,9 +162,9 @@ h1{font-size:26px;line-height:1.2;margin:0}
 var CONFIG = {
   // โหมด 1: เรียก API ของคุณเอง (ต้องส่ง JSON array ที่มีฟิลด์ตามด้านล่าง)
   API_URL: '/api/bookings',
-  // โหมด 2: เรียก Supabase โดยตรง — ใส่ 2 ค่านี้แล้วโหมดนี้จะถูกใช้แทน API_URL
-  SUPABASE_URL: '',          // เช่น 'https://xxxx.supabase.co'
-  SUPABASE_ANON_KEY: '',     // ใส่เฉพาะ anon (public) key ห้ามใส่ service_role เด็ดขาด
+  // ใช้ Supabase Auth สำหรับเข้าสู่ระบบเท่านั้น ข้อมูลจะวิ่งผ่าน API_URL เพื่อไม่เปิดเผยข้อมูลลูกค้าโดยตรง
+  SUPABASE_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_LGTEvWzmUxYrpMp2hUdffg__674Yux3',
   TABLE: 'bookings',
   REQUIRE_LOGIN: true,       // true = ต้องล็อกอินด้วย Supabase Auth (ต้องเปิด RLS ให้ authenticated อ่านได้เท่านั้น)
   EDIT_API_URL: '/api/bookings', // ต้องมี Supabase login และ DASHBOARD_ALLOWED_EMAILS บน Netlify ก่อนจึงแก้ไขได้
@@ -372,29 +372,13 @@ async function getToken() {
   return auth && auth.token;
 }
 async function fetchRows(signal) {
-  if (!SB) {
-    var r0 = await fetch(CONFIG.API_URL, { signal: signal, credentials: 'same-origin' });
-    if (!r0.ok) throw httpErr(r0.status);
-    var j0 = await r0.json();
-    if (!Array.isArray(j0)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็น array)');
-    return j0;
-  }
   var tk = null;
   if (CONFIG.REQUIRE_LOGIN) { tk = await getToken(); if (!tk) throw httpErr(401); }
-  var headers = { Authorization: 'Bearer ' + (tk || CONFIG.SUPABASE_ANON_KEY) };
-  var q = 'select=*&order=pickup_date.asc.nullslast';
-  if (CONFIG.LOOKBACK_DAYS > 0) {
-    q += '&or=(return_date.gte.' + addDays(todayISO(), -CONFIG.LOOKBACK_DAYS) + ',return_date.is.null,pickup_date.is.null)';
-  }
-  var out = [];
-  for (var off = 0; off < 20000; off += 1000) {            // Supabase ส่งสูงสุด 1,000 แถวต่อครั้ง
-    var r = await sbFetch('/rest/v1/' + encodeURIComponent(CONFIG.TABLE) + '?' + q + '&limit=1000&offset=' + off, { headers: headers, signal: signal });
-    if (!r.ok) throw httpErr(r.status);
-    var j = await r.json();
-    out = out.concat(j);
-    if (j.length < 1000) break;
-  }
-  return out;
+  var r0 = await fetch(CONFIG.API_URL, { signal: signal, credentials: 'same-origin', headers: tk ? { Authorization: 'Bearer ' + tk } : {} });
+  if (!r0.ok) throw httpErr(r0.status);
+  var j0 = await r0.json();
+  if (!Array.isArray(j0)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็น array)');
+  return j0;
 }
 function errText(e) {
   if (e.name === 'AbortError') return 'โหลดนานเกินไป (เกิน 25 วินาที) กด “ลองใหม่” อีกครั้ง';

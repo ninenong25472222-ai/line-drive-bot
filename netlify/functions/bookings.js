@@ -9,12 +9,28 @@ exports.handler = async function handler(event) {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
-  const url = process.env.SUPABASE_URL;
-  // This public read-only endpoint must use only the publishable/anon key.
-  // Never fall back to a service-role key, which would bypass RLS.
-  const key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: "Missing Netlify Supabase environment variables" }) };
+  const url = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+  const anonKey = String(process.env.SUPABASE_ANON_KEY || "");
+  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
+  const allowedEmails = new Set(String(process.env.DASHBOARD_ALLOWED_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
+  const authorization = String(event.headers?.authorization || event.headers?.Authorization || "");
+
+  if (!url || !anonKey || !serviceRoleKey || !allowedEmails.size) {
+    return { statusCode: 503, headers, body: JSON.stringify({ error: "Dashboard access is not configured" }) };
+  }
+  if (!/^Bearer\s+\S+$/i.test(authorization)) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Sign-in required" }) };
+  }
+
+  const userResponse = await fetch(`${url}/auth/v1/user`, {
+    headers: { apikey: anonKey, Authorization: authorization },
+  });
+  if (!userResponse.ok) {
+    return { statusCode: 401, headers, body: JSON.stringify({ error: "Invalid session" }) };
+  }
+  const user = await userResponse.json();
+  if (!user?.email || !allowedEmails.has(String(user.email).toLowerCase())) {
+    return { statusCode: 403, headers, body: JSON.stringify({ error: "Dashboard access denied" }) };
   }
 
   const params = new URLSearchParams({
@@ -23,7 +39,7 @@ exports.handler = async function handler(event) {
     limit: "500",
   });
   const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/rental_bookings?${params}`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` },
   });
   const text = await response.text();
   if (!response.ok) {

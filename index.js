@@ -1493,6 +1493,16 @@ if (getAppSheetSpreadsheetId()) {
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
 }
 
+// The lifecycle worker is safe to run repeatedly: only records that have not
+// already entered the review queue are moved. It does not delete Drive files.
+if (cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")) {
+    setTimeout(() => void runPendingDeletionQueue(), 30000);
+    setInterval(
+        () => void runPendingDeletionQueue(),
+        Math.max(3600000, Number(process.env.PENDING_DELETION_INTERVAL_MS || 86400000))
+    );
+}
+
 if (process.env.SUPABASE_BACKFILL_ONCE === "true") {
     setTimeout(() => void backfillLineSheetsToSupabase(), 25000);
 }
