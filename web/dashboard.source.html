@@ -193,10 +193,15 @@ function mkISO(y, m, d) {
   if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return '';
   return String(y).padStart(4, '0') + '-' + pad(m) + '-' + pad(d);
 }
-function pdate(v) {                       // รองรับ yyyy-mm-dd, yyyy/m/d, dd/mm/yyyy, dd-mm-yyyy, ปี พ.ศ.
+function pdate(v) {                       // รองรับ yyyy-mm-dd, yyyy/m/d, dd/mm/yyyy, dd-mm-yyyy, วันภาษาไทย, ปี พ.ศ.
   var s = String(v == null ? '' : v).trim(), m;
   if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return mkISO(+m[1], +m[2], +m[3]);
   if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return mkISO(+m[3], +m[2], +m[1]);
+  var thaiMonths = { 'ม.ค.': 1, 'ก.พ.': 2, 'มี.ค.': 3, 'เม.ย.': 4, 'พ.ค.': 5, 'มิ.ย.': 6, 'ก.ค.': 7, 'ส.ค.': 8, 'ก.ย.': 9, 'ต.ค.': 10, 'พ.ย.': 11, 'ธ.ค.': 12,
+    'มกราคม': 1, 'กุมภาพันธ์': 2, 'มีนาคม': 3, 'เมษายน': 4, 'พฤษภาคม': 5, 'มิถุนายน': 6, 'กรกฎาคม': 7, 'สิงหาคม': 8, 'กันยายน': 9, 'ตุลาคม': 10, 'พฤศจิกายน': 11, 'ธันวาคม': 12 };
+  var compact = s.replace(/\s+/g, '');
+  m = compact.match(/^(\d{1,2})(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)(\d{4})/);
+  if (m && thaiMonths[m[2]]) return mkISO(+m[3], thaiMonths[m[2]], +m[1]);
   return '';
 }
 function ptime(v) {                       // 09:30:00 / 9.30 → 09:30
@@ -270,6 +275,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
+    (r.id && url ? '<button class="reparse" type="button" data-reparse="' + esc(r.id) + '">อ่านไฟล์อีกครั้ง</button>' : '') +
     (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' : '') + '</div>' +
     '</div></article>';
 }
@@ -390,6 +396,30 @@ function errText(e) {
   if (e.status) return 'โหลดข้อมูลไม่สำเร็จ (' + e.status + ')';
   return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต';
 }
+async function reparseBooking(id, button) {
+  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่ออ่านและบันทึกข้อมูลจากไฟล์อีกครั้ง');
+  if (!token) return;
+  button.disabled = true;
+  var original = button.textContent;
+  button.textContent = 'กำลังอ่านไฟล์…';
+  try {
+    var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
+      method: 'POST',
+      headers: { 'X-Booking-Edit-Token': token }
+    });
+    var result = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
+    try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
+    rows = rows.map(function (row) { return String(row.id) === String(id) ? prep(result.booking) : row; });
+    fillSources(); refreshAll();
+    window.alert(result.updatedFields && result.updatedFields.length ? 'อ่านไฟล์แล้ว และเติมข้อมูล: ' + result.updatedFields.join(', ') : 'อ่านไฟล์แล้ว ข้อมูลในรายการครบอยู่แล้ว');
+  } catch (error) {
+    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : (error.detail || 'อ่านไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง'));
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
 function fillSources() {
   var sel = $('source'), cur = sel.value, set = {};
   rows.forEach(function (r) { if (r._src) set[r._src] = 1; });
@@ -434,6 +464,8 @@ $('list').addEventListener('click', function (e) {
   if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
   var edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
+  var reparse = e.target.closest('[data-reparse]');
+  if (reparse) { reparseBooking(reparse.dataset.reparse, reparse); return; }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
 });
 $('editClose').onclick = closeEdit;
