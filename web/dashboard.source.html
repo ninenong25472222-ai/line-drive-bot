@@ -184,6 +184,7 @@ var CONFIG = {
   TABLE: 'bookings',
   REQUIRE_LOGIN: false,      // เปิดดู Dashboard ได้ทันที
   EDIT_API_URL: '/api/bookings', // กดแก้ไขแล้วจะขอรหัสผู้ดูแลเฉพาะครั้ง
+  // อ่าน PDF ในเบราว์เซอร์ แล้วบันทึกเฉพาะวันที่ที่ว่างผ่านฟังก์ชันภายในของ Supabase
   REPARSE_API_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking',
   REPARSE_API_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4aGZsYmhnZHRlYnh4amd4d2tzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjUzMzEsImV4cCI6MjEwNzg0MTMzMX0.FWxsNPoZgDm-Ic7d7RuRTYvHDM6Or6klziAnHLhNGwU',
   LOOKBACK_DAYS: 90          // ดึงเฉพาะรายการที่คืนรถไม่เกินกี่วันก่อน (0 = ดึงทั้งหมด)
