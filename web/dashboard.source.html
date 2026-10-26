@@ -9,7 +9,7 @@
 :root{--ink:#14293d;--mut:#66788b;--paper:#f4f8fb;--card:#fff;--line:#d9e6ef;--p:#1478b8;--r:#0f8a6a;--o:#7b61c9;--warn:#b45309;--warnbg:#fff3df;--err:#b42318}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 'IBM Plex Sans Thai',Tahoma,sans-serif}
-button,input,select{font:inherit;color:inherit}button{cursor:pointer}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}
 :focus-visible{outline:3px solid #6db4e6;outline-offset:2px}
 .app{max-width:920px;margin:0 auto;padding:16px 14px 60px}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -60,6 +60,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .editGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editGrid label{display:grid;gap:4px;color:var(--mut);font-size:13px}.editGrid label.wide{grid-column:1/-1}
 .modalFoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.save{background:var(--p);border-color:var(--p);color:#fff}
 .reparseModal{width:min(760px,100%)}.reparseList{display:grid;gap:8px;margin-top:14px;max-height:48vh;overflow:auto;padding-right:2px}.reparseItem{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fbfdff}.reparseItem b{display:block;font-size:14px}.reparseItem small{display:block;color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reparseState{font-size:12px;font-weight:600;border-radius:99px;padding:3px 9px;background:#eef1f5;color:#4b5b6b;white-space:nowrap}.reparseState.work{background:#e3f1fa;color:#0f5f93}.reparseState.ok{background:#dff3ec;color:#0b6b52}.reparseState.fail{background:#fdecea;color:var(--err)}
+.billingModal{width:min(1040px,100%);padding:0;overflow:hidden}.billingHead{padding:18px 18px 12px}.billingTools{display:grid;grid-template-columns:1fr 1fr 1fr 1.2fr;gap:9px;padding:12px 18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#f8fbfd}.billingTools label,.billProfile label{display:grid;gap:4px;color:var(--mut);font-size:12px}.billingTools .ctl{min-height:38px;padding:7px 9px}.billingActions{display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}.billScroll{max-height:72vh;overflow:auto;background:#dde7ee;padding:18px}.billPaper{width:min(210mm,100%);min-height:297mm;margin:0 auto;background:#fff;padding:13mm 14mm;box-shadow:0 4px 16px rgba(20,41,61,.18);font:400 14px/1.45 'IBM Plex Sans Thai',Tahoma,sans-serif;color:#172b3a}.billPaper input,.billPaper textarea{border:0;border-bottom:1px dotted #9caab4;background:transparent;min-width:0;padding:1px 2px;outline:0}.billPaper textarea{resize:none;width:100%}.billTop{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #172b3a;padding-bottom:10px}.billCompany{max-width:62%}.billCompany input{font-weight:700;font-size:20px;width:100%}.billCompany textarea{font-size:12px;min-height:38px}.billRight{text-align:right;min-width:190px}.billRight h3{font-size:23px;margin:0 0 6px}.billRight label{display:flex;justify-content:flex-end;gap:5px;font-size:12px;margin:3px 0}.billRight input{width:105px;text-align:right}.billCustomer{padding:10px 0;border-bottom:1px solid #172b3a}.billLabel{font-size:11px;font-weight:700;color:#4d6171;display:block}.billCustomer input{width:100%;font-weight:600;font-size:15px}.billCustomer textarea{min-height:34px;font-size:12px}.billTax{width:230px;max-width:100%;font-size:12px}.billTable{width:100%;border-collapse:collapse;margin-top:18px}.billTable th{font-size:11px;border-top:1px solid #172b3a;border-bottom:1px solid #172b3a;padding:7px 4px;text-align:left}.billTable td{padding:7px 4px;border-bottom:1px solid #dce5ea;vertical-align:top}.billTable th:first-child,.billTable td:first-child{width:34px;text-align:center}.billTable th:nth-child(3),.billTable th:nth-child(4),.billTable th:nth-child(5),.billTable td:nth-child(3),.billTable td:nth-child(4),.billTable td:nth-child(5){width:15%;text-align:right}.billTable input{width:100%;text-align:right}.billTable textarea{min-height:25px}.billDel{border:0;background:transparent;color:#b42318;font-size:18px}.billAdd{margin-top:8px;color:#0f5f93;background:#e8f3fb;border:1px solid #b8d9ed;border-radius:8px;padding:5px 9px;font-weight:600}.billFoot{display:grid;grid-template-columns:1fr 260px;gap:22px;border-top:1px solid #172b3a;margin-top:16px;padding-top:10px}.billNote textarea{min-height:70px;font-size:12px}.billTotals{font-size:14px}.billTotalRow{display:flex;justify-content:space-between;gap:10px;margin:3px 0}.billGrand{font-size:18px;font-weight:700;border-top:1px solid #172b3a;padding-top:5px;margin-top:5px}.billSign{display:grid;grid-template-columns:1fr 1fr;gap:46px;margin-top:46px;text-align:center;font-size:12px}.billSign .line{border-bottom:1px solid #9caab4;height:46px;margin-bottom:6px}.billProfile{display:grid;grid-template-columns:1fr 1.6fr 1fr;gap:10px;padding:12px 18px;border-top:1px solid var(--line);background:#f8fbfd}.billStatus{padding:0 18px 12px;color:var(--mut);font-size:13px}.billHistory{padding:0 18px 18px}.billHistory summary{cursor:pointer;font-weight:600}.billHistoryList{margin-top:8px;display:grid;gap:6px}.billHistoryItem{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px}.billHistoryItem button{border:0;background:#e8f3fb;color:#0f5f93;border-radius:8px;padding:5px 8px;font-weight:600}
 .more{display:block;margin:12px auto}
 .empty{text-align:center;color:var(--mut);padding:40px 12px}
 .sk{height:64px;border-radius:14px;margin-bottom:8px;background:linear-gradient(90deg,#fff 25%,#e9f2f8 50%,#fff 75%);background-size:200% 100%;animation:sh 1.2s infinite}@keyframes sh{to{background-position:-200% 0}}
@@ -70,7 +71,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .cd b{font-size:13px}.cd.td{border-color:var(--p);box-shadow:inset 0 0 0 1px var(--p)}.cd.sel{background:#e3f1fa}
 .cd small{font-size:10.5px;line-height:1.3;border-radius:4px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cd .cp{background:#e3f1fa;color:#0f5f93}.cd .cr{background:#dff3ec;color:#0b6b52}.cd .mo{color:var(--mut)}
-@media(max-width:700px){.filters{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.det{grid-template-columns:1fr}.wide{grid-column:auto}.cd small{font-size:9.5px}.cd{min-height:56px}.editGrid{grid-template-columns:1fr}.topActions{justify-content:flex-start}}
+@media(max-width:700px){.filters{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.det{grid-template-columns:1fr}.wide{grid-column:auto}.cd small{font-size:9.5px}.cd{min-height:56px}.editGrid{grid-template-columns:1fr}.topActions{justify-content:flex-start}.billingTools,.billProfile{grid-template-columns:1fr 1fr}.billScroll{padding:6px}.billPaper{padding:18px 14px;min-height:0}.billTop,.billFoot{grid-template-columns:1fr;display:grid}.billCompany{max-width:none}.billRight{text-align:left}.billRight label{justify-content:flex-start}.billSign{gap:18px}.billTable th:nth-child(3),.billTable td:nth-child(3){width:12%}.billTable th:nth-child(4),.billTable td:nth-child(4){width:18%}.billTable th:nth-child(5),.billTable td:nth-child(5){width:19%}}
+@media print{body>*{visibility:hidden!important}.modalBg:has(#billPaper),.modalBg:has(#billPaper) *{visibility:visible!important}.modalBg:has(#billPaper){position:static!important;background:#fff!important;padding:0!important;display:block!important}.billingModal{width:100%!important;box-shadow:none!important}.billingHead,.billingTools,.billingActions,.billProfile,.billStatus,.billHistory{display:none!important}.billScroll{padding:0!important;overflow:visible!important;background:#fff!important;max-height:none!important}.billPaper{box-shadow:none!important;width:210mm!important;min-height:297mm!important}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -79,7 +81,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 <header class="top">
   <div><h1>Rental Desk</h1><div class="muted" id="upd">กำลังโหลด…</div></div>
   <div class="topActions">
-    <button class="btn" id="billingBtn" type="button" disabled title="เตรียมไว้สำหรับเวอร์ชันถัดไป">ออกบิล (เร็วๆ นี้)</button>
+    <button class="btn" id="billingBtn" type="button">ออกบิล / ภาษี</button>
     <button class="btn" id="rf">↻ รีเฟรช</button>
   </div>
 </header>
@@ -171,6 +173,55 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div class="reparseList" id="reparseList" aria-live="polite"></div>
     <div class="muted" id="reparseStatus" role="status" style="margin-top:10px"></div>
     <div class="modalFoot"><button class="btn" id="reparseCancel" type="button">ยกเลิก</button><button class="btn save" id="reparseStart" type="button">เริ่มอ่านไฟล์</button></div>
+  </section>
+</div>
+
+<div class="modalBg" id="billingModal" hidden>
+  <section class="modal billingModal" aria-labelledby="billingTitle">
+    <div class="modalHead billingHead"><div><h2 id="billingTitle">ออกบิล / ใบกำกับภาษี</h2><div class="muted">สร้างเอกสารจากรายการจอง หรือกรอกเอง แล้วดาวน์โหลด PDF พร้อมชื่อไฟล์สั้นสำหรับ LINE OA</div></div><button class="btn" id="billingClose" type="button">ปิด</button></div>
+    <div class="billingTools">
+      <label>ประเภทเอกสาร<select class="ctl" id="billType"><option value="ใบแจ้งหนี้ / ใบกำกับภาษี">ใบแจ้งหนี้ / ใบกำกับภาษี</option><option value="ใบเสนอราคา">ใบเสนอราคา</option><option value="ใบเสร็จรับเงิน / ใบกำกับภาษี">ใบเสร็จรับเงิน / ใบกำกับภาษี</option></select></label>
+      <label>เลขที่เอกสาร<input class="ctl" id="billNumber" maxlength="40" placeholder="INV-001"></label>
+      <label>วันที่เอกสาร<input class="ctl" id="billDate" type="date"></label>
+      <label>ชื่อไฟล์ย่อสำหรับ LINE OA<input class="ctl" id="billFileName" maxlength="45" placeholder="INV-001-SOMCHAI"><span class="muted">ระบบจะเติม .pdf ให้อัตโนมัติ</span></label>
+    </div>
+    <div class="billingActions">
+      <label class="muted"><input id="billVat" type="checkbox" checked> VAT 7%</label>
+      <label class="muted"><input id="billWht" type="checkbox"> หัก ณ ที่จ่าย 5%</label>
+      <button class="btn" id="billSaveHistory" type="button">บันทึกประวัติในเครื่อง</button>
+      <button class="btn" id="billPrint" type="button">พิมพ์</button>
+      <button class="btn save" id="billDownload" type="button">ดาวน์โหลด PDF</button>
+    </div>
+    <div class="billScroll">
+      <article class="billPaper" id="billPaper">
+        <header class="billTop">
+          <div class="billCompany">
+            <span class="billLabel">ผู้ออกเอกสาร</span>
+            <input id="billCompanyName" aria-label="ชื่อกิจการ">
+            <textarea id="billCompanyAddress" aria-label="ที่อยู่กิจการ" rows="2"></textarea>
+            <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billCompanyTax" aria-label="เลขประจำตัวผู้เสียภาษีของกิจการ"></div>
+          </div>
+          <div class="billRight"><h3 id="billTitlePrint">ใบแจ้งหนี้ / ใบกำกับภาษี</h3><label>เลขที่ <input id="billNumberPrint" readonly></label><label>วันที่ <input id="billDatePrint" readonly></label></div>
+        </header>
+        <section class="billCustomer">
+          <span class="billLabel">รายละเอียดลูกค้า</span>
+          <input id="billClientName" placeholder="ชื่อลูกค้า" aria-label="ชื่อลูกค้า">
+          <textarea id="billClientAddress" rows="2" placeholder="ที่อยู่ลูกค้า" aria-label="ที่อยู่ลูกค้า"></textarea>
+          <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billClientTax" placeholder="ถ้ามี" aria-label="เลขประจำตัวผู้เสียภาษีของลูกค้า"></div>
+        </section>
+        <table class="billTable"><thead><tr><th>ลำดับ</th><th>รายการ</th><th>จำนวน</th><th>หน่วยละ</th><th>รวมเงิน</th><th class="no-print"></th></tr></thead><tbody id="billItems"></tbody></table>
+        <button class="billAdd no-print" id="billAddItem" type="button">+ เพิ่มรายการ</button>
+        <section class="billFoot">
+          <div class="billNote"><span class="billLabel">หมายเหตุ</span><textarea id="billNote" rows="4">1. ชำระค่าเช่าวันทำสัญญารับรถ
+2. กรณีเกิดอุบัติเหตุแล้วเป็นฝั่งผิด จะต้องจ่ายส่วนแรก 3,000 บาท</textarea></div>
+          <div class="billTotals"><div class="billTotalRow"><span>รวมเงิน</span><b id="billSubtotal">0.00</b></div><div class="billTotalRow" id="billVatRow"><span>ภาษีมูลค่าเพิ่ม 7%</span><b id="billVatAmount">0.00</b></div><div class="billTotalRow" id="billWhtRow" hidden><span>หัก ณ ที่จ่าย 5%</span><b id="billWhtAmount">-0.00</b></div><div class="billTotalRow billGrand"><span>ยอดสุทธิ</span><b id="billGrand">0.00</b></div></div>
+        </section>
+        <section class="billSign"><div><div class="line"></div><b>ผู้รับเงิน / ผู้รับบริการ</b></div><div><div class="line"></div><b>ในนามกิจการ</b></div></section>
+      </article>
+    </div>
+    <div class="billProfile"><label>ชื่อกิจการ (ตั้งค่า)<input class="ctl" id="billProfileName"></label><label>ที่อยู่กิจการ (ตั้งค่า)<input class="ctl" id="billProfileAddress"></label><label>เลขภาษีกิจการ (ตั้งค่า)<input class="ctl" id="billProfileTax"></label></div>
+    <div class="billStatus" id="billStatus" role="status"></div>
+    <details class="billHistory"><summary>ประวัติออกบิลในเครื่องนี้</summary><div class="billHistoryList" id="billHistoryList"></div></details>
   </section>
 </div>
 
@@ -293,7 +344,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' +
     '</div></article>';
 }
 
@@ -655,6 +706,104 @@ async function load(silent) {
   } finally { clearTimeout(to); loading = false; $('rf').disabled = false; }
 }
 
+/* ====== ออกบิล / ใบกำกับภาษี ====== */
+var BILL_DEFAULT_PROFILE = { name: 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์', address: '21 หมู่ที่ 3 ต.หัวเตย อ.พุนพิน จ.สุราษฎร์ธานี 84130', tax: '0843566002448' };
+var billProfile = BILL_DEFAULT_PROFILE, billHistory = [], html2pdfLoader = null;
+try { billProfile = Object.assign({}, BILL_DEFAULT_PROFILE, JSON.parse(localStorage.getItem('rental_bill_profile_v1') || '{}')); billHistory = JSON.parse(localStorage.getItem('rental_bill_history_v1') || '[]'); if (!Array.isArray(billHistory)) billHistory = []; } catch (e) {}
+function billMoney(value) { return (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function billShortName(value) { return String(value || '').trim().replace(/[\\/:*?"<>|#%{}]/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45) || 'invoice'; }
+function billThaiDate(value) { return value ? thaiDate(value, { day: 'numeric', month: 'long', year: 'numeric' }) : ''; }
+function billDateForFile(value) { return String(value || '').replace(/-/g, '') || todayISO().replace(/-/g, ''); }
+function billSetProfileFields() {
+  $('billProfileName').value = billProfile.name; $('billProfileAddress').value = billProfile.address; $('billProfileTax').value = billProfile.tax;
+  $('billCompanyName').value = billProfile.name; $('billCompanyAddress').value = billProfile.address; $('billCompanyTax').value = billProfile.tax;
+}
+function billSaveProfile() {
+  billProfile = { name: $('billProfileName').value.trim() || BILL_DEFAULT_PROFILE.name, address: $('billProfileAddress').value.trim(), tax: $('billProfileTax').value.trim() };
+  try { localStorage.setItem('rental_bill_profile_v1', JSON.stringify(billProfile)); } catch (e) {}
+  $('billCompanyName').value = billProfile.name; $('billCompanyAddress').value = billProfile.address; $('billCompanyTax').value = billProfile.tax;
+}
+function billSyncDocument() {
+  $('billTitlePrint').textContent = $('billType').value;
+  $('billNumberPrint').value = $('billNumber').value.trim() || '-';
+  $('billDatePrint').value = billThaiDate($('billDate').value) || '-';
+}
+function billReindex() { Array.prototype.forEach.call($('billItems').children, function (row, index) { row.querySelector('.billIndex').textContent = index + 1; }); }
+function billAddItem(item) {
+  item = item || { desc: '', qty: 1, price: 0 };
+  var row = document.createElement('tr');
+  row.innerHTML = '<td class="billIndex"></td><td><textarea class="billDesc" rows="1" aria-label="รายการ">' + esc(item.desc || '') + '</textarea></td><td><input class="billQty" type="number" min="0" step="any" value="' + esc(item.qty == null ? 1 : item.qty) + '" aria-label="จำนวน"></td><td><input class="billPrice" type="number" min="0" step="0.01" value="' + esc(item.price == null ? 0 : item.price) + '" aria-label="ราคาต่อหน่วย"></td><td class="billLineTotal">0.00</td><td class="no-print"><button class="billDel" type="button" aria-label="ลบรายการ">×</button></td>';
+  $('billItems').appendChild(row); billReindex(); billCalculate();
+}
+function billItemsValue() {
+  return Array.prototype.map.call($('billItems').children, function (row) { return { desc: row.querySelector('.billDesc').value.trim(), qty: row.querySelector('.billQty').value, price: row.querySelector('.billPrice').value }; });
+}
+function billCalculate() {
+  var subtotal = 0;
+  Array.prototype.forEach.call($('billItems').children, function (row) {
+    var line = (parseFloat(row.querySelector('.billQty').value) || 0) * (parseFloat(row.querySelector('.billPrice').value) || 0);
+    subtotal += line; row.querySelector('.billLineTotal').textContent = billMoney(line);
+  });
+  var vat = $('billVat').checked ? subtotal * 0.07 : 0, wht = $('billWht').checked ? subtotal * 0.05 : 0;
+  $('billSubtotal').textContent = billMoney(subtotal); $('billVatAmount').textContent = billMoney(vat); $('billWhtAmount').textContent = '-' + billMoney(wht); $('billGrand').textContent = billMoney(subtotal + vat - wht);
+  $('billVatRow').hidden = !$('billVat').checked; $('billWhtRow').hidden = !$('billWht').checked;
+}
+function billReset() {
+  billSetProfileFields();
+  $('billType').value = 'ใบแจ้งหนี้ / ใบกำกับภาษี'; $('billDate').value = todayISO(); $('billNumber').value = 'INV-' + billDateForFile($('billDate').value); $('billFileName').value = billShortName($('billNumber').value);
+  $('billClientName').value = ''; $('billClientAddress').value = ''; $('billClientTax').value = ''; $('billVat').checked = true; $('billWht').checked = false;
+  $('billNote').value = '1. ชำระค่าเช่าวันทำสัญญารับรถ\n2. กรณีเกิดอุบัติเหตุแล้วเป็นฝั่งผิด จะต้องจ่ายส่วนแรก 3,000 บาท';
+  $('billItems').innerHTML = ''; billAddItem({ desc: 'บริการรถเช่า', qty: 1, price: 0 }); billSyncDocument(); billCalculate();
+}
+function billDescription(row) {
+  var dates = row._p ? ' วันที่รับรถ ' + billThaiDate(row._p) + (row._r ? ' ถึง ' + billThaiDate(row._r) : '') : '';
+  return 'ค่าเช่ารถ ' + (row.car || '') + dates;
+}
+function openBilling(id) {
+  billReset();
+  var row = id && rows.find(function (item) { return String(item.id) === String(id); });
+  if (row) {
+    $('billClientName').value = row.customer_name || ''; $('billNumber').value = 'INV-' + billDateForFile(todayISO()) + (row.booking_no ? '-' + String(row.booking_no).slice(-8) : '');
+    $('billFileName').value = billShortName($('billNumber').value); $('billItems').innerHTML = ''; billAddItem({ desc: billDescription(row), qty: 1, price: 0 });
+  }
+  billSyncDocument(); billCalculate(); $('billStatus').textContent = row ? 'เติมชื่อลูกค้าและรายละเอียดการเช่าจากรายการจองแล้ว — ใส่ราคาและตรวจทานก่อนดาวน์โหลด' : 'ตั้งชื่อไฟล์สั้นในช่อง “ชื่อไฟล์ย่อสำหรับ LINE OA” ได้ตามต้องการ';
+  $('billingModal').hidden = false;
+}
+function closeBilling() { $('billingModal').hidden = true; }
+function billSnapshot() {
+  return { id: Date.now(), number: $('billNumber').value.trim(), date: $('billDate').value, type: $('billType').value, fileName: billShortName($('billFileName').value), clientName: $('billClientName').value.trim(), clientAddress: $('billClientAddress').value, clientTax: $('billClientTax').value, vat: $('billVat').checked, wht: $('billWht').checked, note: $('billNote').value, items: billItemsValue(), profile: { name: $('billCompanyName').value, address: $('billCompanyAddress').value, tax: $('billCompanyTax').value }, total: $('billGrand').textContent };
+}
+function billRenderHistory() {
+  $('billHistoryList').innerHTML = billHistory.length ? billHistory.map(function (entry) { return '<div class="billHistoryItem"><span><b>' + esc(entry.number || 'ไม่มีเลขที่') + '</b> · ' + esc(entry.clientName || 'ไม่ระบุลูกค้า') + '<br><span class="muted">' + esc(entry.date || '-') + ' · ' + esc(entry.total || '0.00') + ' บาท</span></span><button type="button" data-bill-history="' + esc(entry.id) + '">เปิด</button></div>'; }).join('') : '<div class="muted">ยังไม่มีประวัติ</div>';
+}
+function billSaveHistory() {
+  var entry = billSnapshot(); billHistory = [entry].concat(billHistory).slice(0, 50);
+  try { localStorage.setItem('rental_bill_history_v1', JSON.stringify(billHistory)); } catch (e) {}
+  billRenderHistory(); $('billStatus').textContent = 'บันทึกประวัติออกบิลไว้ในเบราว์เซอร์เครื่องนี้แล้ว';
+}
+function billLoadHistory(id) {
+  var entry = billHistory.find(function (item) { return String(item.id) === String(id); }); if (!entry) return;
+  $('billNumber').value = entry.number || ''; $('billDate').value = entry.date || todayISO(); $('billType').value = entry.type || 'ใบแจ้งหนี้ / ใบกำกับภาษี'; $('billFileName').value = entry.fileName || billShortName(entry.number);
+  $('billClientName').value = entry.clientName || ''; $('billClientAddress').value = entry.clientAddress || ''; $('billClientTax').value = entry.clientTax || ''; $('billVat').checked = entry.vat !== false; $('billWht').checked = !!entry.wht; $('billNote').value = entry.note || '';
+  var profile = entry.profile || billProfile; $('billCompanyName').value = profile.name || ''; $('billCompanyAddress').value = profile.address || ''; $('billCompanyTax').value = profile.tax || '';
+  $('billItems').innerHTML = ''; (entry.items || []).forEach(billAddItem); if (!$('billItems').children.length) billAddItem(); billSyncDocument(); billCalculate(); $('billStatus').textContent = 'เปิดเอกสารจากประวัติแล้ว';
+}
+function loadHtml2Pdf() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  if (html2pdfLoader) return html2pdfLoader;
+  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('โหลดเครื่องมือ PDF ไม่สำเร็จ')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF ไม่สำเร็จ')); }; document.head.appendChild(script); });
+  return html2pdfLoader;
+}
+async function billDownloadPdf() {
+  var button = $('billDownload'), paper = $('billPaper'), filename = billShortName($('billFileName').value) + '.pdf';
+  billSyncDocument(); billCalculate(); button.disabled = true; $('billStatus').textContent = 'กำลังสร้าง PDF…';
+  Array.prototype.forEach.call(paper.querySelectorAll('input'), function (input) { input.setAttribute('value', input.value); });
+  Array.prototype.forEach.call(paper.querySelectorAll('textarea'), function (textarea) { textarea.textContent = textarea.value; });
+  try { var makePdf = await loadHtml2Pdf(); await makePdf().set({ margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(paper).save(); $('billStatus').textContent = 'ดาวน์โหลด “' + filename + '” แล้ว พร้อมส่งใน LINE OA'; }
+  catch (error) { $('billStatus').textContent = 'สร้าง PDF ไม่สำเร็จ โปรดตรวจอินเทอร์เน็ตแล้วลองใหม่'; }
+  finally { button.disabled = false; }
+}
+
 /* ====== เหตุการณ์ ====== */
 $('login').addEventListener('submit', async function (ev) {
   ev.preventDefault();
@@ -670,6 +819,8 @@ $('list').addEventListener('click', function (e) {
   if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
   var edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
+  var bill = e.target.closest('[data-bill]');
+  if (bill) { openBilling(bill.dataset.bill); return; }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
 });
 $('editClose').onclick = closeEdit;
@@ -723,10 +874,24 @@ $('reparseClose').onclick = closeReparseModal;
 $('reparseCancel').onclick = closeReparseModal;
 $('reparseStart').onclick = reparseAllIncomplete;
 $('reparseModal').addEventListener('click', function (e) { if (e.target === $('reparseModal')) closeReparseModal(); });
+$('billingBtn').onclick = function () { openBilling(); };
+$('billingClose').onclick = closeBilling;
+$('billingModal').addEventListener('click', function (e) { if (e.target === $('billingModal')) closeBilling(); });
+$('billAddItem').onclick = function () { billAddItem(); };
+$('billItems').addEventListener('input', billCalculate);
+$('billItems').addEventListener('click', function (e) { var remove = e.target.closest('.billDel'); if (!remove) return; remove.closest('tr').remove(); if (!$('billItems').children.length) billAddItem(); billReindex(); billCalculate(); });
+['billVat', 'billWht'].forEach(function (id) { $(id).addEventListener('change', billCalculate); });
+['billType', 'billNumber', 'billDate'].forEach(function (id) { $(id).addEventListener('input', billSyncDocument); $(id).addEventListener('change', billSyncDocument); });
+['billProfileName', 'billProfileAddress', 'billProfileTax'].forEach(function (id) { $(id).addEventListener('input', billSaveProfile); });
+$('billSaveHistory').onclick = billSaveHistory;
+$('billHistoryList').addEventListener('click', function (e) { var button = e.target.closest('[data-bill-history]'); if (button) billLoadHistory(button.dataset.billHistory); });
+$('billDownload').onclick = billDownloadPdf;
+$('billPrint').onclick = function () { billSyncDocument(); billCalculate(); window.print(); };
 document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); });
 setInterval(function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); }, 60000);
 
 $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
+billRenderHistory();
 load();
 </script>
 </body>

@@ -51,3 +51,12 @@ test("Dashboard offers a single re-read action only for incomplete booking files
   assert.match(source, /!row\._oth && row\._bad && row\.id && safeUrl\(row\.drive_url\)/);
   assert.doesNotMatch(source, /data-reparse=/);
 });
+
+test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /id="billingBtn"[^>]*>ออกบิล \/ ภาษี/);
+  assert.match(source, /id="billFileName"/);
+  assert.match(source, /ชื่อไฟล์ย่อสำหรับ LINE OA/);
+  assert.match(source, /function billDownloadPdf/);
+  assert.match(source, /data-bill=/);
+});
