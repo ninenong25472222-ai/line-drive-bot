@@ -75,6 +75,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 @media print{body>*{visibility:hidden!important}.modalBg:has(#billPaper),.modalBg:has(#billPaper) *{visibility:visible!important}.modalBg:has(#billPaper){position:static!important;background:#fff!important;padding:0!important;display:block!important}.billingModal{width:100%!important;box-shadow:none!important}.billingHead,.billingTools,.billingActions,.billProfile,.billStatus,.billHistory{display:none!important}.billScroll{padding:0!important;overflow:visible!important;background:#fff!important;max-height:none!important}.billPaper{box-shadow:none!important;width:210mm!important;min-height:297mm!important}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .billRight input{width:174px}
+.billingTabs{display:flex;gap:8px;padding:0 18px 12px;border-bottom:1px solid var(--line)}.billingTabs .on{background:#e3f1fa;border-color:#7abce4;color:#075e99}.billPanel{padding:18px;background:#f8fbfd}.billPanel h3{margin:0 0 4px}.billSettingsGrid{display:grid;grid-template-columns:1.2fr .9fr;gap:18px;margin-top:14px}.billSettingsGrid label{display:grid;gap:5px;color:var(--mut);font-size:13px;margin-bottom:11px}.billSettingsGrid textarea{resize:vertical}.billSettingsGrid .save{width:100%;margin-top:7px}.billUploadHint{font-size:12px;color:var(--mut);margin:-6px 0 12px}.billCompanyHeader{display:flex;gap:11px;align-items:flex-start}.billCompanyInfo{min-width:0;flex:1}.billLogoBox{width:56px;height:56px;flex:0 0 56px;border:1px solid #c8d5df;border-radius:5px;display:grid;place-items:center;overflow:hidden;color:#6a7c8a;font-size:10px;font-weight:700;background:#f8fbfd}.billLogoBox img{width:100%;height:100%;object-fit:contain}.billSignatureLine{position:relative;display:flex;justify-content:center;align-items:flex-end}.billSignatureLine img{max-width:140px;max-height:42px;object-fit:contain;position:absolute;bottom:2px}.billSignatureLine:has(img[hidden]){height:46px}@media(max-width:700px){.billSettingsGrid{grid-template-columns:1fr}.billingTabs{padding-left:12px;padding-right:12px}.billingTabs .btn{padding:8px 10px;font-size:13px}.billCompanyHeader{gap:8px}.billLogoBox{width:45px;height:45px;flex-basis:45px}}@media print{.billingTabs,.billPanel{display:none!important}.billLogoBox{border:0!important}.billSignatureLine img{display:block!important}}
 </style>
 </head>
 <body>
@@ -180,6 +181,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
 <div class="modalBg" id="billingModal" hidden>
   <section class="modal billingModal" aria-labelledby="billingTitle">
     <div class="modalHead billingHead"><div><h2 id="billingTitle">ออกบิล / ใบกำกับภาษี</h2><div class="muted">สร้างเอกสารจากรายการจอง หรือกรอกเอง แล้วดาวน์โหลด PDF พร้อมชื่อไฟล์สั้นสำหรับ LINE OA</div></div><button class="btn" id="billingClose" type="button">ปิด</button></div>
+    <nav class="billingTabs" aria-label="เมนูออกบิล"><button class="btn on" id="billTabEditor" type="button">แก้ไขบิล</button><button class="btn" id="billTabSettings" type="button">ตั้งค่าบริษัท</button><button class="btn" id="billTabHistory" type="button">ประวัติ</button></nav>
+    <div id="billEditorPanel">
     <div class="billingTools">
       <label>ประเภทเอกสาร<select class="ctl" id="billType"><option value="ใบแจ้งหนี้ / ใบกำกับภาษี">ใบแจ้งหนี้ / ใบกำกับภาษี</option><option value="ใบเสนอราคา">ใบเสนอราคา</option><option value="ใบเสร็จรับเงิน / ใบกำกับภาษี">ใบเสร็จรับเงิน / ใบกำกับภาษี</option></select></label>
       <label>เลขที่เอกสาร<input class="ctl" id="billNumber" maxlength="40" placeholder="INV-001"></label>
@@ -197,10 +200,10 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <article class="billPaper" id="billPaper">
         <header class="billTop">
           <div class="billCompany">
-            <span class="billLabel">ผู้ออกเอกสาร</span>
+            <div class="billCompanyHeader"><div class="billLogoBox"><img id="billLogo" alt="โลโก้กิจการ" hidden><span id="billLogoPlaceholder">LOGO</span></div><div class="billCompanyInfo"><span class="billLabel">ผู้ออกเอกสาร</span>
             <input id="billCompanyName" aria-label="ชื่อกิจการ">
             <textarea id="billCompanyAddress" aria-label="ที่อยู่กิจการ" rows="2"></textarea>
-            <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billCompanyTax" aria-label="เลขประจำตัวผู้เสียภาษีของกิจการ"></div>
+            <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billCompanyTax" aria-label="เลขประจำตัวผู้เสียภาษีของกิจการ"></div></div></div>
           </div>
           <div class="billRight"><h3 id="billTitlePrint">ใบแจ้งหนี้ / ใบกำกับภาษี</h3><label>เลขที่ <input id="billNumberPrint" readonly></label><label>วันที่ <input id="billDatePrint" readonly></label></div>
         </header>
@@ -217,12 +220,13 @@ h1{font-size:26px;line-height:1.2;margin:0}
 2. กรณีเกิดอุบัติเหตุแล้วเป็นฝั่งผิด จะต้องจ่ายส่วนแรก 3,000 บาท</textarea></div>
           <div class="billTotals"><div class="billTotalRow"><span>รวมเงิน</span><b id="billSubtotal">0.00</b></div><div class="billTotalRow" id="billVatRow"><span>ภาษีมูลค่าเพิ่ม 7%</span><b id="billVatAmount">0.00</b></div><div class="billTotalRow" id="billWhtRow" hidden><span>หัก ณ ที่จ่าย 5%</span><b id="billWhtAmount">-0.00</b></div><div class="billTotalRow billGrand"><span>ยอดสุทธิ</span><b id="billGrand">0.00</b></div></div>
         </section>
-        <section class="billSign"><div><div class="line"></div><b>ผู้รับเงิน / ผู้รับบริการ</b></div><div><div class="line"></div><b>ในนามกิจการ</b></div></section>
+        <section class="billSign"><div><div class="line"></div><b>ผู้รับเงิน / ผู้รับบริการ</b></div><div><div class="line billSignatureLine"><img id="billSignature" alt="ลายเซ็นกิจการ" hidden></div><b>ในนาม <span id="billSignatureCompany">กิจการ</span></b></div></section>
       </article>
     </div>
-    <div class="billProfile"><label>ชื่อกิจการ (ตั้งค่า)<input class="ctl" id="billProfileName"></label><label>ที่อยู่กิจการ (ตั้งค่า)<input class="ctl" id="billProfileAddress"></label><label>เลขภาษีกิจการ (ตั้งค่า)<input class="ctl" id="billProfileTax"></label></div>
+    </div>
     <div class="billStatus" id="billStatus" role="status"></div>
-    <details class="billHistory"><summary>ประวัติออกบิลในเครื่องนี้</summary><div class="billHistoryList" id="billHistoryList"></div></details>
+    <section class="billPanel" id="billSettingsPanel" hidden><h3>ตั้งค่าบริษัท</h3><p class="muted">ข้อมูลนี้เก็บไว้ในเบราว์เซอร์เครื่องนี้ และจะแสดงบนเอกสารเมื่อบันทึกแล้ว</p><div class="billSettingsGrid"><div><label>ชื่อบริษัท<input class="ctl" id="billProfileName"></label><label>ที่อยู่<textarea class="ctl" id="billProfileAddress" rows="3"></textarea></label><label>Tax ID<input class="ctl" id="billProfileTax"></label></div><div><label>โลโก้<input class="ctl" id="billLogoInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billLogoHint">ยังไม่ได้เลือกรูปโลโก้</div><label>ลายเซ็น<input class="ctl" id="billSignatureInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billSignatureHint">ยังไม่ได้เลือกรูปลายเซ็น</div><button class="btn save" id="billSaveProfile" type="button">บันทึกข้อมูล</button></div></div></section>
+    <section class="billPanel" id="billHistoryPanel" hidden><h3>ประวัติออกบิลในเครื่องนี้</h3><div class="billHistoryList" id="billHistoryList"></div></section>
   </section>
 </div>
 
@@ -708,21 +712,45 @@ async function load(silent) {
 }
 
 /* ====== ออกบิล / ใบกำกับภาษี ====== */
-var BILL_DEFAULT_PROFILE = { name: 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์', address: '21 หมู่ที่ 3 ต.หัวเตย อ.พุนพิน จ.สุราษฎร์ธานี 84130', tax: '0843566002448' };
+var BILL_DEFAULT_PROFILE = { name: 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์', address: '21 หมู่ที่ 3 ต.หัวเตย อ.พุนพิน จ.สุราษฎร์ธานี 84130', tax: '0843566002448', logo: '', signature: '' };
 var billProfile = BILL_DEFAULT_PROFILE, billHistory = [], html2pdfLoader = null;
 try { billProfile = Object.assign({}, BILL_DEFAULT_PROFILE, JSON.parse(localStorage.getItem('rental_bill_profile_v1') || '{}')); billHistory = JSON.parse(localStorage.getItem('rental_bill_history_v1') || '[]'); if (!Array.isArray(billHistory)) billHistory = []; } catch (e) {}
 function billMoney(value) { return (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function billShortName(value) { return String(value || '').trim().replace(/[\\/:*?"<>|#%{}]/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45) || 'invoice'; }
 function billThaiDate(value) { return value ? thaiDate(value, { day: 'numeric', month: 'long', year: 'numeric' }) : ''; }
 function billDateForFile(value) { return String(value || '').replace(/-/g, '') || todayISO().replace(/-/g, ''); }
+function billSetImage(id, placeholderId, value) {
+  var image = $(id), placeholder = placeholderId ? $(placeholderId) : null;
+  if (value) { image.src = value; image.hidden = false; if (placeholder) placeholder.hidden = true; }
+  else { image.removeAttribute('src'); image.hidden = true; if (placeholder) placeholder.hidden = false; }
+}
+function billApplyProfile(profile) {
+  profile = profile || billProfile;
+  $('billCompanyName').value = profile.name || ''; $('billCompanyAddress').value = profile.address || ''; $('billCompanyTax').value = profile.tax || '';
+  $('billSignatureCompany').textContent = profile.name || 'กิจการ';
+  billSetImage('billLogo', 'billLogoPlaceholder', profile.logo || ''); billSetImage('billSignature', null, profile.signature || '');
+}
 function billSetProfileFields() {
   $('billProfileName').value = billProfile.name; $('billProfileAddress').value = billProfile.address; $('billProfileTax').value = billProfile.tax;
-  $('billCompanyName').value = billProfile.name; $('billCompanyAddress').value = billProfile.address; $('billCompanyTax').value = billProfile.tax;
+  $('billLogoHint').textContent = billProfile.logo ? 'เลือกรูปโลโก้แล้ว' : 'ยังไม่ได้เลือกรูปโลโก้'; $('billSignatureHint').textContent = billProfile.signature ? 'เลือกรูปลายเซ็นแล้ว' : 'ยังไม่ได้เลือกรูปลายเซ็น';
+  billApplyProfile(billProfile);
 }
 function billSaveProfile() {
-  billProfile = { name: $('billProfileName').value.trim() || BILL_DEFAULT_PROFILE.name, address: $('billProfileAddress').value.trim(), tax: $('billProfileTax').value.trim() };
-  try { localStorage.setItem('rental_bill_profile_v1', JSON.stringify(billProfile)); } catch (e) {}
-  $('billCompanyName').value = billProfile.name; $('billCompanyAddress').value = billProfile.address; $('billCompanyTax').value = billProfile.tax;
+  billProfile = Object.assign({}, billProfile, { name: $('billProfileName').value.trim() || BILL_DEFAULT_PROFILE.name, address: $('billProfileAddress').value.trim(), tax: $('billProfileTax').value.trim() });
+  try { localStorage.setItem('rental_bill_profile_v1', JSON.stringify(billProfile)); } catch (e) { $('billStatus').textContent = 'บันทึกไม่สำเร็จ: รูปมีขนาดใหญ่เกินพื้นที่ของเบราว์เซอร์ ลองใช้ไฟล์รูปที่เล็กลง'; return; }
+  billApplyProfile(billProfile); $('billStatus').textContent = 'บันทึกข้อมูลบริษัทแล้ว';
+}
+function billReadImage(event, field) {
+  var file = event.target.files && event.target.files[0]; if (!file) return;
+  if (!/^image\//.test(file.type)) { $('billStatus').textContent = 'กรุณาเลือกไฟล์รูปภาพสำหรับ' + (field === 'logo' ? 'โลโก้' : 'ลายเซ็น'); event.target.value = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function () { billProfile[field] = reader.result; billSetProfileFields(); $('billStatus').textContent = 'เลือกรูป' + (field === 'logo' ? 'โลโก้' : 'ลายเซ็น') + 'แล้ว กด “บันทึกข้อมูล” เพื่อใช้งาน'; };
+  reader.readAsDataURL(file);
+}
+function billSwitchTab(tab) {
+  var panels = { editor: 'billEditorPanel', settings: 'billSettingsPanel', history: 'billHistoryPanel' };
+  Object.keys(panels).forEach(function (key) { $(panels[key]).hidden = key !== tab; $('billTab' + key.charAt(0).toUpperCase() + key.slice(1)).classList.toggle('on', key === tab); });
+  if (tab === 'history') billRenderHistory();
 }
 function billSyncDocument() {
   $('billTitlePrint').textContent = $('billType').value;
@@ -767,12 +795,12 @@ function openBilling(id) {
     $('billClientName').value = row.customer_name || ''; $('billNumber').value = 'INV-' + billDateForFile(todayISO()) + (row.booking_no ? '-' + String(row.booking_no).slice(-8) : '');
     $('billFileName').value = billShortName($('billNumber').value); $('billItems').innerHTML = ''; billAddItem({ desc: billDescription(row), qty: 1, price: 0 });
   }
-  billSyncDocument(); billCalculate(); $('billStatus').textContent = row ? 'เติมชื่อลูกค้าและรายละเอียดการเช่าจากรายการจองแล้ว — ใส่ราคาและตรวจทานก่อนดาวน์โหลด' : 'ตั้งชื่อไฟล์สั้นในช่อง “ชื่อไฟล์ย่อสำหรับ LINE OA” ได้ตามต้องการ';
+  billSwitchTab('editor'); billSyncDocument(); billCalculate(); $('billStatus').textContent = row ? 'เติมชื่อลูกค้าและรายละเอียดการเช่าจากรายการจองแล้ว — ใส่ราคาและตรวจทานก่อนดาวน์โหลด' : 'ตั้งชื่อไฟล์สั้นในช่อง “ชื่อไฟล์ย่อสำหรับ LINE OA” ได้ตามต้องการ';
   $('billingModal').hidden = false;
 }
 function closeBilling() { $('billingModal').hidden = true; }
 function billSnapshot() {
-  return { id: Date.now(), number: $('billNumber').value.trim(), date: $('billDate').value, type: $('billType').value, fileName: billShortName($('billFileName').value), clientName: $('billClientName').value.trim(), clientAddress: $('billClientAddress').value, clientTax: $('billClientTax').value, vat: $('billVat').checked, wht: $('billWht').checked, note: $('billNote').value, items: billItemsValue(), profile: { name: $('billCompanyName').value, address: $('billCompanyAddress').value, tax: $('billCompanyTax').value }, total: $('billGrand').textContent };
+  return { id: Date.now(), number: $('billNumber').value.trim(), date: $('billDate').value, type: $('billType').value, fileName: billShortName($('billFileName').value), clientName: $('billClientName').value.trim(), clientAddress: $('billClientAddress').value, clientTax: $('billClientTax').value, vat: $('billVat').checked, wht: $('billWht').checked, note: $('billNote').value, items: billItemsValue(), profile: { name: $('billCompanyName').value, address: $('billCompanyAddress').value, tax: $('billCompanyTax').value, logo: billProfile.logo || '', signature: billProfile.signature || '' }, total: $('billGrand').textContent };
 }
 function billRenderHistory() {
   $('billHistoryList').innerHTML = billHistory.length ? billHistory.map(function (entry) { return '<div class="billHistoryItem"><span><b>' + esc(entry.number || 'ไม่มีเลขที่') + '</b> · ' + esc(entry.clientName || 'ไม่ระบุลูกค้า') + '<br><span class="muted">' + esc(entry.date || '-') + ' · ' + esc(entry.total || '0.00') + ' บาท</span></span><button type="button" data-bill-history="' + esc(entry.id) + '">เปิด</button></div>'; }).join('') : '<div class="muted">ยังไม่มีประวัติ</div>';
@@ -786,8 +814,8 @@ function billLoadHistory(id) {
   var entry = billHistory.find(function (item) { return String(item.id) === String(id); }); if (!entry) return;
   $('billNumber').value = entry.number || ''; $('billDate').value = entry.date || todayISO(); $('billType').value = entry.type || 'ใบแจ้งหนี้ / ใบกำกับภาษี'; $('billFileName').value = entry.fileName || billShortName(entry.number);
   $('billClientName').value = entry.clientName || ''; $('billClientAddress').value = entry.clientAddress || ''; $('billClientTax').value = entry.clientTax || ''; $('billVat').checked = entry.vat !== false; $('billWht').checked = !!entry.wht; $('billNote').value = entry.note || '';
-  var profile = entry.profile || billProfile; $('billCompanyName').value = profile.name || ''; $('billCompanyAddress').value = profile.address || ''; $('billCompanyTax').value = profile.tax || '';
-  $('billItems').innerHTML = ''; (entry.items || []).forEach(billAddItem); if (!$('billItems').children.length) billAddItem(); billSyncDocument(); billCalculate(); $('billStatus').textContent = 'เปิดเอกสารจากประวัติแล้ว';
+  var profile = Object.assign({}, billProfile, entry.profile || {}); billApplyProfile(profile);
+  $('billItems').innerHTML = ''; (entry.items || []).forEach(billAddItem); if (!$('billItems').children.length) billAddItem(); billSwitchTab('editor'); billSyncDocument(); billCalculate(); $('billStatus').textContent = 'เปิดเอกสารจากประวัติแล้ว';
 }
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
@@ -883,7 +911,12 @@ $('billItems').addEventListener('input', billCalculate);
 $('billItems').addEventListener('click', function (e) { var remove = e.target.closest('.billDel'); if (!remove) return; remove.closest('tr').remove(); if (!$('billItems').children.length) billAddItem(); billReindex(); billCalculate(); });
 ['billVat', 'billWht'].forEach(function (id) { $(id).addEventListener('change', billCalculate); });
 ['billType', 'billNumber', 'billDate'].forEach(function (id) { $(id).addEventListener('input', billSyncDocument); $(id).addEventListener('change', billSyncDocument); });
-['billProfileName', 'billProfileAddress', 'billProfileTax'].forEach(function (id) { $(id).addEventListener('input', billSaveProfile); });
+$('billTabEditor').onclick = function () { billSwitchTab('editor'); };
+$('billTabSettings').onclick = function () { billSwitchTab('settings'); };
+$('billTabHistory').onclick = function () { billSwitchTab('history'); };
+$('billSaveProfile').onclick = billSaveProfile;
+$('billLogoInput').addEventListener('change', function (event) { billReadImage(event, 'logo'); });
+$('billSignatureInput').addEventListener('change', function (event) { billReadImage(event, 'signature'); });
 $('billSaveHistory').onclick = billSaveHistory;
 $('billHistoryList').addEventListener('click', function (e) { var button = e.target.closest('[data-bill-history]'); if (button) billLoadHistory(button.dataset.billHistory); });
 $('billDownload').onclick = billDownloadPdf;

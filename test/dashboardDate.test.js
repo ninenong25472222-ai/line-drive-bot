@@ -59,4 +59,8 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /ชื่อไฟล์ย่อสำหรับ LINE OA/);
   assert.match(source, /function billDownloadPdf/);
   assert.match(source, /data-bill=/);
+  assert.match(source, /id="billSettingsPanel"/);
+  assert.match(source, /id="billLogoInput"[^>]*type="file"/);
+  assert.match(source, /id="billSignatureInput"[^>]*type="file"/);
+  assert.match(source, /id="billSignature"/);
 });
