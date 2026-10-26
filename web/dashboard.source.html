@@ -184,6 +184,8 @@ var CONFIG = {
   TABLE: 'bookings',
   REQUIRE_LOGIN: false,      // เปิดดู Dashboard ได้ทันที
   EDIT_API_URL: '/api/bookings', // กดแก้ไขแล้วจะขอรหัสผู้ดูแลเฉพาะครั้ง
+  REPARSE_API_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking',
+  REPARSE_API_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4aGZsYmhnZHRlYnh4amd4d2tzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjUzMzEsImV4cCI6MjEwNzg0MTMzMX0.FWxsNPoZgDm-Ic7d7RuRTYvHDM6Or6klziAnHLhNGwU',
   LOOKBACK_DAYS: 90          // ดึงเฉพาะรายการที่คืนรถไม่เกินกี่วันก่อน (0 = ดึงทั้งหมด)
 };
 /* ฟิลด์ที่หน้านี้ใช้: customer_name, company, customer_phone, booking_no, car,
@@ -460,9 +462,62 @@ function openReparseModal() {
   renderReparseList();
   $('reparseModal').hidden = false;
 }
+var pdfReaderPromise = null;
+function driveFileId(url) {
+  var match = String(url || '').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/i);
+  return match ? match[1] : '';
+}
+async function readPdfText(url) {
+  var id = driveFileId(url);
+  if (!id) throw new Error('ไม่พบไฟล์ PDF ใน Google Drive');
+  var response = await fetch('https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t');
+  var buffer = await response.arrayBuffer();
+  if (!response.ok || new TextDecoder().decode(new Uint8Array(buffer).slice(0, 4)) !== '%PDF') throw new Error('ดาวน์โหลดไฟล์ PDF ไม่สำเร็จ');
+  if (!pdfReaderPromise) pdfReaderPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+  var pdfjs = await pdfReaderPromise;
+  var pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise, pages = [];
+  for (var pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    var content = await (await pdf.getPage(pageNo)).getTextContent();
+    pages.push(content.items.map(function (item) { return item.str || ''; }).join(' '));
+  }
+  return pages.join(' ').replace(/\s+/g, ' ').trim();
+}
+function thaiMonthDate(day, month, year) {
+  var months = { 'ม.ค.': '01', 'ก.พ.': '02', 'มี.ค.': '03', 'เม.ย.': '04', 'พ.ค.': '05', 'มิ.ย.': '06', 'ก.ค.': '07', 'ส.ค.': '08', 'ก.ย.': '09', 'ต.ค.': '10', 'พ.ย.': '11', 'ธ.ค.': '12' };
+  var m = months[String(month).replace(/\s+/g, '')];
+  return m ? String(+year > 2400 ? +year - 543 : +year) + '-' + m + '-' + pad(+day) : '';
+}
+function readDetailsFromText(company, text) {
+  var pick, drop;
+  if (company === 'Klook') {
+    pick = text.match(/เวลานัดรับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i);
+    drop = text.match(/ข้อมูลการส่งกลับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i);
+    return { pickup_date: pick ? pick[1] : '', pickup_time: pick ? pad(+pick[2]) + ':' + pick[3] : '', return_date: drop ? drop[1] : '', return_time: drop ? pad(+drop[2]) + ':' + drop[3] : '' };
+  }
+  if (company === 'ChicCar') {
+    var dates = Array.from(text.matchAll(/\b(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\b/g)).map(function (m) { return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]); });
+    var times = Array.from(text.matchAll(/\b([01]?\d|2[0-3])\s*:\s*([0-5]\d)\b/g)).map(function (m) { return pad(+m[1]) + ':' + m[2]; });
+    return { pickup_date: dates[0] || '', pickup_time: times[0] || '', return_date: dates[1] || '', return_time: times[1] || '' };
+  }
+  var months = 'ม\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*พ\\s*\\.|มี\\s*\\.\\s*ค\\s*\\.|เม\\s*\\.\\s*ย\\s*\\.|พ\\s*\\.\\s*ค\\s*\\.|มิ\\s*\\.\\s*ย\\s*\\.|ก\\s*\\.\\s*ค\\s*\\.|ส\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*ย\\s*\\.|ต\\s*\\.\\s*ค\\s*\\.|พ\\s*\\.\\s*ย\\s*\\.|ธ\\s*\\.\\s*ค\\s*\\.';
+  var regex = new RegExp('(\\d{1,2})\\s*(' + months + ')\\s*(\\d{4})\\s*([0-2]?\\d)\\s*:\\s*([0-5]\\d)', 'gi'), events = [], match;
+  while ((match = regex.exec(text)) !== null) {
+    var date = thaiMonthDate(match[1], match[2], match[3]), time = pad(+match[4]) + ':' + match[5];
+    if (date && !events.some(function (event) { return event.date === date && event.time === time; })) events.push({ date: date, time: time });
+  }
+  return { pickup_date: events[0] ? events[0].date : '', pickup_time: events[0] ? events[0].time : '', return_date: events[1] ? events[1].date : '', return_time: events[1] ? events[1].time : '' };
+}
+async function readBookingDetails(row) {
+  return readDetailsFromText(row.company || '', await readPdfText(row.drive_url));
+}
 async function requestReparse(id) {
-  var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
-    method: 'POST'
+  var row = rows.find(function (item) { return String(item.id) === String(id); });
+  if (!row) throw new Error('ไม่พบรายการจอง');
+  var details = await readBookingDetails(row);
+  var response = await fetch(CONFIG.REPARSE_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: CONFIG.REPARSE_API_KEY, Authorization: 'Bearer ' + CONFIG.REPARSE_API_KEY },
+    body: JSON.stringify(Object.assign({ reparse_only: true, id: id }, details))
   });
   var result = await response.json().catch(function () { return {}; });
   if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
