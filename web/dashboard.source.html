@@ -186,7 +186,6 @@ var CONFIG = {
   EDIT_API_URL: '/api/bookings', // กดแก้ไขแล้วจะขอรหัสผู้ดูแลเฉพาะครั้ง
   // อ่าน PDF ในเบราว์เซอร์ แล้วบันทึกเฉพาะวันที่ที่ว่างผ่านฟังก์ชันภายในของ Supabase
   REPARSE_API_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking',
-  REPARSE_API_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4aGZsYmhnZHRlYnh4amd4d2tzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjUzMzEsImV4cCI6MjEwNzg0MTMzMX0.FWxsNPoZgDm-Ic7d7RuRTYvHDM6Or6klziAnHLhNGwU',
   LOOKBACK_DAYS: 90          // ดึงเฉพาะรายการที่คืนรถไม่เกินกี่วันก่อน (0 = ดึงทั้งหมด)
 };
 /* ฟิลด์ที่หน้านี้ใช้: customer_name, company, customer_phone, booking_no, car,
@@ -517,7 +516,7 @@ async function requestReparse(id) {
   var details = await readBookingDetails(row);
   var response = await fetch(CONFIG.REPARSE_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: CONFIG.REPARSE_API_KEY, Authorization: 'Bearer ' + CONFIG.REPARSE_API_KEY },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(Object.assign({ reparse_only: true, id: id }, details))
   });
   var result = await response.json().catch(function () { return {}; });
