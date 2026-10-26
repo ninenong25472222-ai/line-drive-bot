@@ -287,11 +287,13 @@ function extractRentalEvents(text = "") {
     // the date depend on being near the location line.
     const labeledEvents = [
         {
-            datePattern: /เวลานัดรับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)/i,
+            // PDF text extraction sometimes inserts spaces around the colon,
+            // for example "2026-10-07 13 : 00".
+            datePattern: /เวลานัดรับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i,
             locationPattern: /สถานที่นัดรับ\s+Chic\s+Network\s*-\s*([^\n]+?Airport)\b/i
         },
         {
-            datePattern: /ข้อมูลการส่งกลับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d:[0-5]\d)/i,
+            datePattern: /ข้อมูลการส่งกลับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i,
             locationPattern: /สถานที่ส่งคืน\s+Chic\s+Network\s*-\s*([^\n]+?Airport)\b/i
         }
     ];
@@ -300,14 +302,16 @@ function extractRentalEvents(text = "") {
         const dateMatch = text.match(labeledEvent.datePattern);
         const locationMatch = text.match(labeledEvent.locationPattern);
 
-        if (!dateMatch || !locationMatch) {
+        // Date and time are still useful even when a location label is
+        // missing or OCR has read the location incorrectly.
+        if (!dateMatch) {
             continue;
         }
 
         events.push({
-            location: titleCase(locationMatch[1]),
+            location: locationMatch ? titleCase(locationMatch[1]) : "",
             date: dateMatch[1],
-            time: dateMatch[2]
+            time: `${dateMatch[2]}:${dateMatch[3]}`
         });
     }
 

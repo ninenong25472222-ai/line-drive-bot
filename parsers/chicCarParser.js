@@ -263,9 +263,9 @@ function extractTimes(text) {
         (match = regex.exec(source)) !==
         null
     ) {
-        if (!times.includes(match[0])) {
-            times.push(match[0]);
-        }
+        // Pickup and return can legitimately have the same time. Keep both
+        // occurrences in document order instead of treating one as a duplicate.
+        times.push(match[0]);
     }
 
     return times;

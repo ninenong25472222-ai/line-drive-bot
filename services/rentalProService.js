@@ -7,6 +7,26 @@ function clean(value = "") {
     return String(value ?? "").replace(/\u0000/g, "").trim();
 }
 
+function missing(value) {
+    return !clean(value);
+}
+
+function missingFields(existing = {}, incoming = {}) {
+    const fields = [
+        "booking_no", "customer_name", "customer_phone", "customer_email",
+        "pickup_date", "pickup_time", "pickup_location",
+        "return_date", "return_time", "return_location", "car",
+        "file_name", "drive_file_id", "drive_url"
+    ];
+
+    return fields.reduce((patch, field) => {
+        if (missing(existing[field]) && !missing(incoming[field])) {
+            patch[field] = incoming[field];
+        }
+        return patch;
+    }, {});
+}
+
 async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, driveUrl, source = "LINE", sourceLabel = "LINE / Partner" }) {
     const details = {
         source,
@@ -76,11 +96,28 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
     if (details.file_hash) {
         try {
             const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
-                params: { select: "id", file_hash: `eq.${details.file_hash}`, limit: 1 },
+                params: { select: "*", file_hash: `eq.${details.file_hash}`, limit: 1 },
                 headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}` },
                 timeout: 30000
             });
-            if (Array.isArray(existing.data) && existing.data.length > 0) return { skipped: true, duplicate: true };
+            if (Array.isArray(existing.data) && existing.data.length > 0) {
+                const current = existing.data[0];
+                const patch = missingFields(current, bookingRow);
+
+                if (Object.keys(patch).length > 0) {
+                    await axios.patch(`${rentalProUrl}/rest/v1/rental_bookings`, {
+                        ...patch,
+                        updated_at: new Date().toISOString()
+                    }, {
+                        params: { id: `eq.${current.id}` },
+                        headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+                        timeout: 30000
+                    });
+                    return { skipped: false, duplicate: true, repairedFields: Object.keys(patch) };
+                }
+
+                return { skipped: true, duplicate: true };
+            }
         } catch (error) {
             bookingTableAvailable = false;
             console.warn("RENTALPRO_BOOKINGS_TABLE_UNAVAILABLE: keeping legacy audit log path");
