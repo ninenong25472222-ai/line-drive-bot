@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { driveFileIdFromUrl, normalizedDate, reparsedPatch } = require("../netlify/functions/booking");
+const { driveFileIdFromUrl, normalizedDate, reparsedPatch, missing } = require("../netlify/functions/booking");
 
 test("extracts only a Google Drive file id from an attached file URL", () => {
   assert.equal(driveFileIdFromUrl("https://drive.google.com/file/d/1sEgV_DXda9faOGi7mIlt9fhRethahXQH/view"), "1sEgV_DXda9faOGi7mIlt9fhRethahXQH");
@@ -20,4 +20,10 @@ test("re-reading fills only missing booking fields", () => {
   );
 
   assert.deepEqual(result.patch, { pickup_date: "2026-10-23", pickup_time: "06:30" });
+});
+
+test("re-reading eligibility treats blank dates as incomplete", () => {
+  assert.equal(missing(""), true);
+  assert.equal(missing("   "), true);
+  assert.equal(missing("2026-10-23"), false);
 });

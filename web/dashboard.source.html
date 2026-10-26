@@ -169,7 +169,6 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div class="modalHead"><h2 id="reparseTitle">อ่านไฟล์ใบจองอีกครั้ง</h2><button class="btn" id="reparseClose" type="button">ปิด</button></div>
     <p class="muted">ระบบจะอ่านเฉพาะใบจองที่มีข้อมูลวันที่ไม่ครบ และเติมเฉพาะช่องที่ยังว่าง โดยไม่แก้ไฟล์ต้นฉบับหรือข้อมูลที่คุณแก้เอง</p>
     <div class="reparseList" id="reparseList" aria-live="polite"></div>
-    <label class="wide" style="display:grid;gap:4px;color:var(--mut);font-size:13px;margin-top:14px">รหัสผู้ดูแล<input class="ctl" id="reparseToken" type="password" autocomplete="current-password" placeholder="กรอกรหัสก่อนเริ่มอ่านไฟล์"></label>
     <div class="muted" id="reparseStatus" role="status" style="margin-top:10px"></div>
     <div class="modalFoot"><button class="btn" id="reparseCancel" type="button">ยกเลิก</button><button class="btn save" id="reparseStart" type="button">เริ่มอ่านไฟล์</button></div>
   </section>
@@ -455,17 +454,15 @@ function openReparseModal() {
   reparsePlan = incompleteFileRows();
   if (!reparsePlan.length) return;
   batchReparse = null;
-  $('reparseToken').value = editToken();
   $('reparseStatus').textContent = 'พบ ' + reparsePlan.length + ' ไฟล์ที่ต้องอ่านใหม่';
   $('reparseStart').disabled = false;
   $('reparseCancel').disabled = false;
   renderReparseList();
   $('reparseModal').hidden = false;
 }
-async function requestReparse(id, token) {
+async function requestReparse(id) {
   var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
-    method: 'POST',
-    headers: { 'X-Booking-Edit-Token': token }
+    method: 'POST'
   });
   var result = await response.json().catch(function () { return {}; });
   if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
@@ -484,8 +481,6 @@ async function reparseAllIncomplete() {
   if (batchReparse && batchReparse.running) return;
   var targets = reparsePlan.slice();
   if (!targets.length) return;
-  var token = String($('reparseToken').value || '').trim();
-  if (!token) { $('reparseStatus').textContent = 'กรอกรหัสผู้ดูแลก่อนเริ่มอ่านไฟล์'; return; }
   batchReparse = { running: true, done: 0, total: targets.length, filled: 0, failed: 0, note: 'กำลังเตรียมอ่านไฟล์…' };
   $('reparseStart').disabled = true;
   $('reparseCancel').disabled = true;
@@ -498,7 +493,7 @@ async function reparseAllIncomplete() {
       setReparseRow(targets[i].id, 'work', 'กำลังอ่าน…');
       updateReparseAction();
       try {
-        var result = await requestReparse(targets[i].id, token);
+        var result = await requestReparse(targets[i].id);
         batchReparse.filled += (result.updatedFields || []).length;
         applyReparseResult(targets[i].id, result);
         setReparseRow(targets[i].id, 'ok', result.updatedFields && result.updatedFields.length ? 'เติมข้อมูลแล้ว' : 'ข้อมูลครบ');
@@ -510,7 +505,6 @@ async function reparseAllIncomplete() {
       batchReparse.done = i + 1;
       updateReparseAction();
     }
-    try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     batchReparse.note = 'เสร็จแล้ว: อ่าน ' + batchReparse.done + ' ไฟล์ · เติม ' + batchReparse.filled + ' ช่อง' + (batchReparse.failed ? ' · อ่านไม่สำเร็จ ' + batchReparse.failed + ' ไฟล์' : '');
   } catch (error) {
     batchReparse.note = reparseErrorText(error);

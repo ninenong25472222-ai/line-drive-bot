@@ -24,6 +24,7 @@ test("Dashboard offers a single re-read action only for incomplete booking files
   assert.match(source, /id="reparseModal"/);
   assert.match(source, /id="reparseList"/);
   assert.match(source, /กำลังอ่านไฟล์/);
+  assert.doesNotMatch(source, /id="reparseToken"/);
   assert.match(source, /!row\._oth && row\._bad && row\.id && safeUrl\(row\.drive_url\)/);
   assert.doesNotMatch(source, /data-reparse=/);
 });

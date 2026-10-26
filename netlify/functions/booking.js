@@ -70,6 +70,10 @@ function cleanPatch(value) {
   return String(value == null ? "" : value).trim().slice(0, 500);
 }
 
+function missing(value) {
+  return !cleanPatch(value);
+}
+
 function driveFileIdFromUrl(value = "") {
   const match = String(value).match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/i);
   return match ? match[1] : "";
@@ -120,6 +124,9 @@ async function loadBooking(supabaseUrl, serviceRoleKey, id) {
 async function reparseBooking({ supabaseUrl, serviceRoleKey, id }) {
   const current = await loadBooking(supabaseUrl, serviceRoleKey, id);
   if (!current) return { error: "Booking not found", statusCode: 404 };
+  if (!missing(current.pickup_date) && !missing(current.return_date)) {
+    return { error: "This booking already has complete dates", statusCode: 409 };
+  }
 
   const driveFileId = driveFileIdFromUrl(current.drive_url);
   if (!driveFileId) return { error: "This booking has no supported Google Drive PDF", statusCode: 422 };
@@ -184,14 +191,14 @@ exports.handler = async function handler(event) {
   const suppliedToken = String(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"] || "");
   const id = bookingIdFromPath(event.path || event.rawUrl || "");
 
-  // Fail closed. This endpoint is protected by an operator-controlled secret
-  // and is separate from the public, read-only dashboard route.
-  if (!supabaseUrl || !serviceRoleKey || !editToken) {
+  // Re-reading is available from the public Dashboard, but its write access
+  // remains server-side and is restricted to records with missing dates.
+  if (!supabaseUrl || !serviceRoleKey || (!isReparse && !editToken)) {
     return json(503, { error: "Booking editing is not configured" });
   }
   if (!id) return json(400, { error: "Missing booking id" });
 
-  if (!suppliedToken || suppliedToken !== editToken) {
+  if (!isReparse && (!suppliedToken || suppliedToken !== editToken)) {
     return json(403, { error: "Forbidden" });
   }
 
@@ -248,3 +255,4 @@ module.exports.configuredEmails = configuredEmails;
 module.exports.driveFileIdFromUrl = driveFileIdFromUrl;
 module.exports.normalizedDate = normalizedDate;
 module.exports.reparsedPatch = reparsedPatch;
+module.exports.missing = missing;
