@@ -59,6 +59,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.modalHead h2{margin:0;font-size:20px}
 .editGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editGrid label{display:grid;gap:4px;color:var(--mut);font-size:13px}.editGrid label.wide{grid-column:1/-1}
 .modalFoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.save{background:var(--p);border-color:var(--p);color:#fff}
+.reparseModal{width:min(760px,100%)}.reparseList{display:grid;gap:8px;margin-top:14px;max-height:48vh;overflow:auto;padding-right:2px}.reparseItem{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fbfdff}.reparseItem b{display:block;font-size:14px}.reparseItem small{display:block;color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reparseState{font-size:12px;font-weight:600;border-radius:99px;padding:3px 9px;background:#eef1f5;color:#4b5b6b;white-space:nowrap}.reparseState.work{background:#e3f1fa;color:#0f5f93}.reparseState.ok{background:#dff3ec;color:#0b6b52}.reparseState.fail{background:#fdecea;color:var(--err)}
 .more{display:block;margin:12px auto}
 .empty{text-align:center;color:var(--mut);padding:40px 12px}
 .sk{height:64px;border-radius:14px;margin-bottom:8px;background:linear-gradient(90deg,#fff 25%,#e9f2f8 50%,#fff 75%);background-size:200% 100%;animation:sh 1.2s infinite}@keyframes sh{to{background-position:-200% 0}}
@@ -124,7 +125,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 
   <div class="row2" id="reparsePanel" hidden>
     <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด</button>
-    <span class="muted" id="reparseStatus" role="status"></span>
+    <span class="muted" id="reparseHint"></span>
   </div>
 
   <section class="panel" id="calendar" hidden>
@@ -163,6 +164,17 @@ h1{font-size:26px;line-height:1.2;margin:0}
   </form>
 </div>
 
+<div class="modalBg" id="reparseModal" hidden>
+  <section class="modal reparseModal" aria-labelledby="reparseTitle">
+    <div class="modalHead"><h2 id="reparseTitle">อ่านไฟล์ใบจองอีกครั้ง</h2><button class="btn" id="reparseClose" type="button">ปิด</button></div>
+    <p class="muted">ระบบจะอ่านเฉพาะใบจองที่มีข้อมูลวันที่ไม่ครบ และเติมเฉพาะช่องที่ยังว่าง โดยไม่แก้ไฟล์ต้นฉบับหรือข้อมูลที่คุณแก้เอง</p>
+    <div class="reparseList" id="reparseList" aria-live="polite"></div>
+    <label class="wide" style="display:grid;gap:4px;color:var(--mut);font-size:13px;margin-top:14px">รหัสผู้ดูแล<input class="ctl" id="reparseToken" type="password" autocomplete="current-password" placeholder="กรอกรหัสก่อนเริ่มอ่านไฟล์"></label>
+    <div class="muted" id="reparseStatus" role="status" style="margin-top:10px"></div>
+    <div class="modalFoot"><button class="btn" id="reparseCancel" type="button">ยกเลิก</button><button class="btn save" id="reparseStart" type="button">เริ่มอ่านไฟล์</button></div>
+  </section>
+</div>
+
 <script>
 /* ====== ตั้งค่า ====== */
 var CONFIG = {
@@ -181,7 +193,7 @@ var CONFIG = {
 
 var $ = function (id) { return document.getElementById(id); };
 var SB = !!CONFIG.SUPABASE_URL;
-var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null;
+var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null, reparsePlan = [];
 var view = { day: '', cal: null, editingId: '' };
 
 /* ====== ตัวช่วย ====== */
@@ -404,17 +416,51 @@ function incompleteFileRows() {
   return rows.filter(function (row) { return !row._oth && row._bad && row.id && safeUrl(row.drive_url); });
 }
 function updateReparseAction() {
-  var targets = incompleteFileRows(), panel = $('reparsePanel'), button = $('reparseAll');
+  var targets = incompleteFileRows(), panel = $('reparsePanel'), button = $('reparseAll'), hint = $('reparseHint');
   panel.hidden = !targets.length && !(batchReparse && (batchReparse.running || batchReparse.note));
   if (batchReparse && batchReparse.running) {
     button.disabled = true;
     button.textContent = 'กำลังอ่านไฟล์ ' + batchReparse.done + '/' + batchReparse.total;
-    $('reparseStatus').textContent = batchReparse.note;
+    hint.textContent = 'กำลังทำงาน — ดูความคืบหน้าในหน้าการอ่านไฟล์';
     return;
   }
   button.disabled = !targets.length;
   button.textContent = 'อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด (' + targets.length + ')';
-  if (!batchReparse || !batchReparse.note) $('reparseStatus').textContent = targets.length ? 'ระบบจะเติมเฉพาะช่องที่ว่าง' : '';
+  hint.textContent = targets.length ? 'ระบบจะเติมเฉพาะช่องที่ว่าง' : ((batchReparse && batchReparse.note) || '');
+}
+function missingDateText(row) {
+  var missing = [];
+  if (!row._p) missing.push('วันรับรถ');
+  if (!row._r) missing.push('วันคืนรถ');
+  return missing.join(' · ') || 'ตรวจข้อมูลอีกครั้ง';
+}
+function renderReparseList() {
+  $('reparseList').innerHTML = reparsePlan.map(function (row) {
+    return '<div class="reparseItem" data-reparse-row="' + esc(row.id) + '"><span><b>' + esc(row.customer_name || row.booking_no || row.file_name || 'ใบจอง') + '</b><small>' + esc(row.file_name || 'ไฟล์ใบจอง') + ' · ' + esc(missingDateText(row)) + '</small></span><span class="reparseState">รออ่าน</span></div>';
+  }).join('') || '<div class="empty">ไม่มีไฟล์ที่ต้องอ่านซ้ำ</div>';
+}
+function setReparseRow(id, state, text) {
+  var item = $('reparseList').querySelector('[data-reparse-row="' + String(id) + '"]');
+  if (!item) return;
+  var badge = item.querySelector('.reparseState');
+  badge.className = 'reparseState ' + state;
+  badge.textContent = text;
+}
+function closeReparseModal() {
+  if (batchReparse && batchReparse.running) return;
+  $('reparseModal').hidden = true;
+}
+function openReparseModal() {
+  if (batchReparse && batchReparse.running) return;
+  reparsePlan = incompleteFileRows();
+  if (!reparsePlan.length) return;
+  batchReparse = null;
+  $('reparseToken').value = editToken();
+  $('reparseStatus').textContent = 'พบ ' + reparsePlan.length + ' ไฟล์ที่ต้องอ่านใหม่';
+  $('reparseStart').disabled = false;
+  $('reparseCancel').disabled = false;
+  renderReparseList();
+  $('reparseModal').hidden = false;
 }
 async function requestReparse(id, token) {
   var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id) + '/reparse', {
@@ -436,22 +482,29 @@ function reparseErrorText(error) {
 }
 async function reparseAllIncomplete() {
   if (batchReparse && batchReparse.running) return;
-  var targets = incompleteFileRows();
+  var targets = reparsePlan.slice();
   if (!targets.length) return;
-  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่ออ่านและบันทึกข้อมูลจากไฟล์');
-  if (!token) return;
+  var token = String($('reparseToken').value || '').trim();
+  if (!token) { $('reparseStatus').textContent = 'กรอกรหัสผู้ดูแลก่อนเริ่มอ่านไฟล์'; return; }
   batchReparse = { running: true, done: 0, total: targets.length, filled: 0, failed: 0, note: 'กำลังเตรียมอ่านไฟล์…' };
+  $('reparseStart').disabled = true;
+  $('reparseCancel').disabled = true;
+  $('reparseStatus').textContent = batchReparse.note;
   updateReparseAction();
   try {
     for (var i = 0; i < targets.length; i++) {
       batchReparse.note = 'กำลังอ่านไฟล์ ' + (i + 1) + ' จาก ' + targets.length;
+      $('reparseStatus').textContent = batchReparse.note;
+      setReparseRow(targets[i].id, 'work', 'กำลังอ่าน…');
       updateReparseAction();
       try {
         var result = await requestReparse(targets[i].id, token);
         batchReparse.filled += (result.updatedFields || []).length;
         applyReparseResult(targets[i].id, result);
+        setReparseRow(targets[i].id, 'ok', result.updatedFields && result.updatedFields.length ? 'เติมข้อมูลแล้ว' : 'ข้อมูลครบ');
       } catch (error) {
         batchReparse.failed++;
+        setReparseRow(targets[i].id, 'fail', 'อ่านไม่สำเร็จ');
         if (error.status === 403 || error.status === 503) throw error;
       }
       batchReparse.done = i + 1;
@@ -463,6 +516,9 @@ async function reparseAllIncomplete() {
     batchReparse.note = reparseErrorText(error);
   } finally {
     batchReparse.running = false;
+    $('reparseStatus').textContent = batchReparse.note;
+    $('reparseStart').disabled = false;
+    $('reparseCancel').disabled = false;
     updateReparseAction();
   }
 }
@@ -558,7 +614,11 @@ $('q').addEventListener('input', function () { clearTimeout(timer); timer = setT
 ['period', 'mode', 'source', 'kind'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
 $('rf').onclick = function () { load(); };
 $('retry').onclick = function () { load(); };
-$('reparseAll').onclick = reparseAllIncomplete;
+$('reparseAll').onclick = openReparseModal;
+$('reparseClose').onclick = closeReparseModal;
+$('reparseCancel').onclick = closeReparseModal;
+$('reparseStart').onclick = reparseAllIncomplete;
+$('reparseModal').addEventListener('click', function (e) { if (e.target === $('reparseModal')) closeReparseModal(); });
 document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); });
 setInterval(function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); }, 60000);
 

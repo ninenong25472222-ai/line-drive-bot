@@ -21,6 +21,9 @@ test("Dashboard recognizes Thai dates from Trip booking files", () => {
 test("Dashboard offers a single re-read action only for incomplete booking files", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /id="reparseAll"/);
+  assert.match(source, /id="reparseModal"/);
+  assert.match(source, /id="reparseList"/);
+  assert.match(source, /กำลังอ่านไฟล์/);
   assert.match(source, /!row\._oth && row\._bad && row\.id && safeUrl\(row\.drive_url\)/);
   assert.doesNotMatch(source, /data-reparse=/);
 });
