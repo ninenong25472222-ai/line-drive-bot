@@ -480,30 +480,85 @@ async function readPdfText(url) {
     var content = await (await pdf.getPage(pageNo)).getTextContent();
     pages.push(content.items.map(function (item) { return item.str || ''; }).join(' '));
   }
-  return pages.join(' ').replace(/\s+/g, ' ').trim();
+  // Keep page and line separation.  Some booking PDFs put the two dates in a
+  // table and PDF.js needs those boundaries to associate each time correctly.
+  return pages.join('\n\n').replace(/[ \t]+/g, ' ').trim();
 }
 function thaiMonthDate(day, month, year) {
   var months = { 'ม.ค.': '01', 'ก.พ.': '02', 'มี.ค.': '03', 'เม.ย.': '04', 'พ.ค.': '05', 'มิ.ย.': '06', 'ก.ค.': '07', 'ส.ค.': '08', 'ก.ย.': '09', 'ต.ค.': '10', 'พ.ย.': '11', 'ธ.ค.': '12' };
   var m = months[String(month).replace(/\s+/g, '')];
   return m ? String(+year > 2400 ? +year - 543 : +year) + '-' + m + '-' + pad(+day) : '';
 }
+function bookingText(value) {
+  return String(value || '').replace(/\u00a0/g, ' ').replace(/\r/g, '\n').replace(/[ \t]+/g, ' ').trim();
+}
+function bookingDate(day, month, year) {
+  var y = +year > 2400 ? +year - 543 : +year;
+  return String(y) + '-' + pad(+month) + '-' + pad(+day);
+}
+function bookingTime(hour, minute) {
+  var h = +hour;
+  return h >= 0 && h <= 23 && +minute >= 0 && +minute <= 59 ? pad(h) + ':' + pad(+minute) : '';
+}
+function numericDateEvents(text) {
+  var events = [], match;
+  var regex = /\b(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{4})\b/g;
+  while ((match = regex.exec(text)) !== null) events.push({ date: bookingDate(match[1], match[2], match[3]), index: match.index });
+  return events;
+}
+function timeEvents(text) {
+  var events = [], match, regex = /\b([01]?\d|2[0-3])\s*:\s*([0-5]\d)\b/g;
+  while ((match = regex.exec(text)) !== null) events.push({ time: bookingTime(match[1], match[2]), index: match.index });
+  return events;
+}
+function labelledDateTime(text, label) {
+  var labelMatch = label.exec(text);
+  if (!labelMatch) return null;
+  var nearby = text.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 180);
+  var iso = nearby.match(/(\d{4})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/);
+  if (iso) return { date: bookingDate(iso[3], iso[2], iso[1]), time: bookingTime(iso[4], iso[5]) };
+  var numeric = nearby.match(/(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{4})\s+([0-2]?\d)\s*:\s*([0-5]\d)/);
+  return numeric ? { date: bookingDate(numeric[1], numeric[2], numeric[3]), time: bookingTime(numeric[4], numeric[5]) } : null;
+}
+function completePair(pickup, returning) {
+  return {
+    pickup_date: pickup && pickup.date || '', pickup_time: pickup && pickup.time || '',
+    return_date: returning && returning.date || '', return_time: returning && returning.time || ''
+  };
+}
 function readDetailsFromText(company, text) {
-  var pick, drop;
+  text = bookingText(text);
+  var pick, drop, dates, times;
   if (company === 'Klook') {
-    pick = text.match(/เวลานัดรับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i);
-    drop = text.match(/ข้อมูลการส่งกลับ\s+(\d{4}-\d{2}-\d{2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/i);
-    return { pickup_date: pick ? pick[1] : '', pickup_time: pick ? pad(+pick[2]) + ':' + pick[3] : '', return_date: drop ? drop[1] : '', return_time: drop ? pad(+drop[2]) + ':' + drop[3] : '' };
+    pick = labelledDateTime(text, /(?:เวลานัดรับ|pick\s*-?\s*up(?:\s+time)?)/ig);
+    drop = labelledDateTime(text, /(?:ข้อมูลการส่งกลับ|เวลาส่งคืน|drop\s*-?\s*off(?:\s+time)?|return(?:\s+time)?)/ig);
+    if (!pick || !drop) {
+      var isoEvents = [], isoMatch, isoRegex = /(\d{4})\s*[-\/.]\s*(\d{1,2})\s*[-\/.]\s*(\d{1,2})\s+([0-2]?\d)\s*:\s*([0-5]\d)/g;
+      while ((isoMatch = isoRegex.exec(text)) !== null) isoEvents.push({ date: bookingDate(isoMatch[3], isoMatch[2], isoMatch[1]), time: bookingTime(isoMatch[4], isoMatch[5]) });
+      pick = pick || isoEvents[0]; drop = drop || isoEvents[1];
+    }
+    return completePair(pick, drop);
   }
   if (company === 'ChicCar') {
-    var dates = Array.from(text.matchAll(/\b(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})\b/g)).map(function (m) { return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]); });
-    var times = Array.from(text.matchAll(/\b([01]?\d|2[0-3])\s*:\s*([0-5]\d)\b/g)).map(function (m) { return pad(+m[1]) + ':' + m[2]; });
-    return { pickup_date: dates[0] || '', pickup_time: times[0] || '', return_date: dates[1] || '', return_time: times[1] || '' };
+    dates = numericDateEvents(text); times = timeEvents(text);
+    // ChicCar frequently has exactly the same pickup and return time. Keep
+    // both occurrences; removing duplicates is what caused blank return time.
+    return completePair({ date: dates[0] && dates[0].date, time: times[0] && times[0].time }, { date: dates[1] && dates[1].date, time: times[1] && times[1].time });
+  }
+  if (company === 'Reservation') {
+    pick = labelledDateTime(text, /pick\s*-?\s*up\s+date/ig);
+    if (!pick) {
+      var pickDate = text.match(/pick\s*-?\s*up\s+date\s*:?\s*(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{4})[\s\S]{0,90}?pick\s*-?\s*up\s+time\s*:?\s*([0-2]?\d)\s*:\s*([0-5]\d)/i);
+      if (pickDate) pick = { date: bookingDate(pickDate[1], pickDate[2], pickDate[3]), time: bookingTime(pickDate[4], pickDate[5]) };
+    }
+    drop = labelledDateTime(text, /drop\s*-?\s*off\s+date(?:\s*&\s*time)?/ig);
+    return completePair(pick, drop);
   }
   var months = 'ม\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*พ\\s*\\.|มี\\s*\\.\\s*ค\\s*\\.|เม\\s*\\.\\s*ย\\s*\\.|พ\\s*\\.\\s*ค\\s*\\.|มิ\\s*\\.\\s*ย\\s*\\.|ก\\s*\\.\\s*ค\\s*\\.|ส\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*ย\\s*\\.|ต\\s*\\.\\s*ค\\s*\\.|พ\\s*\\.\\s*ย\\s*\\.|ธ\\s*\\.\\s*ค\\s*\\.';
   var regex = new RegExp('(\\d{1,2})\\s*(' + months + ')\\s*(\\d{4})\\s*([0-2]?\\d)\\s*:\\s*([0-5]\\d)', 'gi'), events = [], match;
   while ((match = regex.exec(text)) !== null) {
     var date = thaiMonthDate(match[1], match[2], match[3]), time = pad(+match[4]) + ':' + match[5];
-    if (date && !events.some(function (event) { return event.date === date && event.time === time; })) events.push({ date: date, time: time });
+    if (date) events.push({ date: date, time: time });
   }
   return { pickup_date: events[0] ? events[0].date : '', pickup_time: events[0] ? events[0].time : '', return_date: events[1] ? events[1].date : '', return_time: events[1] ? events[1].time : '' };
 }

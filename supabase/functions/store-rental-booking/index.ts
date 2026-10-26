@@ -25,7 +25,10 @@ async function reparseOnly(payload: Record<string, unknown>, url: string, key: s
   if (!/^[0-9a-f-]{36}$/i.test(id)) return respond({ error: "Invalid booking id" }, 400);
   const current = await getBooking(url, key, `id=eq.${encodeURIComponent(id)}`);
   if (!current) return respond({ error: "Booking not found" }, 404);
-  if (!missing(current.pickup_date) && !missing(current.return_date)) return respond({ error: "Booking dates are already complete" }, 409);
+  // A booking is complete only when every date *and* time is present.  Many
+  // ChicCar forms have identical pickup/return times, and the old condition
+  // rejected the repair once both dates existed even when return_time was blank.
+  if (repairFields.every((field) => !missing(current[field]))) return respond({ error: "Booking dates and times are already complete" }, 409);
   const patch = onlyMissing(current, payload, repairFields);
   if (!Object.keys(patch).length) return respond({ error: "No missing booking dates were found in the file" }, 422);
   const booking = await patchBooking(url, key, current.id, patch);

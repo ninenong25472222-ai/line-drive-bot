@@ -11,11 +11,34 @@ function dashboardDateParser() {
   return vm.runInNewContext(`${source.slice(start, end)}; pdate;`);
 }
 
+function dashboardFileParser() {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const start = source.indexOf("var pad =");
+  const end = source.indexOf("async function readBookingDetails");
+  return vm.runInNewContext(`${source.slice(start, end)}; readDetailsFromText;`);
+}
+
 test("Dashboard recognizes Thai dates from Trip booking files", () => {
   const pdate = dashboardDateParser();
   assert.equal(pdate("23 ต.ค. 2026"), "2026-10-23");
   assert.equal(pdate("6 ส . ค . 2026"), "2026-08-06");
   assert.equal(pdate("23/10/2569"), "2026-10-23");
+});
+
+test("Dashboard file reader preserves identical ChicCar pickup and return times", () => {
+  const parse = dashboardFileParser();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(parse("ChicCar", "Pick Up/รับรถ Return/คืนรถ วันที่ 12 / 10 / 2026 วันที่ 13 / 10 / 2026 เวลา 16 : 00 เวลา 16 : 00"))),
+    { pickup_date: "2026-10-12", pickup_time: "16:00", return_date: "2026-10-13", return_time: "16:00" },
+  );
+});
+
+test("Dashboard file reader handles Klook dates and times with split spaces", () => {
+  const parse = dashboardFileParser();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(parse("Klook", "ข้อมูลการรับ / ส่ง เวลานัดรับ 2026-10-07 13 : 00 ข้อมูลการส่งกลับ 2026-10-10 13 : 00"))),
+    { pickup_date: "2026-10-07", pickup_time: "13:00", return_date: "2026-10-10", return_time: "13:00" },
+  );
 });
 
 test("Dashboard offers a single re-read action only for incomplete booking files", () => {

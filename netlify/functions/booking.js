@@ -124,8 +124,8 @@ async function loadBooking(supabaseUrl, serviceRoleKey, id) {
 async function reparseBooking({ supabaseUrl, serviceRoleKey, id }) {
   const current = await loadBooking(supabaseUrl, serviceRoleKey, id);
   if (!current) return { error: "Booking not found", statusCode: 404 };
-  if (!missing(current.pickup_date) && !missing(current.return_date)) {
-    return { error: "This booking already has complete dates", statusCode: 409 };
+  if (!["pickup_date", "pickup_time", "return_date", "return_time"].some((field) => missing(current[field]))) {
+    return { error: "This booking already has complete dates and times", statusCode: 409 };
   }
 
   const driveFileId = driveFileIdFromUrl(current.drive_url);
