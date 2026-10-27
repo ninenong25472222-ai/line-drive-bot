@@ -54,8 +54,6 @@ exports.handler = async function handler(event) {
   if (event.httpMethod === "OPTIONS") return reply(204, {});
   const url = text(process.env.SUPABASE_URL).replace(/\/$/, "");
   const anonKey = text(process.env.SUPABASE_ANON_KEY);
-  const key = text(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const editToken = text(process.env.BOOKING_EDIT_TOKEN);
   if (!url || !anonKey) return reply(503, { error: "ระบบข้อมูลรถยังตั้งค่าไม่ครบ" });
 
   try {
@@ -64,24 +62,23 @@ exports.handler = async function handler(event) {
       return reply(200, cars);
     }
     if (!["POST", "PATCH"].includes(event.httpMethod)) return reply(405, { error: "Method not allowed" });
-    if (!key) return reply(503, { error: "ต้องตั้งค่า SUPABASE_SERVICE_ROLE_KEY ใน Netlify ก่อนบันทึกข้อมูลรถ" });
-    const supplied = text(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"]);
-    if (!editToken || supplied !== editToken) return reply(403, { error: "รหัสผู้ดูแลไม่ถูกต้อง" });
-    let input;
-    try { input = JSON.parse(event.body || "{}"); } catch { return reply(400, { error: "ข้อมูลไม่ถูกต้อง" }); }
-    const patch = carPatch(input);
-    if (event.httpMethod === "POST") {
-      if (!patch.car_ref || !patch.model) return reply(400, { error: "กรอกรหัสเรียกรถและรุ่นรถ" });
-      patch.updated_at = new Date().toISOString();
-      const created = await supabase(url, key, "rental_cars", { method: "POST", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
-      return reply(201, Array.isArray(created) ? created[0] : created);
-    }
     const id = carIdFromPath(event.path || event.rawUrl || "");
-    if (!id || !Object.keys(patch).length) return reply(400, { error: "ข้อมูลรถไม่ครบ" });
-    patch.updated_at = new Date().toISOString();
-    const updated = await supabase(url, key, `rental_cars?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
-    if (!Array.isArray(updated) || !updated[0]) return reply(404, { error: "ไม่พบรถ" });
-    return reply(200, updated[0]);
+    if (event.httpMethod === "PATCH" && !id) return reply(400, { error: "ไม่พบรถที่ต้องการแก้ไข" });
+    // The Supabase Edge Function owns privileged writes and verifies the
+    // administrator code. Netlify receives only the public/anon key.
+    const endpoint = event.httpMethod === "POST" ? "/cars" : `/cars/${encodeURIComponent(id)}`;
+    const response = await fetch(`${url}/functions/v1/rental-admin${endpoint}`, {
+      method: event.httpMethod,
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        "content-type": "application/json",
+        "x-booking-edit-token": text(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"], 200),
+      },
+      body: event.body || "{}",
+    });
+    const body = await response.text();
+    return { statusCode: response.status, headers: reply(200, {}).headers, body: body || "{}" };
   } catch (error) {
     console.error("CARS_API_FAILED", error?.message || error);
     return reply(502, { error: "บันทึกข้อมูลรถไม่สำเร็จ" });

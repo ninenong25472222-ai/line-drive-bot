@@ -186,24 +186,21 @@ exports.handler = async function handler(event) {
   if (event.httpMethod !== "PATCH" && !isReparse) return json(405, { error: "Method not allowed" });
 
   const supabaseUrl = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
-  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
-  const editToken = String(process.env.BOOKING_EDIT_TOKEN || "");
+  const anonKey = String(process.env.SUPABASE_ANON_KEY || "");
   const suppliedToken = String(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"] || "");
   const id = bookingIdFromPath(event.path || event.rawUrl || "");
 
   // Re-reading is available from the public Dashboard, but its write access
   // remains server-side and is restricted to records with missing dates.
-  if (!supabaseUrl || !serviceRoleKey || (!isReparse && !editToken)) {
+  if (!supabaseUrl || !anonKey) {
     return json(503, { error: "Booking editing is not configured" });
   }
   if (!id) return json(400, { error: "Missing booking id" });
 
-  if (!isReparse && (!suppliedToken || suppliedToken !== editToken)) {
-    return json(403, { error: "Forbidden" });
-  }
-
   if (isReparse) {
     try {
+      const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
+      if (!serviceRoleKey) return json(503, { error: "Booking re-read is not configured" });
       const result = await reparseBooking({ supabaseUrl, serviceRoleKey, id });
       if (result.error) return json(result.statusCode || 500, { error: result.error });
       return json(200, { booking: result.booking, updatedFields: result.updatedFields, foundFields: result.foundFields });
@@ -230,24 +227,18 @@ exports.handler = async function handler(event) {
   }
   patch.updated_at = new Date().toISOString();
 
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/rental_bookings?id=eq.${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "content-type": "application/json",
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(patch),
+  const response = await fetch(`${supabaseUrl}/functions/v1/rental-admin/bookings/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${anonKey}`,
+      "content-type": "application/json",
+      "x-booking-edit-token": suppliedToken,
     },
-  );
-
-  if (!response.ok) return json(502, { error: "Could not update booking" });
-  const updated = await response.json();
-  if (!Array.isArray(updated) || !updated[0]) return json(404, { error: "Booking not found" });
-  return json(200, updated[0]);
+    body: JSON.stringify(patch),
+  });
+  const body = await response.text();
+  return { statusCode: response.status, headers: json(200, {}).headers, body: body || "{}" };
 };
 
 module.exports.bookingIdFromPath = bookingIdFromPath;

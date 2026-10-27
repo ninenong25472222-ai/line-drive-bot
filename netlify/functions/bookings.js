@@ -54,38 +54,21 @@ function bookingInput(input = {}) {
 }
 
 async function createBooking(event, url, key) {
-  if (!key) return json(503, { error: "ต้องตั้งค่า SUPABASE_SERVICE_ROLE_KEY ใน Netlify ก่อนบันทึกใบจอง" });
-  const editToken = clean(process.env.BOOKING_EDIT_TOKEN);
-  const supplied = clean(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"]);
-  if (!editToken || supplied !== editToken) return json(403, { error: "รหัสผู้ดูแลไม่ถูกต้อง" });
-  let input;
-  try { input = JSON.parse(event.body || "{}"); } catch { return json(400, { error: "ข้อมูลใบจองไม่ถูกต้อง" }); }
-  const booking = bookingInput(input);
-  if (!booking.car_id || !booking.customer_name || !validDate(booking.pickup_date) || !validDate(booking.return_date) || !validTime(booking.pickup_time) || !validTime(booking.return_time)) {
-    return json(400, { error: "กรอกข้อมูลลูกค้า รถ วัน และเวลาให้ครบ" });
-  }
-  if (!Object.values({ daily_rate: booking.daily_rate, booking_deposit: booking.booking_deposit, security_deposit: booking.security_deposit, delivery_fee: booking.delivery_fee, service_total: booking.service_total }).every((value) => value != null)) {
-    return json(400, { error: "ยอดเงินต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป" });
-  }
-  if (slot(booking.pickup_date, booking.pickup_time) >= slot(booking.return_date, booking.return_time)) return json(400, { error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" });
   try {
-    const cars = await api(url, key, `rental_cars?id=eq.${encodeURIComponent(booking.car_id)}&select=id,car_ref,model,status,active&limit=1`);
-    const car = Array.isArray(cars) ? cars[0] : null;
-    if (!car || !car.active || ["ซ่อม", "งดใช้งาน"].includes(car.status)) return json(409, { error: "รถคันนี้ไม่พร้อมรับงาน" });
-    const candidates = await api(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_date=lte.${encodeURIComponent(booking.return_date)}&return_date=gte.${encodeURIComponent(booking.pickup_date)}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
-    const conflict = (candidates || []).find((row) => validDate(row.pickup_date) && validTime(row.pickup_time) && validDate(row.return_date) && validTime(row.return_time) && overlapsBooking(booking, row));
-    if (conflict) return json(409, { error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก", conflict });
-    const now = new Date();
-    const bookingNo = `WEB-${booking.pickup_date.replace(/-/g, "")}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
-    const row = {
-      ...booking,
-      car: `${car.model}${car.car_ref ? ` · ${car.car_ref}` : ""}`,
-      booking_no: bookingNo,
-      source: "Dashboard", source_label: "เว็บไซต์ / ออกใบจอง", company: "Rental Desk", status: "ยืนยันแล้ว",
-      file_hash: `manual:${crypto.randomUUID()}`, created_at: now.toISOString(), updated_at: now.toISOString(),
-    };
-    const created = await api(url, key, "rental_bookings", { method: "POST", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(row) });
-    return json(201, Array.isArray(created) ? created[0] : created);
+    // Privileged validation and database writes are kept inside Supabase.
+    const supplied = clean(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"], 200);
+    const response = await fetch(`${url}/functions/v1/rental-admin/bookings`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+        "x-booking-edit-token": supplied,
+      },
+      body: event.body || "{}",
+    });
+    const body = await response.text();
+    return { statusCode: response.status, headers: json(200, {}).headers, body: body || "{}" };
   } catch (error) {
     console.error("CREATE_BOOKING_FAILED", error?.message || error);
     return json(502, { error: "บันทึกใบจองไม่สำเร็จ" });
@@ -104,7 +87,7 @@ exports.handler = async function handler(event) {
     return json(500, { error: "Missing Netlify Supabase environment variables" });
   }
 
-  if (event.httpMethod === "POST") return createBooking(event, url, String(process.env.SUPABASE_SERVICE_ROLE_KEY || ""));
+  if (event.httpMethod === "POST") return createBooking(event, url, key);
   if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed" });
 
   const params = new URLSearchParams({
