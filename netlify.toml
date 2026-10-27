@@ -11,3 +11,13 @@
   from = "/api/bookings/*"
   to = "/.netlify/functions/booking/:splat"
   status = 200
+
+[[redirects]]
+  from = "/api/cars"
+  to = "/.netlify/functions/cars"
+  status = 200
+
+[[redirects]]
+  from = "/api/cars/*"
+  to = "/.netlify/functions/cars/:splat"
+  status = 200

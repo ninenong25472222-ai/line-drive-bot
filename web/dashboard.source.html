@@ -83,6 +83,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
 <header class="top">
   <div><h1>Rental Desk</h1><div class="muted" id="upd">กำลังโหลด…</div></div>
   <div class="topActions">
+    <button class="btn" id="bookingBtn" type="button">ออกใบจอง</button>
+    <button class="btn" id="carsBtn" type="button">ข้อมูลรถ</button>
     <button class="btn" id="billingBtn" type="button">ออกบิล / ภาษี</button>
     <button class="btn" id="rf">↻ รีเฟรช</button>
   </div>
@@ -945,6 +947,7 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
+<script src="/booking-workspace.js" defer></script>
 </body>
 </html>
 

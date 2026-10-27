@@ -73,3 +73,17 @@ test("Dashboard exposes a reversible booking trash action", () => {
   assert.match(source, /ย้ายเข้าถังขยะ/);
   assert.match(source, /requestSubmit\(\)/);
 });
+
+test("Dashboard loads the car workspace and AppSheet-style booking form", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
+  assert.match(source, /id="bookingBtn"[^>]*>ออกใบจอง/);
+  assert.match(source, /id="carsBtn"[^>]*>ข้อมูลรถ/);
+  assert.match(source, /booking-workspace\.js/);
+  assert.match(workspace, /ข้อมูลลูกค้า/);
+  assert.match(workspace, /สรุปยอดเงิน/);
+  assert.match(workspace, /ข้อมูลการเดินทาง/);
+  assert.match(workspace, /pickup_time/);
+  assert.match(workspace, /return_time/);
+  assert.match(workspace, /bookingConflict/);
+});
