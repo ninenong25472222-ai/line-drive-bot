@@ -12,14 +12,14 @@
   function localNow() { var d = new Date(Date.now() + 7 * 3600000); return d.toISOString().slice(0, 16); }
   function renderShell() {
     var style = document.createElement('style');
-    style.textContent = '.bookModal{max-width:880px}.bookGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.bookGrid .wide{grid-column:1/-1}.bookSection{grid-column:1/-1;margin:8px 0 0;padding:9px 0 4px;border-bottom:1px solid var(--line);font-weight:700;color:var(--ink)}.bookEnumHint{display:block;margin-top:3px;font-size:11px;color:var(--mut)}.enumManage{grid-column:1/-1;display:grid;grid-template-columns:150px 1fr auto;gap:8px;align-items:end;padding:10px;border:1px dashed #b8d9ed;border-radius:10px;background:#fbfdff}.enumManage label{display:grid;gap:4px;color:var(--mut);font-size:12px}.bookSummary{grid-column:1/-1;border-radius:12px;background:#e8f3fb;padding:11px 13px;color:#0f5f93}.bookSummary b{display:block;font-size:17px;color:var(--ink)}.bookBreakdown{display:block;margin-top:3px;font-size:12px;color:#35586e}.carModal{max-width:900px}.carLayout{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:12px}.carList{max-height:440px;overflow:auto;display:grid;gap:7px}.carRow{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;text-align:left}.carRow.on{border-color:var(--p);box-shadow:0 0 0 2px #d9eefb}.carRow b,.carRow span{display:block}.carRow span{font-size:12px;color:var(--mut)}.carForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.carForm .wide{grid-column:1/-1}.carPhoto{min-height:100px;border:1px dashed var(--line);border-radius:10px;display:grid;place-items:center;overflow:hidden;background:#fbfdff;color:var(--mut);font-size:12px}.carPhoto img{display:block;width:100%;max-height:210px;object-fit:cover}.carStatus{font-size:12px;color:var(--mut)}@media(max-width:640px){.bookGrid,.carForm{grid-template-columns:1fr}.carLayout{grid-template-columns:1fr}.bookGrid .wide,.carForm .wide{grid-column:auto}.enumManage{grid-template-columns:1fr}}';
+    style.textContent = '.bookModal{max-width:880px}.bookGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.bookGrid .wide{grid-column:1/-1}.bookSection{grid-column:1/-1;margin:8px 0 0;padding:9px 0 4px;border-bottom:1px solid var(--line);font-weight:700;color:var(--ink)}.bookEnumHint{display:block;margin-top:3px;font-size:11px;color:var(--mut)}.bookSummary{grid-column:1/-1;border-radius:12px;background:#e8f3fb;padding:11px 13px;color:#0f5f93}.bookSummary b{display:block;font-size:17px;color:var(--ink)}.bookBreakdown{display:block;margin-top:3px;font-size:12px;color:#35586e}.settingsModal{max-width:760px}.settingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.settingsCard{border:1px solid var(--line);border-radius:12px;padding:13px;background:#fbfdff}.settingsCard h3{margin:0 0 4px;font-size:16px}.settingsAdd{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.settingsList{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.settingsTag{border-radius:99px;padding:4px 8px;background:#e8f3fb;color:#0f5f93;font-size:12px}.settingsCode{display:grid;gap:4px;color:var(--mut);font-size:13px;margin-top:14px}.carModal{max-width:900px}.carLayout{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:12px}.carList{max-height:440px;overflow:auto;display:grid;gap:7px}.carRow{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px;text-align:left}.carRow.on{border-color:var(--p);box-shadow:0 0 0 2px #d9eefb}.carRow b,.carRow span{display:block}.carRow span{font-size:12px;color:var(--mut)}.carForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.carForm .wide{grid-column:1/-1}.carPhoto{min-height:100px;border:1px dashed var(--line);border-radius:10px;display:grid;place-items:center;overflow:hidden;background:#fbfdff;color:var(--mut);font-size:12px}.carPhoto img{display:block;width:100%;max-height:210px;object-fit:cover}.carStatus{font-size:12px;color:var(--mut)}@media(max-width:640px){.bookGrid,.carForm,.settingsGrid{grid-template-columns:1fr}.carLayout{grid-template-columns:1fr}.bookGrid .wide,.carForm .wide{grid-column:auto}.settingsAdd{grid-template-columns:1fr}}';
     document.head.appendChild(style);
     document.body.insertAdjacentHTML('beforeend', [
       '<div class="modalBg" id="bookingModal" hidden><form class="modal bookModal" id="bookingForm">',
       '<div class="modalHead"><h2>ออกใบจอง</h2><button class="btn" id="bookingClose" type="button">ปิด</button></div>',
       '<p class="muted">รูปแบบข้อมูลเดียวกับ AppSheet — ระบบตรวจรถและช่วงวัน/เวลาซ้อนก่อนบันทึก</p><div class="bookGrid">',
       '<div class="bookSection">ข้อมูลลูกค้า 👤</div>',
-      '<label>ช่องทางการจอง<input class="ctl" name="booking_channel" list="bookingChannelOptions" value="Direct / Dashboard" placeholder="เลือกหรือพิมพ์เพิ่มเอง" required><span class="bookEnumHint">เลือกจากรายการ หรือพิมพ์เองได้</span></label>',
+      '<label>ช่องทางการจอง<select class="ctl" name="booking_channel" id="bookingChannel" required></select><span class="bookEnumHint">จัดการรายการได้จากเมนู “ตั้งค่าข้อมูล”</span></label>',
       '<label>ชื่อลูกค้า<input class="ctl" name="customer_name" required></label>',
       '<label>เบอร์โทร<input class="ctl" name="customer_phone" inputmode="tel" required></label>',
       '<label>อีเมล (ถ้ามี)<input class="ctl" name="customer_email" type="email"></label>',
@@ -36,10 +36,8 @@
       '<label>เวลาส่งรถ<input class="ctl" name="pickup_time" type="time" required></label>',
       '<label>วันคืนรถ<input class="ctl" name="return_date" type="date" required></label>',
       '<label>เวลาคืนรถ<input class="ctl" name="return_time" type="time" required></label>',
-      '<label>สถานที่ส่ง<input class="ctl" name="pickup_location" list="bookingLocationOptions" value="สนามบินสุราษฎร์ธานี" placeholder="เลือกหรือพิมพ์เพิ่มเอง" required><span class="bookEnumHint">เลือกจากรายการ หรือพิมพ์เองได้</span></label>',
-      '<label>สถานที่คืน<input class="ctl" name="return_location" list="bookingLocationOptions" value="สนามบินสุราษฎร์ธานี" placeholder="เลือกหรือพิมพ์เพิ่มเอง" required><span class="bookEnumHint">เลือกจากรายการ หรือพิมพ์เองได้</span></label>',
-      '<datalist id="bookingChannelOptions"></datalist><datalist id="bookingLocationOptions"></datalist>',
-      '<div class="enumManage"><label>เพิ่มในรายการ<select class="ctl" id="bookingOptionType"><option value="location">สถานที่</option><option value="channel">ช่องทางการจอง</option></select></label><label>ชื่อรายการ<input class="ctl" id="bookingOptionValue" placeholder="เช่น สนามบินกระบี่"></label><button class="btn" type="button" id="bookingOptionAdd">เพิ่มรายการ</button></div>',
+      '<label>สถานที่ส่ง<select class="ctl" name="pickup_location" id="bookingPickupLocation" required></select><span class="bookEnumHint">จัดการรายการได้จากเมนู “ตั้งค่าข้อมูล”</span></label>',
+      '<label>สถานที่คืน<select class="ctl" name="return_location" id="bookingReturnLocation" required></select><span class="bookEnumHint">จัดการรายการได้จากเมนู “ตั้งค่าข้อมูล”</span></label>',
       '<div class="bookSummary"><span id="bookingDuration">ระยะเวลาเช่า: เลือกวันและเวลาเพื่อคำนวณ</span><b id="bookingTotal">ยอดค่าเช่า 0.00 บาท</b><span id="bookingCharge" class="bookBreakdown"></span><span id="bookingConflict" class="carStatus"></span></div>',
       '<label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>',
       '</div><div class="muted" id="bookingErr" role="alert"></div><div class="modalFoot"><button class="btn" id="bookingCancel" type="button">ยกเลิก</button><button class="btn save" id="bookingSave" type="submit">บันทึกใบจอง</button></div></form></div>',
@@ -51,7 +49,8 @@
       '<label>ราคาต่อวัน (บาท)<input class="ctl" name="default_daily_rate" type="number" min="0" step="0.01" value="0"></label><label>มัดจำเริ่มต้น (บาท)<input class="ctl" name="default_security_deposit" type="number" min="0" step="0.01" value="0"></label>',
       '<label class="wide">อัปโหลดรูปภาพรถ<input class="ctl" name="image_file" id="carImageFile" type="file" accept="image/jpeg,image/png,image/webp"><span class="bookEnumHint">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 5 MB</span></label><div class="carPhoto wide" id="carImagePreview">ยังไม่มีรูปภาพรถ</div><label class="wide">หรือลิงก์รูปภาพรถ<input class="ctl" name="image_url" type="url" placeholder="https://..."></label><label class="wide">หมายเหตุ<textarea class="ctl" name="note" rows="2"></textarea></label>',
       '<label class="wide"><input name="active" type="checkbox" checked> เปิดให้เลือกออกใบจอง</label><label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>',
-      '</div></div><div class="muted" id="carsErr" role="alert"></div><div class="modalFoot"><button class="btn" id="carsNew" type="button">เพิ่มรถใหม่</button><button class="btn" id="carsCancel" type="button">ยกเลิก</button><button class="btn save" id="carsSave" type="submit">บันทึกข้อมูลรถ</button></div></form></div>'
+      '</div></div><div class="muted" id="carsErr" role="alert"></div><div class="modalFoot"><button class="btn" id="carsNew" type="button">เพิ่มรถใหม่</button><button class="btn" id="carsCancel" type="button">ยกเลิก</button><button class="btn save" id="carsSave" type="submit">บันทึกข้อมูลรถ</button></div></form></div>',
+      '<div class="modalBg" id="settingsModal" hidden><form class="modal settingsModal" id="settingsForm"><div class="modalHead"><h2>ตั้งค่าข้อมูล</h2><button class="btn" id="settingsClose" type="button">ปิด</button></div><p class="muted">เพิ่มรายการสำหรับ Dropdown ในหน้าออกใบจองได้ที่นี่ รายการที่บันทึกแล้วจะใช้ได้กับทั้งสถานที่ส่งและสถานที่คืนรถทันที</p><div class="settingsGrid"><section class="settingsCard"><h3>ช่องทางการจอง</h3><div class="muted">เช่น LINE OA, Facebook, Partner</div><div class="settingsAdd"><input class="ctl" id="settingsChannelValue" placeholder="เพิ่มช่องทางการจอง"><button class="btn save" id="settingsChannelAdd" type="button">เพิ่ม</button></div><div class="settingsList" id="settingsChannels"></div></section><section class="settingsCard"><h3>สถานที่รับ / ส่งรถ</h3><div class="muted">เช่น สนามบินกระบี่, ท่าเรือ, โรงแรม</div><div class="settingsAdd"><input class="ctl" id="settingsLocationValue" placeholder="เพิ่มสถานที่"><button class="btn save" id="settingsLocationAdd" type="button">เพิ่ม</button></div><div class="settingsList" id="settingsLocations"></div></section></div><label class="settingsCode">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label><div class="muted" id="settingsErr" role="alert"></div><div class="modalFoot"><button class="btn" id="settingsCancel" type="button">ยกเลิก</button></div></form></div>'
     ].join(''));
   }
   async function fetchCars() {
@@ -76,22 +75,31 @@
     renderEnumOptions(); return rows;
   }
   function enumValues(name) { return Array.from(new Set(enumDefaults[name].concat(bookingOptions[name] || []).map(function (value) { return String(value || '').trim(); }).filter(Boolean))); }
-  function renderEnumOptions() {
-    by('bookingChannelOptions').innerHTML = enumValues('channels').map(function (value) { return '<option value="' + esc(value) + '"></option>'; }).join('');
-    by('bookingLocationOptions').innerHTML = enumValues('locations').map(function (value) { return '<option value="' + esc(value) + '"></option>'; }).join('');
+  function setSelectOptions(id, values, selected, placeholder) {
+    var select = by(id); if (!select) return;
+    select.innerHTML = (placeholder ? '<option value="">' + esc(placeholder) + '</option>' : '') + values.map(function (value) { return '<option value="' + esc(value) + '">' + esc(value) + '</option>'; }).join('');
+    select.value = values.includes(selected) ? selected : (values[0] || '');
   }
-  async function addBookingOption() {
-    var form = by('bookingForm'), optionType = by('bookingOptionType').value, label = by('bookingOptionValue').value.trim(), tokenValue = form.elements.edit_token.value.trim();
-    if (!label) { by('bookingErr').textContent = 'กรอกชื่อรายการที่ต้องการเพิ่ม'; return; }
-    if (!tokenValue) { by('bookingErr').textContent = 'กรอกรหัสผู้ดูแลก่อนเพิ่มรายการ'; return; }
-    by('bookingOptionAdd').disabled = true; by('bookingErr').textContent = '';
+  function renderEnumOptions() {
+    var channel = by('bookingChannel'), pickup = by('bookingPickupLocation'), returning = by('bookingReturnLocation');
+    setSelectOptions('bookingChannel', enumValues('channels'), channel ? channel.value : 'Direct / Dashboard', 'เลือกช่องทางการจอง');
+    setSelectOptions('bookingPickupLocation', enumValues('locations'), pickup ? pickup.value : 'สนามบินสุราษฎร์ธานี', 'เลือกสถานที่ส่งรถ');
+    setSelectOptions('bookingReturnLocation', enumValues('locations'), returning ? returning.value : 'สนามบินสุราษฎร์ธานี', 'เลือกสถานที่คืนรถ');
+    if (by('settingsChannels')) by('settingsChannels').innerHTML = enumValues('channels').map(function (value) { return '<span class="settingsTag">' + esc(value) + '</span>'; }).join('');
+    if (by('settingsLocations')) by('settingsLocations').innerHTML = enumValues('locations').map(function (value) { return '<span class="settingsTag">' + esc(value) + '</span>'; }).join('');
+  }
+  async function addBookingOption(optionType) {
+    var form = by('settingsForm'), input = by(optionType === 'channel' ? 'settingsChannelValue' : 'settingsLocationValue'), label = input.value.trim(), tokenValue = form.elements.edit_token.value.trim(), button = by(optionType === 'channel' ? 'settingsChannelAdd' : 'settingsLocationAdd');
+    if (!label) { by('settingsErr').textContent = 'กรอกชื่อรายการที่ต้องการเพิ่ม'; return; }
+    if (!tokenValue) { by('settingsErr').textContent = 'กรอกรหัสผู้ดูแลก่อนเพิ่มรายการ'; return; }
+    button.disabled = true; by('settingsErr').textContent = '';
     try {
       var response = await fetch('/api/booking-options', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': tokenValue }, body: JSON.stringify({ option_type: optionType, label: label }) });
       var result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error || 'เพิ่มรายการไม่สำเร็จ'), { status: response.status });
-      var key = optionType === 'channel' ? 'channels' : 'locations'; bookingOptions[key] = enumValues(key).concat(result.label || label); renderEnumOptions(); by('bookingOptionValue').value = '';
-      if (optionType === 'channel') form.elements.booking_channel.value = result.label || label; else form.elements.pickup_location.value = result.label || label;
-      by('bookingErr').textContent = 'เพิ่มรายการแล้ว ใช้เลือกได้ทันที';
-    } catch (error) { by('bookingErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : (error.message || 'เพิ่มรายการไม่สำเร็จ'); } finally { by('bookingOptionAdd').disabled = false; }
+      var key = optionType === 'channel' ? 'channels' : 'locations'; bookingOptions[key] = Array.from(new Set((bookingOptions[key] || []).concat(result.label || label))); renderEnumOptions(); input.value = '';
+      try { sessionStorage.setItem('rd_edit_token', tokenValue); } catch (e) {}
+      by('settingsErr').textContent = 'เพิ่มรายการแล้ว และเลือกใช้ในใบจองได้ทันที';
+    } catch (error) { by('settingsErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : (error.message || 'เพิ่มรายการไม่สำเร็จ'); } finally { button.disabled = false; }
   }
   function bookingTimes() {
     var form = by('bookingForm'), start = new Date(form.elements.pickup_date.value + 'T' + form.elements.pickup_time.value + ':00+07:00').getTime(), end = new Date(form.elements.return_date.value + 'T' + form.elements.return_time.value + ':00+07:00').getTime();
@@ -105,10 +113,13 @@
     form.dataset.serviceTotal = String(total);
   }
   function resetBooking() {
-    var form = by('bookingForm'); form.reset(); var now = localNow(), pickupDate = now.slice(0, 10), nextDay = new Date(pickupDate + 'T12:00:00+07:00'); nextDay.setDate(nextDay.getDate() + 1); form.elements.pickup_date.value = pickupDate; form.elements.pickup_time.value = now.slice(11, 16); form.elements.return_date.value = nextDay.toISOString().slice(0, 10); form.elements.return_time.value = now.slice(11, 16); form.elements.booking_channel.value = 'Direct / Dashboard'; form.elements.pickup_location.value = 'สนามบินสุราษฎร์ธานี'; form.elements.return_location.value = 'สนามบินสุราษฎร์ธานี'; form.elements.edit_token.value = token(); form.dataset.serviceTotal = '0'; by('bookingErr').textContent = ''; renderEnumOptions(); carOptions(); bookingTimes();
+    var form = by('bookingForm'); form.reset(); var now = localNow(), pickupDate = now.slice(0, 10), nextDay = new Date(pickupDate + 'T12:00:00+07:00'); nextDay.setDate(nextDay.getDate() + 1); form.elements.pickup_date.value = pickupDate; form.elements.pickup_time.value = now.slice(11, 16); form.elements.return_date.value = nextDay.toISOString().slice(0, 10); form.elements.return_time.value = now.slice(11, 16); form.elements.edit_token.value = token(); form.dataset.serviceTotal = '0'; by('bookingErr').textContent = ''; renderEnumOptions(); form.elements.booking_channel.value = enumValues('channels').includes('Direct / Dashboard') ? 'Direct / Dashboard' : form.elements.booking_channel.value; form.elements.pickup_location.value = enumValues('locations').includes('สนามบินสุราษฎร์ธานี') ? 'สนามบินสุราษฎร์ธานี' : form.elements.pickup_location.value; form.elements.return_location.value = form.elements.pickup_location.value; carOptions(); bookingTimes();
   }
   async function openBooking() {
     try { await fetchCars(); await fetchBookingOptions().catch(function () {}); resetBooking(); by('bookingModal').hidden = false; } catch (e) { alert('โหลดข้อมูลรถไม่สำเร็จ ลองรีเฟรชอีกครั้ง'); }
+  }
+  async function openSettings() {
+    try { await fetchBookingOptions(); by('settingsForm').reset(); by('settingsForm').elements.edit_token.value = token(); by('settingsErr').textContent = ''; by('settingsModal').hidden = false; } catch (e) { alert('โหลดรายการตั้งค่าไม่สำเร็จ ลองรีเฟรชอีกครั้ง'); }
   }
   function showCarImage(url) { by('carImagePreview').innerHTML = url ? '<img src="' + esc(url) + '" alt="รูปภาพรถ">' : 'ยังไม่มีรูปภาพรถ'; }
   function resetCar() { var form = by('carsForm'); form.reset(); editingCarId = ''; form.elements.status.value = 'ว่าง'; form.elements.active.checked = true; form.elements.edit_token.value = token(); by('carsErr').textContent = ''; showCarImage(''); renderCars(); }
@@ -124,10 +135,11 @@
   function close(id) { by(id).hidden = true; }
   function init() {
     renderShell(); renderEnumOptions();
-    by('bookingBtn').addEventListener('click', openBooking); by('carsBtn').addEventListener('click', openCars);
+    by('bookingBtn').addEventListener('click', openBooking); by('carsBtn').addEventListener('click', openCars); by('settingsBtn').addEventListener('click', openSettings);
     by('bookingClose').onclick = function () { close('bookingModal'); }; by('bookingCancel').onclick = function () { close('bookingModal'); };
     by('carsClose').onclick = function () { close('carsModal'); }; by('carsCancel').onclick = function () { close('carsModal'); }; by('carsNew').onclick = resetCar;
-    by('bookingOptionAdd').onclick = addBookingOption;
+    by('settingsClose').onclick = function () { close('settingsModal'); }; by('settingsCancel').onclick = function () { close('settingsModal'); };
+    by('settingsChannelAdd').onclick = function () { addBookingOption('channel'); }; by('settingsLocationAdd').onclick = function () { addBookingOption('location'); };
     ['pickup_date','pickup_time','return_date','return_time','daily_rate','delivery_fee'].forEach(function (name) { by('bookingForm').elements[name].addEventListener('input', bookingTimes); by('bookingForm').elements[name].addEventListener('change', bookingTimes); });
     by('bookingCar').addEventListener('change', function () { var car = cars.find(function (item) { return item.id === by('bookingCar').value; }); if (!car) return; var form = by('bookingForm'); form.elements.daily_rate.value = car.default_daily_rate || 0; form.elements.security_deposit.value = car.default_security_deposit || 0; bookingTimes(); });
     by('carsList').addEventListener('click', function (event) { var button = event.target.closest('[data-car-id]'); if (button) openCar(button.dataset.carId); });

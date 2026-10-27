@@ -85,6 +85,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
   <div class="topActions">
     <button class="btn" id="bookingBtn" type="button">ออกใบจอง</button>
     <button class="btn" id="carsBtn" type="button">ข้อมูลรถ</button>
+    <button class="btn" id="settingsBtn" type="button">ตั้งค่าข้อมูล</button>
     <button class="btn" id="billingBtn" type="button">ออกบิล / ภาษี</button>
     <button class="btn" id="rf">↻ รีเฟรช</button>
   </div>
@@ -353,7 +354,7 @@ function card(e) {
     (r.file_name ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
-    (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
+    (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูใบจอง</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
     (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }
@@ -863,6 +864,12 @@ $('list').addEventListener('click', function (e) {
   if (trash) { openTrash(trash.dataset.trash); return; }
   var bill = e.target.closest('[data-bill]');
   if (bill) { openBilling(bill.dataset.bill); return; }
+  var file = e.target.closest('[data-booking-file]');
+  if (file) {
+    var bookingId = file.dataset.bookingFile, mode = file.dataset.fileMode === 'download' ? '?download=1' : '';
+    window.open('/api/bookings/' + encodeURIComponent(bookingId) + '/file' + mode, mode ? '_self' : '_blank', 'noopener');
+    return;
+  }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
 });
 $('editClose').onclick = closeEdit;

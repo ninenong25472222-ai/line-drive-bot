@@ -74,11 +74,20 @@ test("Dashboard exposes a reversible booking trash action", () => {
   assert.match(source, /requestSubmit\(\)/);
 });
 
+test("Dashboard opens and exports attached booking files through its own file route", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /data-booking-file=/);
+  assert.match(source, /ดูใบจอง/);
+  assert.match(source, /ส่งออกไฟล์/);
+  assert.match(source, /\/file/);
+});
+
 test("Dashboard loads the car workspace and AppSheet-style booking form", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
   assert.match(source, /id="bookingBtn"[^>]*>ออกใบจอง/);
   assert.match(source, /id="carsBtn"[^>]*>ข้อมูลรถ/);
+  assert.match(source, /id="settingsBtn"[^>]*>ตั้งค่าข้อมูล/);
   assert.match(source, /booking-workspace\.js/);
   assert.match(workspace, /ข้อมูลลูกค้า/);
   assert.match(workspace, /สรุปยอดเงิน/);
@@ -86,12 +95,14 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /pickup_time/);
   assert.match(workspace, /return_time/);
   assert.match(workspace, /bookingConflict/);
-  assert.match(workspace, /bookingChannelOptions/);
-  assert.match(workspace, /bookingLocationOptions/);
+  assert.match(workspace, /id="bookingChannel"/);
+  assert.match(workspace, /id="bookingPickupLocation"/);
+  assert.match(workspace, /id="bookingReturnLocation"/);
+  assert.match(workspace, /id="settingsModal"/);
+  assert.match(workspace, /ตั้งค่าข้อมูล/);
   assert.match(workspace, /สนามบินสุราษฎร์ธานี/);
   assert.match(workspace, /ระยะเวลาเช่า/);
   assert.match(workspace, /คิดค่าเช่า/);
-  assert.match(workspace, /เพิ่มรายการ/);
   assert.match(workspace, /booking-options/);
   assert.match(workspace, /carImageFile/);
   assert.match(workspace, /image_data/);

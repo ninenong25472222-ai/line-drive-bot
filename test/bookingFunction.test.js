@@ -3,7 +3,10 @@ const assert = require("node:assert/strict");
 
 const {
     bookingIdFromPath,
-    configuredEmails
+    configuredEmails,
+    driveFileIdFromUrl,
+    isBookingFileRequest,
+    safeFileName
 } = require("../netlify/functions/booking");
 
 test("extracts a booking id from the Netlify function route", () => {
@@ -26,4 +29,12 @@ test("normalizes the dashboard editor allow-list", () => {
         if (before === undefined) delete process.env.DASHBOARD_ALLOWED_EMAILS;
         else process.env.DASHBOARD_ALLOWED_EMAILS = before;
     }
+});
+
+test("recognizes supported Google Drive file links and dashboard file routes", () => {
+    assert.equal(driveFileIdFromUrl("https://drive.google.com/file/d/file_123/view"), "file_123");
+    assert.equal(driveFileIdFromUrl("https://drive.google.com/open?id=file_456"), "file_456");
+    assert.equal(isBookingFileRequest("/.netlify/functions/booking/abc/file"), true);
+    assert.equal(isBookingFileRequest("/.netlify/functions/booking/abc/reparse"), false);
+    assert.equal(safeFileName("ใบจอง / 001.pdf"), "ใบจอง-001.pdf");
 });
