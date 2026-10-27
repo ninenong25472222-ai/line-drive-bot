@@ -1372,8 +1372,9 @@ async function runPendingDeletionQueue() {
     return result;
 }
 
-// Call this from a Render cron job. It deliberately moves files only to the
-// pending-review folder and never permanently deletes a Drive file.
+// The worker moves a file to the protected review folder first.  A permanent
+// Drive delete only runs after the administrator explicitly confirms it in
+// the dashboard, which changes the lifecycle state to pending_permanent_delete.
 app.post("/maintenance/pending-deletion", async (req, res) => {
     const expectedToken = cleanText(process.env.MAINTENANCE_TOKEN || "");
     const suppliedToken = cleanText(req.get("authorization") || "").replace(/^Bearer\s+/i, "");

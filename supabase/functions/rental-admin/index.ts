@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const adminTokenHash = "364ce48661e97936f40da1f02ddf90dacf54b48dd236e70c495ee04f651f878c";
 const cors = {
-  "access-control-allow-origin": "https://line-drive-bot.netlify.app",
+  "access-control-allow-origin": "https://line-drive-bot.pages.dev",
   "access-control-allow-headers": "authorization, apikey, content-type, x-booking-edit-token",
   "access-control-allow-methods": "POST, PATCH, OPTIONS",
   "content-type": "application/json; charset=utf-8",
@@ -10,6 +10,7 @@ const cors = {
 const carStatuses = new Set(["ว่าง", "จองแล้ว", "กำลังใช้งาน", "ซ่อม", "งดใช้งาน"]);
 const bookingStatuses = new Set(["รอตรวจสอบ", "ยืนยันแล้ว", "ผิดพลาด", "ยกเลิก"]);
 const bookingOptionTypes = new Set(["channel", "location"]);
+const lifecycleActions = new Set(["queue_trash", "restore", "confirm_delete"]);
 const imageExtensions: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const text = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 const money = (value: unknown) => { const number = Number(value); return Number.isFinite(number) && number >= 0 ? number : null; };
@@ -61,6 +62,45 @@ function bookingUpdatePayload(input: Record<string, unknown>) {
   if ("status" in input && bookingStatuses.has(text(input.status))) row.status = text(input.status);
   return row;
 }
+async function bookingById(url: string, key: string, id: string) {
+  const rows = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&select=*`);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+async function lifecycleBooking(input: Record<string, unknown>, url: string, key: string, id: string) {
+  const action = text(input.lifecycle_action, 40);
+  if (!lifecycleActions.has(action)) return response({ error: "คำสั่งถังขยะไม่ถูกต้อง" }, 400);
+  const current = await bookingById(url, key, id);
+  if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
+  const now = new Date().toISOString();
+  const hasFile = Boolean(text(current.drive_file_id));
+  let patch: Record<string, unknown>;
+  if (action === "queue_trash") {
+    if (["pending_move", "pending_confirmation", "pending_permanent_delete", "deleted"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในขั้นตอนถังขยะแล้ว" }, 409);
+    patch = {
+      previous_status: text(current.status) || "รอตรวจสอบ",
+      status: "ยกเลิก",
+      deletion_status: hasFile ? "pending_move" : "pending_confirmation",
+      trash_reason: text(input.trash_reason, 500) || "ย้ายจากหน้ารายการจอง",
+      pending_deletion_at: hasFile ? null : now,
+      trashed_at: hasFile ? null : now,
+      restored_at: null,
+      deleted_at: null,
+    };
+  } else if (action === "restore") {
+    if (text(current.deletion_status) === "deleted") return response({ error: "รายการนี้ลบไฟล์ถาวรแล้ว จึงกู้คืนจากระบบไม่ได้" }, 409);
+    patch = hasFile && text(current.deletion_status) === "pending_confirmation"
+      ? { deletion_status: "restore_requested", restored_at: null }
+      : { deletion_status: "restored", status: text(current.previous_status) || "รอตรวจสอบ", restored_at: now, pending_deletion_at: null, trash_reason: null };
+  } else {
+    if (text(current.deletion_status) !== "pending_confirmation") return response({ error: "ยืนยันลบได้เฉพาะรายการที่ย้ายเข้าถังขยะแล้ว" }, 409);
+    patch = hasFile
+      ? { deletion_status: "pending_permanent_delete" }
+      : { deletion_status: "deleted", deleted_at: now };
+  }
+  patch.updated_at = now;
+  const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
+  return response(Array.isArray(saved) ? saved[0] : saved);
+}
 function overlaps(candidate: Record<string, unknown>, existing: Record<string, unknown>) {
   return slot(String(candidate.pickup_date), String(candidate.pickup_time)) < slot(String(existing.return_date), String(existing.return_time)) && slot(String(candidate.return_date), String(candidate.return_time)) > slot(String(existing.pickup_date), String(existing.pickup_time));
 }
@@ -104,7 +144,7 @@ async function saveBooking(req: Request, url: string, key: string) {
   const found = await rest(url, key, `rental_cars?id=eq.${encodeURIComponent(text(booking.car_id))}&select=id,car_ref,model,status,active&limit=1`);
   const car = Array.isArray(found) ? found[0] : null;
   if (!car || !car.active || ["ซ่อม", "งดใช้งาน"].includes(car.status)) return response({ error: "รถคันนี้ไม่พร้อมรับงาน" }, 409);
-  const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_date=lte.${encodeURIComponent(text(booking.return_date))}&return_date=gte.${encodeURIComponent(text(booking.pickup_date))}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
+  const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_on=lte.${encodeURIComponent(text(booking.return_date))}&return_on=gte.${encodeURIComponent(text(booking.pickup_date))}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
   const conflict = (candidates || []).find((row: Record<string, unknown>) => dateOk(text(row.pickup_date)) && timeOk(text(row.pickup_time)) && dateOk(text(row.return_date)) && timeOk(text(row.return_time)) && overlaps(booking, row));
   if (conflict) return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก", conflict }, 409);
   const bookingNo = `WEB-${text(booking.pickup_date).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
@@ -112,7 +152,9 @@ async function saveBooking(req: Request, url: string, key: string) {
   return response(Array.isArray(created) ? created[0] : created, 201);
 }
 async function updateBooking(req: Request, url: string, key: string, id: string) {
-  const booking = bookingUpdatePayload(await req.json());
+  const input = await req.json();
+  if (typeof input === "object" && input && "lifecycle_action" in input) return lifecycleBooking(input, url, key, id);
+  const booking = bookingUpdatePayload(input);
   if (!Object.keys(booking).length) return response({ error: "ไม่มีข้อมูลที่แก้ไขได้" }, 400);
   booking.updated_at = new Date().toISOString();
   const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(booking) });

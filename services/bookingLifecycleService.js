@@ -6,9 +6,9 @@ function isoDaysAgo(days, now = new Date()) {
 }
 
 function shouldQueueForDeletion(booking, cutoffDate) {
-    if (["pending_confirmation", "deleted"].includes(String(booking?.deletion_status || ""))) return false;
+    if (["pending_confirmation", "pending_permanent_delete", "restore_requested", "deleted", "restored", "move_failed"].includes(String(booking?.deletion_status || ""))) return false;
     if (["ผิดพลาด", "ยกเลิก"].includes(String(booking?.status || ""))) return true;
-    return Boolean(booking?.return_date && booking.return_date <= cutoffDate);
+    return Boolean(booking?.return_on && booking.return_on <= cutoffDate);
 }
 
 async function updateBooking(url, key, id, patch) {
@@ -36,7 +36,7 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
 
     const url = String(supabaseUrl).replace(/\/$/, "");
     const response = await fetch(
-        `${url}/rest/v1/rental_bookings?select=id,return_date,status,drive_file_id,deletion_status&limit=1000`,
+        `${url}/rest/v1/rental_bookings?select=id,return_on,status,drive_file_id,deletion_status,original_drive_parent_ids&limit=1000`,
         {
             headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
         }
@@ -45,12 +45,61 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
     const bookings = await response.json();
 
     const cutoffDate = isoDaysAgo(2, now);
-    const summary = { scanned: 0, queued: 0, skipped: 0, failed: 0, cutoffDate };
+    const summary = { scanned: 0, queued: 0, restored: 0, deleted: 0, skipped: 0, failed: 0, cutoffDate };
 
     for (const booking of bookings || []) {
         summary.scanned += 1;
-        if (!shouldQueueForDeletion(booking, cutoffDate) || !booking.drive_file_id) {
+        if (booking.deletion_status === "pending_permanent_delete") {
+            if (!booking.drive_file_id) {
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                summary.deleted += 1;
+                continue;
+            }
+            try {
+                await drive.files.delete({ fileId: booking.drive_file_id });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                summary.deleted += 1;
+            } catch (error) {
+                summary.failed += 1;
+                console.error("PENDING_DELETION_DELETE_ERROR:", booking.id, error?.message || error);
+            }
+            continue;
+        }
+
+        if (booking.deletion_status === "restore_requested") {
+            if (!booking.drive_file_id) {
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null });
+                summary.restored += 1;
+                continue;
+            }
+            try {
+                const originalParents = JSON.parse(booking.original_drive_parent_ids || "[]");
+                if (!Array.isArray(originalParents) || !originalParents.length) throw new Error("ORIGINAL_PARENT_MISSING");
+                const file = await drive.files.get({ fileId: booking.drive_file_id, fields: "id,parents" });
+                await drive.files.update({ fileId: booking.drive_file_id, addParents: originalParents.join(","), removeParents: (file.data.parents || []).join(","), fields: "id,parents" });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null });
+                summary.restored += 1;
+            } catch (error) {
+                summary.failed += 1;
+                console.error("PENDING_DELETION_RESTORE_ERROR:", booking.id, error?.message || error);
+            }
+            continue;
+        }
+
+        if (!shouldQueueForDeletion(booking, cutoffDate)) {
             summary.skipped += 1;
+            continue;
+        }
+
+        // Some manual bookings have no uploaded PDF. They still enter the
+        // review bin as a record, while no Drive operation is attempted.
+        if (!booking.drive_file_id) {
+            await updateBooking(url, serviceRoleKey, booking.id, {
+                deletion_status: "pending_confirmation",
+                pending_deletion_at: now.toISOString(),
+                trashed_at: now.toISOString()
+            });
+            summary.queued += 1;
             continue;
         }
 
@@ -62,7 +111,8 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
             if (file.data.trashed) {
                 await updateBooking(url, serviceRoleKey, booking.id, {
                     deletion_status: "pending_confirmation",
-                    pending_deletion_at: now.toISOString()
+                    pending_deletion_at: now.toISOString(),
+                    trashed_at: now.toISOString()
                 });
                 summary.queued += 1;
                 continue;
@@ -78,6 +128,7 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
             await updateBooking(url, serviceRoleKey, booking.id, {
                 deletion_status: "pending_confirmation",
                 pending_deletion_at: now.toISOString(),
+                trashed_at: now.toISOString(),
                 original_drive_parent_ids: JSON.stringify(parents)
             });
             summary.queued += 1;

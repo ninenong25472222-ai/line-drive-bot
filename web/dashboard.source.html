@@ -108,6 +108,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div><b id="sSoon">—</b><span>รับ/คืน ภายใน 48 ชม.</span></div>
     <div><b id="sOther">—</b><span>Other</span></div>
     <div class="w"><b id="sBad">—</b><span>ข้อมูลวันที่ไม่ครบ</span></div>
+    <div class="w"><b id="sDup">—</b><span>รายการรอตรวจซ้ำ</span></div>
   </div>
 
   <section class="panel filters">
@@ -123,6 +124,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <select class="ctl" id="kind" aria-label="ชนิดรายการ">
       <option value="">Booking + Other</option><option value="booking">เฉพาะ Booking</option><option value="other">เฉพาะ Other</option>
     </select>
+    <select class="ctl" id="lifecycle" aria-label="สถานะถังขยะ"><option value="">ทุกสถานะถังขยะ</option><option value="active">ใช้งานอยู่</option><option value="review">อยู่ในถังขยะ / รอยืนยัน</option><option value="deleted">ลบถาวรแล้ว</option></select>
   </section>
 
   <div class="row2">
@@ -279,6 +281,10 @@ function pdate(v) {                       // รองรับ yyyy-mm-dd, yyyy
   var compact = s.replace(/\s+/g, '');
   m = compact.match(/^(\d{1,2})(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)(\d{4})/);
   if (m && thaiMonths[m[2]]) return mkISO(+m[3], thaiMonths[m[2]], +m[1]);
+  if ((m = s.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),\s*(\d{4})$/i))) {
+    var englishMonths = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    return mkISO(+m[3], englishMonths[m[1].slice(0, 3).toLowerCase()], +m[2]);
+  }
   return '';
 }
 function ptime(v) {                       // 09:30:00 / 9.30 → 09:30
@@ -287,21 +293,24 @@ function ptime(v) {                       // 09:30:00 / 9.30 → 09:30
 }
 function prep(r) {
   var o = Object.assign({}, r);
-  o._p = pdate(r.pickup_date); o._r = pdate(r.return_date);
+  o._p = pdate(r.pickup_on || r.pickup_date); o._r = pdate(r.return_on || r.return_date);
   o._pt = ptime(r.pickup_time); o._rt = ptime(r.return_time);
   o._src = String(r.source_label || r.source || '');
   o._oth = o._src.toLowerCase().indexOf('other') >= 0;
   o._bad = !o._p || !o._r;
   o._pendingDelete = o.deletion_status === 'pending_confirmation';
+  o._inTrash = ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'deleted', 'move_failed'].indexOf(o.deletion_status) >= 0;
+  o._duplicate = !!o.duplicate_of;
   o._idx = [r.customer_name, r.company, r.booking_no, r.car, r.customer_phone, r.pickup_location, r.return_location, r.file_name].join(' ').toLowerCase();
   return o;
 }
 
 /* ====== ตัวกรอง / รายการงาน ====== */
 function base() {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value;
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value;
   return rows.filter(function (r) {
-    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && (!q || r._idx.indexOf(q) >= 0);
+    var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!q || r._idx.indexOf(q) >= 0);
   });
 }
 function events(list) {
@@ -336,13 +345,20 @@ function card(e) {
   var url = safeUrl(r.drive_url), tel = telOf(r.customer_phone);
   var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
   var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' · ' + t : '') : 'ไม่ระบุวัน'; };
-  var trashAction = r._pendingDelete ? '<button type="button" disabled>รอยืนยันการลบ</button>' : (r.status === 'ยกเลิก' ? '<button type="button" disabled>รอย้ายเข้าถังขยะ</button>' : '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>');
+  var trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>';
+  if (r.deletion_status === 'pending_move') trashAction = '<button type="button" disabled>รอย้ายไฟล์เข้าถังขยะ</button>';
+  if (r.deletion_status === 'pending_confirmation') trashAction = '<button class="edit" type="button" data-restore="' + esc(r.id) + '">กู้คืน</button><button class="trash" type="button" data-delete="' + esc(r.id) + '">ยืนยันลบไฟล์</button>';
+  if (r.deletion_status === 'restore_requested') trashAction = '<button type="button" disabled>รอกู้คืนไฟล์</button>';
+  if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
+  if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
+  if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'รับรถ' : 'คืนรถ') + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
-    (r._pendingDelete ? '<span class="badge w">รอยืนยันลบ</span>' : '') +
+    (r._duplicate ? '<span class="badge w">รอตรวจซ้ำ</span>' : '') +
+    (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
     '<span class="meta">🚗 ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · 📍 ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
     '<span class="chev" aria-hidden="true">⌄</span></button>' +
@@ -351,6 +367,8 @@ function card(e) {
     '<div><label>ลูกค้า / โทร</label><b>' + esc((r.customer_name || '-') + ' · ' + (r.customer_phone || '-')) + '</b></div>' +
     '<div><label>รับรถ</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
+    (r._duplicate ? '<div class="wide"><label>ตรวจข้อมูลซ้ำ</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
+    (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
     (r.file_name ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
@@ -372,6 +390,7 @@ function render() {
   $('sTotal').textContent = list.length;
   $('sOther').textContent = list.filter(function (r) { return r._oth; }).length;
   $('sBad').textContent = list.filter(function (r) { return r._bad; }).length;
+  $('sDup').textContent = list.filter(function (r) { return r._duplicate; }).length;
   $('sSoon').textContent = list.filter(function (r) { return (r._p && inWin(r._p, r._pt)) || (r._r && inWin(r._r, r._rt)); }).length;
   // ชิปวันที่เลือก
   $('dayChip').hidden = !view.day;
@@ -443,10 +462,29 @@ function openEdit(id) {
   $('editModal').hidden = false;
 }
 function openTrash(id) {
-  openEdit(id);
-  if (!view.editingId) return;
-  $('editForm').elements.status.value = 'ยกเลิก';
-  $('editErr').textContent = 'รายการนี้จะถูกย้ายเข้าถังขยะหลังยืนยัน โดยยอดจองยังเก็บไว้สำหรับสรุปรายเดือน';
+  runLifecycleAction(id, 'queue_trash');
+}
+async function runLifecycleAction(id, action) {
+  var wording = { queue_trash: 'ย้ายรายการนี้เข้าถังขยะหรือไม่? ยอดจองจะยังอยู่ในรายงานรายเดือน', restore: 'กู้คืนรายการและไฟล์กลับมาใช้งานหรือไม่?', confirm_delete: 'ยืนยันลบไฟล์ถาวรหรือไม่? รายการและยอดจองจะยังเก็บไว้ แต่ไฟล์จะลบไม่ได้' }[action] || 'ยืนยันการทำรายการหรือไม่?';
+  if (!window.confirm(wording)) return;
+  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่อยืนยัน');
+  if (!token) return;
+  var reason = action === 'queue_trash' ? window.prompt('เหตุผล (ไม่บังคับ)', '') || '' : '';
+  try {
+    var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': token },
+      body: JSON.stringify({ lifecycle_action: action, trash_reason: reason })
+    });
+    if (!response.ok) throw httpErr(response.status);
+    var updated = await response.json();
+    try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
+    rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
+    refreshAll();
+    window.alert(action === 'queue_trash' ? 'ส่งเข้าคิวถังขยะแล้ว ระบบจะย้ายไฟล์เมื่อบอตทำงาน' : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : 'ส่งคำสั่งลบไฟล์ถาวรแล้ว');
+  } catch (error) {
+    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
+  }
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
 function sbFetch(path, opt) {
@@ -862,6 +900,10 @@ $('list').addEventListener('click', function (e) {
   if (edit) { openEdit(edit.dataset.edit); return; }
   var trash = e.target.closest('[data-trash]');
   if (trash) { openTrash(trash.dataset.trash); return; }
+  var restore = e.target.closest('[data-restore]');
+  if (restore) { runLifecycleAction(restore.dataset.restore, 'restore'); return; }
+  var remove = e.target.closest('[data-delete]');
+  if (remove) { runLifecycleAction(remove.dataset.delete, 'confirm_delete'); return; }
   var bill = e.target.closest('[data-bill]');
   if (bill) { openBilling(bill.dataset.bill); return; }
   var file = e.target.closest('[data-booking-file]');
@@ -876,9 +918,7 @@ $('editClose').onclick = closeEdit;
 $('editCancel').onclick = closeEdit;
 $('editTrash').onclick = function () {
   if (!view.editingId) return;
-  if (!window.confirm('ย้ายรายการจองนี้เข้าถังขยะหรือไม่? รายการและยอดจะยังเก็บไว้เพื่อสรุปรายเดือน')) return;
-  $('editForm').elements.status.value = 'ยกเลิก';
-  $('editForm').requestSubmit();
+  runLifecycleAction(view.editingId, 'queue_trash');
 };
 $('editModal').addEventListener('click', function (e) { if (e.target === $('editModal')) closeEdit(); });
 $('editForm').addEventListener('submit', async function (e) {
@@ -921,7 +961,7 @@ $('cNext').onclick = function () { moveCal(1); };
 $('cToday').onclick = function () { view.cal = null; renderCal(); };
 var timer;
 $('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { LIMIT = 150; refreshAll(); }, 150); });
-['period', 'mode', 'source', 'kind'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
+['period', 'mode', 'source', 'kind', 'lifecycle'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
 $('rf').onclick = function () { load(); };
 $('retry').onclick = function () { load(); };
 $('reparseAll').onclick = openReparseModal;

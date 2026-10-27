@@ -30,8 +30,9 @@ test("only allows a distinct configured destination group", () => {
 
 test("queues only cancelled, incorrect, or two-day-expired bookings", () => {
     assert.equal(shouldQueueForDeletion({ status: "ยกเลิก" }, "2026-10-24"), true);
-    assert.equal(shouldQueueForDeletion({ return_date: "2026-10-24" }, "2026-10-24"), true);
-    assert.equal(shouldQueueForDeletion({ return_date: "2026-10-25" }, "2026-10-24"), false);
+    assert.equal(shouldQueueForDeletion({ return_on: "2026-10-24" }, "2026-10-24"), true);
+    assert.equal(shouldQueueForDeletion({ return_on: "2026-10-25" }, "2026-10-24"), false);
     assert.equal(shouldQueueForDeletion({ status: "ยกเลิก", deletion_status: "active" }, "2026-10-24"), true);
     assert.equal(shouldQueueForDeletion({ status: "ผิดพลาด", deletion_status: "pending_confirmation" }, "2026-10-24"), false);
+    assert.equal(shouldQueueForDeletion({ status: "ยกเลิก", deletion_status: "pending_permanent_delete" }, "2026-10-24"), false);
 });

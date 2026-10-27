@@ -17,7 +17,7 @@ export async function onRequest(context) {
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
 
   const query = new URLSearchParams({
-    select: "id,source,source_label,status,deletion_status,pending_deletion_at,company,booking_no,customer_name,customer_phone,pickup_date,pickup_time,pickup_location,return_date,return_time,return_location,car,file_name,drive_url,created_at",
+    select: "id,source,source_label,status,deletion_status,pending_deletion_at,trashed_at,restored_at,deleted_at,trash_reason,duplicate_of,duplicate_reason,company,booking_no,customer_name,customer_phone,pickup_date,pickup_on,pickup_time,pickup_location,return_date,return_on,return_time,return_location,car,file_name,drive_url,created_at",
     order: "pickup_date.asc.nullslast,pickup_time.asc.nullslast,created_at.desc",
     limit: "500",
   });
