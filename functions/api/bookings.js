@@ -22,6 +22,9 @@ export async function onRequest(context) {
     limit: "500",
   });
   const response = await fetch(`${url}/rest/v1/rental_bookings?${query}`, { headers: headers(anonKey) });
-  if (!response.ok) return json({ error: "โหลดรายการจองไม่สำเร็จ" }, 502);
+  if (!response.ok) {
+    const detail = (await response.text()).replace(/[\r\n]+/g, " ").slice(0, 240);
+    return json({ error: "โหลดรายการจองไม่สำเร็จ", upstream_status: response.status, detail }, 502);
+  }
   return forward(response);
 }
