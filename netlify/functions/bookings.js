@@ -54,6 +54,7 @@ function bookingInput(input = {}) {
 }
 
 async function createBooking(event, url, key) {
+  if (!key) return json(503, { error: "ต้องตั้งค่า SUPABASE_SERVICE_ROLE_KEY ใน Netlify ก่อนบันทึกใบจอง" });
   const editToken = clean(process.env.BOOKING_EDIT_TOKEN);
   const supplied = clean(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"]);
   if (!editToken || supplied !== editToken) return json(403, { error: "รหัสผู้ดูแลไม่ถูกต้อง" });

@@ -53,16 +53,18 @@ async function supabase(url, key, path, options = {}) {
 exports.handler = async function handler(event) {
   if (event.httpMethod === "OPTIONS") return reply(204, {});
   const url = text(process.env.SUPABASE_URL).replace(/\/$/, "");
+  const anonKey = text(process.env.SUPABASE_ANON_KEY);
   const key = text(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const editToken = text(process.env.BOOKING_EDIT_TOKEN);
-  if (!url || !key) return reply(503, { error: "ระบบข้อมูลรถยังตั้งค่าไม่ครบ" });
+  if (!url || !anonKey) return reply(503, { error: "ระบบข้อมูลรถยังตั้งค่าไม่ครบ" });
 
   try {
     if (event.httpMethod === "GET") {
-      const cars = await supabase(url, key, "rental_cars?select=id,car_ref,model,license_plate,color,model_year,default_daily_rate,default_security_deposit,status,image_url,note,active,updated_at&order=model.asc,car_ref.asc");
+      const cars = await supabase(url, anonKey, "rental_cars?select=id,car_ref,model,license_plate,color,model_year,default_daily_rate,default_security_deposit,status,image_url,note,active,updated_at&order=model.asc,car_ref.asc");
       return reply(200, cars);
     }
     if (!["POST", "PATCH"].includes(event.httpMethod)) return reply(405, { error: "Method not allowed" });
+    if (!key) return reply(503, { error: "ต้องตั้งค่า SUPABASE_SERVICE_ROLE_KEY ใน Netlify ก่อนบันทึกข้อมูลรถ" });
     const supplied = text(event.headers?.["x-booking-edit-token"] || event.headers?.["X-Booking-Edit-Token"]);
     if (!editToken || supplied !== editToken) return reply(403, { error: "รหัสผู้ดูแลไม่ถูกต้อง" });
     let input;
