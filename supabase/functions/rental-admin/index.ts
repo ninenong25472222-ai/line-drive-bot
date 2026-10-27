@@ -9,6 +9,8 @@ const cors = {
 };
 const carStatuses = new Set(["ว่าง", "จองแล้ว", "กำลังใช้งาน", "ซ่อม", "งดใช้งาน"]);
 const bookingStatuses = new Set(["รอตรวจสอบ", "ยืนยันแล้ว", "ผิดพลาด", "ยกเลิก"]);
+const bookingOptionTypes = new Set(["channel", "location"]);
+const imageExtensions: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const text = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 const money = (value: unknown) => { const number = Number(value); return Number.isFinite(number) && number >= 0 ? number : null; };
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
@@ -62,14 +64,37 @@ function bookingUpdatePayload(input: Record<string, unknown>) {
 function overlaps(candidate: Record<string, unknown>, existing: Record<string, unknown>) {
   return slot(String(candidate.pickup_date), String(candidate.pickup_time)) < slot(String(existing.return_date), String(existing.return_time)) && slot(String(candidate.return_date), String(candidate.return_time)) > slot(String(existing.pickup_date), String(existing.pickup_time));
 }
+async function uploadCarPhoto(input: Record<string, unknown>, url: string, key: string) {
+  const base64 = typeof input.image_data === "string" ? input.image_data : "";
+  const contentType = text(input.image_type, 100).toLowerCase();
+  if (!base64) return "";
+  if (!imageExtensions[contentType]) throw new Error("IMAGE_TYPE_NOT_ALLOWED");
+  if (base64.length > 7_000_000 || !/^[A-Za-z0-9+/=]+$/.test(base64)) throw new Error("IMAGE_TOO_LARGE_OR_INVALID");
+  const binary = atob(base64);
+  if (binary.length > 5 * 1024 * 1024) throw new Error("IMAGE_TOO_LARGE_OR_INVALID");
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const path = `cars/${crypto.randomUUID()}.${imageExtensions[contentType]}`;
+  const result = await fetch(`${url}/storage/v1/object/car-photos/${path}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "content-type": contentType, "x-upsert": "false" }, body: bytes });
+  if (!result.ok) throw new Error(`CAR_PHOTO_UPLOAD_${result.status}`);
+  return `${url}/storage/v1/object/public/car-photos/${path}`;
+}
 async function saveCar(req: Request, url: string, key: string, id = "") {
   const input = await req.json(); const car = carPayload(input);
+  const uploadedImageUrl = await uploadCarPhoto(input, url, key);
+  if (uploadedImageUrl) car.image_url = uploadedImageUrl;
   if (!id && (!car.car_ref || !car.model)) return response({ error: "กรอกรหัสเรียกรถและรุ่นรถ" }, 400);
   if (id && !Object.keys(car).length) return response({ error: "ข้อมูลรถไม่ครบ" }, 400);
   car.updated_at = new Date().toISOString();
   const saved = await rest(url, key, id ? `rental_cars?id=eq.${encodeURIComponent(id)}` : "rental_cars", { method: id ? "PATCH" : "POST", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(car) });
   const row = Array.isArray(saved) ? saved[0] : saved;
   return row ? response(row, id ? 200 : 201) : response({ error: "ไม่พบรถ" }, 404);
+}
+async function saveBookingOption(req: Request, url: string, key: string) {
+  const input = await req.json();
+  const optionType = text(input.option_type, 30), label = text(input.label, 120);
+  if (!bookingOptionTypes.has(optionType) || !label) return response({ error: "ระบุชนิดและชื่อรายการให้ครบ" }, 400);
+  const saved = await rest(url, key, "rental_booking_options?on_conflict=option_type,label", { method: "POST", headers: { "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify({ option_type: optionType, label }) });
+  return response(Array.isArray(saved) && saved[0] ? saved[0] : { option_type: optionType, label }, 201);
 }
 async function saveBooking(req: Request, url: string, key: string) {
   const booking = bookingPayload(await req.json());
@@ -106,6 +131,7 @@ Deno.serve(async (req) => {
     const carId = path.match(/\/cars\/([0-9a-f-]{36})$/i)?.[1];
     if (req.method === "PATCH" && carId) return saveCar(req, url, key, carId);
     if (req.method === "POST" && path.endsWith("/bookings")) return saveBooking(req, url, key);
+    if (req.method === "POST" && path.endsWith("/options")) return saveBookingOption(req, url, key);
     const bookingId = path.match(/\/bookings\/([0-9a-f-]{36})$/i)?.[1];
     if (req.method === "PATCH" && bookingId) return updateBooking(req, url, key, bookingId);
     return response({ error: "Method not allowed" }, 405);

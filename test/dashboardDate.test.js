@@ -91,4 +91,8 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /สนามบินสุราษฎร์ธานี/);
   assert.match(workspace, /ระยะเวลาเช่า/);
   assert.match(workspace, /คิดค่าเช่า/);
+  assert.match(workspace, /เพิ่มรายการ/);
+  assert.match(workspace, /booking-options/);
+  assert.match(workspace, /carImageFile/);
+  assert.match(workspace, /image_data/);
 });
