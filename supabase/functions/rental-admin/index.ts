@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const adminTokenHash = "2716831c6aa828e0abd62525c806d1d1f7956390a25bed133ffc6192005d0372";
+const adminTokenHash = "364ce48661e97936f40da1f02ddf90dacf54b48dd236e70c495ee04f651f878c";
 const cors = {
   "access-control-allow-origin": "https://line-drive-bot.netlify.app",
   "access-control-allow-headers": "authorization, apikey, content-type, x-booking-edit-token",
