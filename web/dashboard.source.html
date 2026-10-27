@@ -129,6 +129,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 
   <div class="row2">
     <button class="btn" id="calbtn" aria-expanded="false" aria-controls="calendar">▦ ปฏิทิน</button>
+    <label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะรายการรอตรวจซ้ำ</label>
     <button class="chip" id="dayChip" hidden></button>
   </div>
 
@@ -307,10 +308,10 @@ function prep(r) {
 
 /* ====== ตัวกรอง / รายการงาน ====== */
 function base() {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value;
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked;
   return rows.filter(function (r) {
     var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
-    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!q || r._idx.indexOf(q) >= 0);
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
   });
 }
 function events(list) {
@@ -950,6 +951,7 @@ $('calgrid').addEventListener('click', function (e) {
   LIMIT = 150; refreshAll(); $('list').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('dayChip').onclick = function () { view.day = ''; refreshAll(); };
+$('onlyDup').onchange = function () { LIMIT = 150; refreshAll(); };
 $('calbtn').onclick = function () {
   var h = !$('calendar').hidden; $('calendar').hidden = h;
   $('calbtn').setAttribute('aria-expanded', String(!h)); $('calbtn').classList.toggle('on', !h);
