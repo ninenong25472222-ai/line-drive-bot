@@ -6,7 +6,7 @@ function isoDaysAgo(days, now = new Date()) {
 }
 
 function shouldQueueForDeletion(booking, cutoffDate) {
-    if (booking?.deletion_status) return false;
+    if (["pending_confirmation", "deleted"].includes(String(booking?.deletion_status || ""))) return false;
     if (["ผิดพลาด", "ยกเลิก"].includes(String(booking?.status || ""))) return true;
     return Boolean(booking?.return_date && booking.return_date <= cutoffDate);
 }

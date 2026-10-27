@@ -53,7 +53,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .acts a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;background:#e8f3fb;color:#0f5f93;font-weight:600;text-decoration:none}
 .acts a.drive{background:#fdebd8;color:#9a4a0b}
 .acts button{border:0;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;background:#e8f3fb;color:#0f5f93;font-weight:600}
-.acts button.edit{background:#e8f3fb;color:#0f5f93}.acts button:disabled{opacity:.55;cursor:not-allowed}
+.acts button.edit{background:#e8f3fb;color:#0f5f93}.acts button.trash,.danger{background:#fdecea;color:var(--err);border:1px solid #f1b8b2}.acts button:disabled{opacity:.55;cursor:not-allowed}
 .modalBg{position:fixed;inset:0;z-index:10;background:rgba(20,41,61,.42);padding:18px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}
 .modal{width:min(680px,100%);margin:5vh auto;background:#fff;border-radius:16px;padding:18px;box-shadow:0 20px 60px rgba(20,41,61,.25)}
 .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.modalHead h2{margin:0;font-size:20px}
@@ -164,7 +164,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>
     </div>
     <div class="muted" id="editErr" role="alert"></div>
-    <div class="modalFoot"><button class="btn" id="editCancel" type="button">ยกเลิก</button><button class="btn save" id="editSave" type="submit">บันทึกข้อมูล</button></div>
+    <div class="modalFoot"><button class="btn danger" id="editTrash" type="button">ย้ายเข้าถังขยะ</button><button class="btn" id="editCancel" type="button">ยกเลิก</button><button class="btn save" id="editSave" type="submit">บันทึกข้อมูล</button></div>
   </form>
 </div>
 
@@ -289,6 +289,7 @@ function prep(r) {
   o._src = String(r.source_label || r.source || '');
   o._oth = o._src.toLowerCase().indexOf('other') >= 0;
   o._bad = !o._p || !o._r;
+  o._pendingDelete = o.deletion_status === 'pending_confirmation';
   o._idx = [r.customer_name, r.company, r.booking_no, r.car, r.customer_phone, r.pickup_location, r.return_location, r.file_name].join(' ').toLowerCase();
   return o;
 }
@@ -332,11 +333,13 @@ function card(e) {
   var url = safeUrl(r.drive_url), tel = telOf(r.customer_phone);
   var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
   var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' · ' + t : '') : 'ไม่ระบุวัน'; };
+  var trashAction = r._pendingDelete ? '<button type="button" disabled>รอยืนยันการลบ</button>' : (r.status === 'ยกเลิก' ? '<button type="button" disabled>รอย้ายเข้าถังขยะ</button>' : '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>');
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'รับรถ' : 'คืนรถ') + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
+    (r._pendingDelete ? '<span class="badge w">รอยืนยันลบ</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
     '<span class="meta">🚗 ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · 📍 ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
     '<span class="chev" aria-hidden="true">⌄</span></button>' +
@@ -349,7 +352,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url ? '<a class="drive" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">เปิดดูไฟล์</a>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }
 
@@ -435,6 +438,12 @@ function openEdit(id) {
   $('editForm').elements.edit_token.value = editToken();
   $('editErr').textContent = '';
   $('editModal').hidden = false;
+}
+function openTrash(id) {
+  openEdit(id);
+  if (!view.editingId) return;
+  $('editForm').elements.status.value = 'ยกเลิก';
+  $('editErr').textContent = 'รายการนี้จะถูกย้ายเข้าถังขยะหลังยืนยัน โดยยอดจองยังเก็บไว้สำหรับสรุปรายเดือน';
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
 function sbFetch(path, opt) {
@@ -848,12 +857,20 @@ $('list').addEventListener('click', function (e) {
   if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
   var edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
+  var trash = e.target.closest('[data-trash]');
+  if (trash) { openTrash(trash.dataset.trash); return; }
   var bill = e.target.closest('[data-bill]');
   if (bill) { openBilling(bill.dataset.bill); return; }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }
 });
 $('editClose').onclick = closeEdit;
 $('editCancel').onclick = closeEdit;
+$('editTrash').onclick = function () {
+  if (!view.editingId) return;
+  if (!window.confirm('ย้ายรายการจองนี้เข้าถังขยะหรือไม่? รายการและยอดจะยังเก็บไว้เพื่อสรุปรายเดือน')) return;
+  $('editForm').elements.status.value = 'ยกเลิก';
+  $('editForm').requestSubmit();
+};
 $('editModal').addEventListener('click', function (e) { if (e.target === $('editModal')) closeEdit(); });
 $('editForm').addEventListener('submit', async function (e) {
   e.preventDefault();

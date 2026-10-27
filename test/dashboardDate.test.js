@@ -65,3 +65,11 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /id="billSignature"/);
   assert.match(source, /class="billDel"[^>]*>ลบรายการ<\/button>/);
 });
+
+test("Dashboard exposes a reversible booking trash action", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /data-trash=/);
+  assert.match(source, /id="editTrash"/);
+  assert.match(source, /ย้ายเข้าถังขยะ/);
+  assert.match(source, /requestSubmit\(\)/);
+});
