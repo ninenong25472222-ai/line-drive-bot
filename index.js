@@ -2,6 +2,7 @@ const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
+const { repairAppSheetPdfLinks } = require("./services/appSheetPdfLinkService");
 const { syncCombinedSpreadsheet } = require("./services/combinedSheetService");
 const { queueExpiredBookings } = require("./services/bookingLifecycleService");
 const {
@@ -377,7 +378,15 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
         if (idIndex < 0 || requiredColumns.some((candidates) => findColumn(candidates) < 0)) throw new Error("APPSHEET_BOOKINGS_SCHEMA_MISMATCH");
         const bookingId = String(fileHash || "").slice(0, 8);
         if (!bookingId) throw new Error("APPSHEET_LINE_SYNC_MISSING_FILE_HASH");
-        if (rows.some((row) => String(row[idIndex] ?? "").trim() === bookingId)) {
+        const existingIndex = rows.findIndex((row) => String(row[idIndex] ?? "").trim() === bookingId);
+        if (existingIndex >= 0) {
+            const pdfIndex = findColumn(["Booking_PDF", "Booking PDF", "PDF File", "ไฟล์ใบจอง"]);
+            if (pdfIndex >= 0 && driveUrl && !cleanText(rows[existingIndex]?.[pdfIndex])) {
+                let pdfColumn = "";
+                for (let n = pdfIndex + 1; n > 0; n = Math.floor((n - 1) / 26)) pdfColumn = String.fromCharCode(65 + ((n - 1) % 26)) + pdfColumn;
+                await sheets.spreadsheets.values.update({ spreadsheetId, range: `${sheetTitle}!${pdfColumn}${existingIndex + 2}`, valueInputOption: "USER_ENTERED", requestBody: { values: [[driveUrl]] } });
+                console.log("APPSHEET_LINE_SYNC: repaired PDF link", bookingId);
+            }
             console.log("APPSHEET_LINE_SYNC: duplicate", bookingId);
             return;
         }
@@ -394,6 +403,9 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
         set(["returntime", "เวลาคืนรถ"], booking.returnTime);
         set(["pickuplocation", "สถานที่ส่ง", "จุดรับรถ"], booking.pickupLocation);
         set(["returnlocation", "สถานที่คืน", "จุดคืนรถ"], booking.returnLocation);
+        // AppSheet's “Open File (Booking_PDF)” action reads this column, not
+        // Notes.  Google Drive PDF URLs are supported for opening a PDF.
+        set(["Booking_PDF", "Booking PDF", "PDF File", "ไฟล์ใบจอง"], driveUrl);
         set(["notes", "หมายเหตุ"], [booking.bookingNo ? "เลขจอง: " + booking.bookingNo : "", fileName || "", driveUrl || ""].filter(Boolean).join(" | "));
         let endColumn = "";
         for (let n = headers.length; n > 0; n = Math.floor((n - 1) / 26)) endColumn = String.fromCharCode(65 + ((n - 1) % 26)) + endColumn;
@@ -1431,6 +1443,12 @@ async function runAppSheetSync() {
             carSheetTitle: process.env.APPSHEET_CAR_SHEET || "Car_Master"
         });
         console.log("APPSHEET_SYNC:", result);
+        const repaired = await repairAppSheetPdfLinks({
+            auth,
+            spreadsheetId,
+            bookingSheetTitle: process.env.APPSHEET_BOOKING_SHEET || "Bookings"
+        });
+        console.log("APPSHEET_PDF_LINK_REPAIR:", repaired);
     } catch (error) {
         console.error("APPSHEET_SYNC_ERROR:", error?.response?.data || error?.message || error);
     }
