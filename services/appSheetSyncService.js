@@ -34,6 +34,47 @@ const driveUrlFrom = (value = "") => {
     return match ? match[0].replace(/[),.;]+$/, "") : "";
 };
 
+const fileReferenceFrom = (value = "") => {
+    const reference = String(value ?? "").trim().replace(/\\/g, "/");
+    if (!reference || driveUrlFrom(reference)) return "";
+    return /\.pdf$/i.test(reference) ? reference : "";
+};
+
+const driveFileName = (reference = "") => String(reference)
+    .split("/")
+    .pop()
+    .trim();
+
+const driveQueryValue = (value = "") => String(value).replace(/'/g, "\\'");
+
+async function resolveAppSheetDriveUrl(drive, fileReference, cache) {
+    const name = driveFileName(fileReference);
+    if (!drive || !name) return "";
+    if (cache.has(name)) return cache.get(name);
+    try {
+        const response = await drive.files.list({
+            q: `name = '${driveQueryValue(name)}' and trashed = false`,
+            spaces: "drive",
+            corpora: "allDrives",
+            includeItemsFromAllDrives: true,
+            supportsAllDrives: true,
+            pageSize: 10,
+            fields: "files(id,name,mimeType,webViewLink,createdTime)"
+        });
+        const file = (response.data.files || []).find((item) =>
+            String(item.mimeType || "").toLowerCase() === "application/pdf" && item.webViewLink
+        );
+        const resolved = file ? String(file.webViewLink) : "";
+        cache.set(name, resolved);
+        return resolved;
+    } catch (error) {
+        // A missing Drive permission must not make the rest of the booking
+        // dashboard unusable.  The card will truthfully show no file link.
+        cache.set(name, "");
+        return "";
+    }
+}
+
 const createCarLookup = (table) => {
     const lookup = new Map();
     const referenceIndex = findColumn(table.headers, ["carref", "carid", "vehicleid", "ทะเบียน", "รหัสรถ"]);
@@ -80,6 +121,7 @@ const buildBooking = (row, headers, carLookup) => {
         deposit: cell(row, headers, ["deposit", "มัดจำ"]),
         source: cell(row, headers, ["bookingsource", "source", "ช่องทาง"]) || "AppSheet",
         driveUrl,
+        fileReference: fileReferenceFrom(bookingPdf),
         fileName: driveUrl ? `Booking-${bookingNo}.pdf` : ""
     };
 };
@@ -91,13 +133,25 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
         readTable(sheets, spreadsheetId, bookingSheetTitle),
         readTable(sheets, spreadsheetId, carSheetTitle).catch(() => ({ headers: [], rows: [] }))
     ]);
+    const drive = google.drive({ version: "v3", auth });
     const carLookup = createCarLookup(carTable);
-    const results = { scanned: bookingTable.rows.length, imported: 0, duplicates: 0, skipped: 0 };
+    const results = { scanned: bookingTable.rows.length, imported: 0, duplicates: 0, skipped: 0, resolvedFiles: 0, unavailableFiles: 0 };
+    const fileCache = new Map();
     for (const row of bookingTable.rows) {
         const booking = buildBooking(row, bookingTable.headers, carLookup);
         if (!booking) {
             results.skipped += 1;
             continue;
+        }
+        if (!booking.driveUrl && booking.fileReference) {
+            const resolved = await resolveAppSheetDriveUrl(drive, booking.fileReference, fileCache);
+            if (resolved) {
+                booking.driveUrl = resolved;
+                booking.fileName = `Booking-${booking.bookingNo}.pdf`;
+                results.resolvedFiles += 1;
+            } else {
+                results.unavailableFiles += 1;
+            }
         }
         const fileHash = crypto.createHash("sha256")
             .update(`appsheet:${spreadsheetId}:${booking.bookingNo}`)
@@ -117,4 +171,4 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
     return results;
 }
 
-module.exports = { buildBooking, driveUrlFrom, syncAppSheetBookings };
+module.exports = { buildBooking, driveUrlFrom, fileReferenceFrom, driveFileName, resolveAppSheetDriveUrl, syncAppSheetBookings };

@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildBooking } = require("../services/appSheetSyncService");
+const { buildBooking, fileReferenceFrom, resolveAppSheetDriveUrl } = require("../services/appSheetSyncService");
 
 test("keeps the Booking_PDF Drive link when importing an AppSheet booking", () => {
     const headers = ["BookingID", "CustomerName", "PickupDate", "ReturnDate", "Booking_PDF"];
@@ -17,4 +17,27 @@ test("does not create a fake file name when an AppSheet row has no file link", (
 
     assert.equal(booking.driveUrl, "");
     assert.equal(booking.fileName, "");
+});
+
+test("retains a legacy AppSheet PDF path so sync can resolve it in Drive", () => {
+    assert.equal(fileReferenceFrom("Booking_Files/c66b7d3a - customer.pdf"), "Booking_Files/c66b7d3a - customer.pdf");
+    assert.equal(fileReferenceFrom("https://drive.google.com/file/d/abc/view"), "");
+});
+
+test("resolves a legacy AppSheet filename to a real Drive view link", async () => {
+    const calls = [];
+    const drive = {
+        files: {
+            list: async (request) => {
+                calls.push(request);
+                return { data: { files: [{ name: "c66.pdf", mimeType: "application/pdf", webViewLink: "https://drive.google.com/file/d/real/view" }] } };
+            }
+        }
+    };
+    const cache = new Map();
+    const link = await resolveAppSheetDriveUrl(drive, "Booking_Files/c66.pdf", cache);
+    assert.equal(link, "https://drive.google.com/file/d/real/view");
+    assert.equal(calls.length, 1);
+    assert.equal(await resolveAppSheetDriveUrl(drive, "Booking_Files/c66.pdf", cache), link);
+    assert.equal(calls.length, 1);
 });
