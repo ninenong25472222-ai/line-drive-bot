@@ -344,6 +344,7 @@ function editToken() { try { return sessionStorage.getItem('rd_edit_token') || '
 function card(e) {
   var r = e.r, p = e.t === 'p', place = p ? r.pickup_location : r.return_location;
   var url = safeUrl(r.drive_url), tel = telOf(r.customer_phone);
+  var hasActualFileName = r.file_name && !/^AppSheet-[^.]+\.row$/i.test(r.file_name);
   var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
   var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' · ' + t : '') : 'ไม่ระบุวัน'; };
   var trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>';
@@ -370,10 +371,10 @@ function card(e) {
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
     (r._duplicate ? '<div class="wide"><label>ตรวจข้อมูลซ้ำ</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
     (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
-    (r.file_name ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
+    (hasActualFileName ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
-    (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูใบจอง</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีไฟล์แนบ</button>') +
+    (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">เปิดไฟล์</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีลิงก์ไฟล์</button>') +
     (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }

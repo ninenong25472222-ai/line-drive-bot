@@ -28,6 +28,12 @@ const cell = (row, headers, candidates) => {
     return index >= 0 ? String(row[index] ?? "").trim() : "";
 };
 
+const driveUrlFrom = (value = "") => {
+    const text = String(value ?? "").trim();
+    const match = text.match(/https?:\/\/[^\s|]+/i);
+    return match ? match[0].replace(/[),.;]+$/, "") : "";
+};
+
 const createCarLookup = (table) => {
     const lookup = new Map();
     const referenceIndex = findColumn(table.headers, ["carref", "carid", "vehicleid", "ทะเบียน", "รหัสรถ"]);
@@ -53,6 +59,10 @@ const buildBooking = (row, headers, carLookup) => {
     const pickupDate = cell(row, headers, ["pickupdate", "รับรถวันที่", "วันที่รับรถ"]);
     const returnDate = cell(row, headers, ["returndate", "คืนรถวันที่", "วันที่คืนรถ"]);
     if (!bookingNo || !customerName || !pickupDate || !returnDate) return null;
+    const bookingPdf = cell(row, headers, ["booking_pdf", "booking pdf", "pdf file", "ไฟล์ใบจอง"]);
+    const directLink = cell(row, headers, ["link", "url", "drive_url", "drive url", "file_url", "file url", "pdf_url", "pdf url"]);
+    const notes = cell(row, headers, ["notes", "note", "หมายเหตุ"]);
+    const driveUrl = [bookingPdf, directLink, notes].map(driveUrlFrom).find(Boolean) || "";
     return {
         company: "AppSheet",
         bookingNo,
@@ -68,7 +78,9 @@ const buildBooking = (row, headers, carLookup) => {
         car: carLookup.get(normalize(carReference)) || carReference,
         total: cell(row, headers, ["total", "price", "amount", "ยอดรวม", "ราคา"]),
         deposit: cell(row, headers, ["deposit", "มัดจำ"]),
-        source: cell(row, headers, ["bookingsource", "source", "ช่องทาง"]) || "AppSheet"
+        source: cell(row, headers, ["bookingsource", "source", "ช่องทาง"]) || "AppSheet",
+        driveUrl,
+        fileName: driveUrl ? `Booking-${bookingNo}.pdf` : ""
     };
 };
 
@@ -92,8 +104,9 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
             .digest("hex");
         const saved = await savePartnerUpload({
             booking,
-            fileName: `AppSheet-${booking.bookingNo}.row`,
+            fileName: booking.fileName,
             fileHash,
+            driveUrl: booking.driveUrl,
             source: "AppSheet",
             sourceLabel: "AppSheet / CarRental_System"
         });
@@ -104,4 +117,4 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
     return results;
 }
 
-module.exports = { syncAppSheetBookings };
+module.exports = { buildBooking, driveUrlFrom, syncAppSheetBookings };

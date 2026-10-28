@@ -79,7 +79,7 @@ test("Dashboard exposes a reversible booking trash action", () => {
 test("Dashboard opens and exports attached booking files through its own file route", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /data-booking-file=/);
-  assert.match(source, /ดูใบจอง/);
+  assert.match(source, /เปิดไฟล์/);
   assert.match(source, /ส่งออกไฟล์/);
   assert.match(source, /\/file/);
 });
