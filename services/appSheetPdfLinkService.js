@@ -28,8 +28,11 @@ async function repairAppSheetPdfLinks({ auth, spreadsheetId, bookingSheetTitle =
     const sheets = google.sheets({ version: "v4", auth });
     const result = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${bookingSheetTitle}!A:ZZ`, valueRenderOption: "FORMATTED_VALUE" });
     const [headers = [], ...rows] = result.data.values || [];
-    const pdfIndex = findColumn(headers, ["booking_pdf", "booking pdf", "pdf file", "ไฟล์ใบจอง"]);
-    if (pdfIndex < 0) return { skipped: true, reason: "booking_pdf_column_not_found" };
+    const targetIndexes = Array.from(new Set([
+        findColumn(headers, ["link", "url", "drive_url", "drive url"]),
+        findColumn(headers, ["booking_pdf", "booking pdf", "pdf file", "ไฟล์ใบจอง"])
+    ].filter((index) => index >= 0)));
+    if (!targetIndexes.length) return { skipped: true, reason: "link_column_not_found" };
     const candidates = [
         findColumn(headers, ["drive_url", "drive url", "file_url", "file url", "pdf_url", "pdf url"]),
         findColumn(headers, ["notes", "note", "หมายเหตุ"])
@@ -37,10 +40,13 @@ async function repairAppSheetPdfLinks({ auth, spreadsheetId, bookingSheetTitle =
     const data = [];
     for (let index = 0; index < rows.length; index += 1) {
         const row = rows[index] || [];
-        if (String(row[pdfIndex] || "").trim()) continue;
         const driveUrl = candidates.map((column) => driveUrlFrom(row[column])).find(Boolean);
         if (!driveUrl) continue;
-        data.push({ range: `${bookingSheetTitle}!${columnLetter(pdfIndex)}${index + 2}`, values: [[driveUrl]] });
+        for (const targetIndex of targetIndexes) {
+            if (!String(row[targetIndex] || "").trim()) {
+                data.push({ range: `${bookingSheetTitle}!${columnLetter(targetIndex)}${index + 2}`, values: [[driveUrl]] });
+            }
+        }
     }
     if (data.length) {
         await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data } });
