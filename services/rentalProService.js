@@ -73,17 +73,26 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         updated_at: new Date().toISOString()
     };
 
-    const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL);
+    // This Edge Function validates and writes with its own server-side role,
+    // and is deliberately published without JWT verification.  Keeping its
+    // public endpoint as a fallback lets the bot keep syncing when Render has
+    // not been given the optional browser key variables yet.
+    const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL || "https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking");
     const publishableKey = clean(process.env.SUPABASE_ANON_KEY);
-    if (functionUrl && publishableKey) {
+    if (functionUrl) {
         try {
+            const headers = { "Content-Type": "application/json" };
+            if (publishableKey) {
+                headers.apikey = publishableKey;
+                headers.Authorization = `Bearer ${publishableKey}`;
+            }
             const response = await axios.post(functionUrl, bookingRow, {
-                headers: { apikey: publishableKey, Authorization: `Bearer ${publishableKey}`, "Content-Type": "application/json" },
+                headers,
                 timeout: 30000
             });
             return { skipped: false, supabase: true, data: response.data };
         } catch (error) {
-            console.warn("SUPABASE_FUNCTION_WRITE_FAILED: falling back to legacy Supabase path");
+            console.warn("SUPABASE_FUNCTION_WRITE_FAILED:", error.response?.status || error.code || "unknown_error", "falling back to legacy Supabase path");
         }
     }
 
