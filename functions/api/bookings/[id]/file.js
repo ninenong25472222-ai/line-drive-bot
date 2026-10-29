@@ -1,4 +1,4 @@
-import { corsHeaders, headers, json, options, settings } from "../../../_shared.js";
+import { headers, json, options, settings } from "../../../_shared.js";
 
 function driveFileId(value = "") {
   const source = String(value);
@@ -6,10 +6,6 @@ function driveFileId(value = "") {
   if (pathMatch) return pathMatch[1];
   const queryMatch = source.match(/[?&]id=([A-Za-z0-9_-]+)/i);
   return queryMatch ? queryMatch[1] : "";
-}
-
-function fileName(value = "") {
-  return (String(value || "booking").replace(/[^a-zA-Z0-9ก-๙._-]+/g, "-").replace(/\.pdf$/i, "").slice(0, 80) || "booking") + ".pdf";
 }
 
 export async function onRequest(context) {
@@ -24,14 +20,13 @@ export async function onRequest(context) {
   const rows = await bookingResponse.json(), booking = Array.isArray(rows) ? rows[0] : null;
   const driveId = driveFileId(booking?.drive_url);
   if (!driveId) return json({ error: "รายการนี้ไม่มีไฟล์ PDF ที่เปิดได้" }, 422);
-  const source = await fetch(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=download&confirm=t`);
-  if (!source.ok) return json({ error: "ดาวน์โหลดไฟล์ใบจองไม่สำเร็จ" }, 502);
-  // Google Drive can label a real PDF as application/octet-stream. Validate
-  // the file signature instead, so valid bookings are not rejected.
-  const file = new Uint8Array(await source.arrayBuffer());
-  const isPdf = file.length >= 4 && String.fromCharCode(...file.slice(0, 4)) === "%PDF";
-  if (!isPdf) return json({ error: "ไฟล์ต้นฉบับไม่ใช่ PDF ที่เปิดได้" }, 422);
   const download = new URL(request.url).searchParams.get("download") === "1";
-  const name = fileName(booking.file_name || booking.booking_no);
-  return new Response(file, { headers: { ...corsHeaders, "content-type": "application/pdf", "content-disposition": `${download ? "attachment" : "inline"}; filename="${name}"`, "x-content-type-options": "nosniff" } });
+  // Drive often blocks a server-to-server download even though the same file
+  // opens for the signed-in staff member in their browser.  Redirecting to
+  // Drive preserves that person's existing Google permission and avoids a
+  // misleading "file is not a PDF" error from our dashboard.
+  const target = download
+    ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`
+    : booking.drive_url;
+  return Response.redirect(target, 302);
 }
