@@ -374,7 +374,7 @@ function card(e) {
     (hasActualFileName ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
-    (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">เปิดไฟล์</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีลิงก์ไฟล์</button>') +
+    (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">เปิดไฟล์</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีไฟล์แนบจากต้นทาง</button>') +
     (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }
