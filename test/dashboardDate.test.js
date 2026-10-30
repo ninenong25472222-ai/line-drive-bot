@@ -136,5 +136,8 @@ test("Dashboard previews complete booking confirmations in English or Thai witho
   assert.match(workspace, /function bookingTemplateCanvas/);
   assert.match(workspace, /รายละเอียดการชำระเงิน/);
   assert.match(workspace, /คำขอพิเศษ/);
+  assert.match(workspace, /jiraporn-car-rent-logo\.png/);
+  assert.match(workspace, /นโยบายการขับขี่และพื้นที่การใช้รถ/);
+  assert.match(workspace, /50,000 บาท/);
   assert.match(workspace, /data-booking-pdf/);
 });
