@@ -102,15 +102,29 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
     }
 
     let bookingTableAvailable = true;
-    if (details.file_hash) {
+    if (details.drive_file_id || details.file_hash) {
         try {
-            const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
-                params: { select: "*", file_hash: `eq.${details.file_hash}`, limit: 1 },
-                headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}` },
-                timeout: 30000
-            });
-            if (Array.isArray(existing.data) && existing.data.length > 0) {
-                const current = existing.data[0];
+            // A Drive file ID remains the same even if a PDF is OCR'd again
+            // and gets a different hash.  Check it first so a temporary Edge
+            // Function outage cannot create another dashboard row for one PDF.
+            let current = null;
+            if (details.drive_file_id) {
+                const sameDriveFile = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
+                    params: { select: "*", drive_file_id: `eq.${details.drive_file_id}`, limit: 1 },
+                    headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}` },
+                    timeout: 30000
+                });
+                current = Array.isArray(sameDriveFile.data) ? sameDriveFile.data[0] : null;
+            }
+            if (!current && details.file_hash) {
+                const existing = await axios.get(`${rentalProUrl}/rest/v1/rental_bookings`, {
+                    params: { select: "*", file_hash: `eq.${details.file_hash}`, limit: 1 },
+                    headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}` },
+                    timeout: 30000
+                });
+                current = Array.isArray(existing.data) ? existing.data[0] : null;
+            }
+            if (current) {
                 const patch = missingFields(current, bookingRow);
 
                 if (Object.keys(patch).length > 0) {

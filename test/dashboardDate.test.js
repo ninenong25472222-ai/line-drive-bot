@@ -52,6 +52,15 @@ test("Dashboard offers a single re-read action only for incomplete booking files
   assert.doesNotMatch(source, /data-reparse=/);
 });
 
+test("Dashboard keeps duplicate Drive-file copies out of the normal work list", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /id="hideDup" type="checkbox" checked/);
+  assert.match(source, /ซ่อนสำเนาไฟล์ซ้ำ/);
+  assert.match(source, /สำเนาไฟล์ซ้ำ/);
+  assert.match(source, /function base\(includeHiddenDuplicates\)/);
+  assert.match(source, /\$\('hideDup'\)\.onchange/);
+});
+
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /id="billingBtn"[^>]*>ออกบิล \/ ภาษี/);

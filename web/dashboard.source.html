@@ -24,7 +24,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .stats div{min-width:92px}.stats b{font-size:22px;font-weight:700;display:block;line-height:1.2}.stats span{font-size:12px;color:var(--mut)}
 .stats .w b{color:var(--warn)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px}
-.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px}
+.filters{display:grid;grid-template-columns:minmax(220px,2fr) repeat(5,minmax(110px,1fr));gap:8px}
 .ctl{width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;min-height:44px}
 .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
 .chip{display:inline-flex;align-items:center;gap:8px;background:#e8f3fb;color:#0f5f93;border:0;border-radius:99px;padding:6px 14px;font-weight:500}
@@ -108,7 +108,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div><b id="sSoon">—</b><span>รับ/คืน ภายใน 48 ชม.</span></div>
     <div><b id="sOther">—</b><span>Other</span></div>
     <div class="w"><b id="sBad">—</b><span>ข้อมูลวันที่ไม่ครบ</span></div>
-    <div class="w"><b id="sDup">—</b><span>รายการรอตรวจซ้ำ</span></div>
+    <div class="w"><b id="sDup">—</b><span>สำเนาไฟล์ซ้ำ</span></div>
   </div>
 
   <section class="panel filters">
@@ -129,7 +129,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
 
   <div class="row2">
     <button class="btn" id="calbtn" aria-expanded="false" aria-controls="calendar">▦ ปฏิทิน</button>
-    <label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะรายการรอตรวจซ้ำ</label>
+    <label class="chip"><input id="hideDup" type="checkbox" checked> ซ่อนสำเนาไฟล์ซ้ำ</label>
+    <label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะสำเนาไฟล์ซ้ำ</label>
     <button class="chip" id="dayChip" hidden></button>
   </div>
 
@@ -307,11 +308,11 @@ function prep(r) {
 }
 
 /* ====== ตัวกรอง / รายการงาน ====== */
-function base() {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked;
+function base(includeHiddenDuplicates) {
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, hideDup = $('hideDup').checked;
   return rows.filter(function (r) {
     var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
-    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
   });
 }
 function events(list) {
@@ -359,7 +360,7 @@ function card(e) {
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'รับรถ' : 'คืนรถ') + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
-    (r._duplicate ? '<span class="badge w">รอตรวจซ้ำ</span>' : '') +
+    (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
     '<span class="meta">🚗 ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · 📍 ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
@@ -369,7 +370,7 @@ function card(e) {
     '<div><label>ลูกค้า / โทร</label><b>' + esc((r.customer_name || '-') + ' · ' + (r.customer_phone || '-')) + '</b></div>' +
     '<div><label>รับรถ</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
-    (r._duplicate ? '<div class="wide"><label>ตรวจข้อมูลซ้ำ</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
+    (r._duplicate ? '<div class="wide"><label>ข้อมูลรายการหลัก</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
     (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
     (hasActualFileName ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
@@ -380,7 +381,7 @@ function card(e) {
 }
 
 function render() {
-  var today = todayISO(), list = base(), p = $('period').value;
+  var today = todayISO(), allMatching = base(true), list = base(false), p = $('period').value;
   var ev = events(list).filter(function (e) { return inPeriod(e, today); });
   var sign = (!view.day && p === 'past') ? -1 : 1;
   ev.sort(function (a, b) {
@@ -392,7 +393,7 @@ function render() {
   $('sTotal').textContent = list.length;
   $('sOther').textContent = list.filter(function (r) { return r._oth; }).length;
   $('sBad').textContent = list.filter(function (r) { return r._bad; }).length;
-  $('sDup').textContent = list.filter(function (r) { return r._duplicate; }).length;
+  $('sDup').textContent = allMatching.filter(function (r) { return r._duplicate; }).length;
   $('sSoon').textContent = list.filter(function (r) { return (r._p && inWin(r._p, r._pt)) || (r._r && inWin(r._r, r._rt)); }).length;
   // ชิปวันที่เลือก
   $('dayChip').hidden = !view.day;
@@ -951,6 +952,7 @@ $('calgrid').addEventListener('click', function (e) {
 });
 $('dayChip').onclick = function () { view.day = ''; refreshAll(); };
 $('onlyDup').onchange = function () { LIMIT = 150; refreshAll(); };
+$('hideDup').onchange = function () { LIMIT = 150; refreshAll(); };
 $('calbtn').onclick = function () {
   var h = !$('calendar').hidden; $('calendar').hidden = h;
   $('calbtn').setAttribute('aria-expanded', String(!h)); $('calbtn').classList.toggle('on', !h);
