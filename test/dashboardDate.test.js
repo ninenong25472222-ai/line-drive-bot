@@ -131,5 +131,8 @@ test("Dashboard can export booking confirmations in English or Thai without a th
   assert.match(workspace, /function downloadBookingPdf/);
   assert.match(workspace, /function downloadCanvasPdf/);
   assert.match(workspace, /function documentBookingData/);
+  assert.match(workspace, /function bookingTemplateCanvas/);
+  assert.match(workspace, /รายละเอียดการชำระเงิน/);
+  assert.match(workspace, /คำขอพิเศษ/);
   assert.match(workspace, /data-booking-pdf/);
 });
