@@ -109,3 +109,16 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /carImageFile/);
   assert.match(workspace, /image_data/);
 });
+
+test("Dashboard ships its PDF tool and can export booking confirmations in English or Thai", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
+  assert.match(source, /\/vendor\/html2pdf\.bundle\.min\.js/);
+  assert.match(source, /data-booking-pdf=/);
+  assert.match(source, /ใบจอง EN \(PDF\)/);
+  assert.match(workspace, /RENTAL BOOKING CONFIRMATION/);
+  assert.match(workspace, /ภาษาใบจอง/);
+  assert.match(workspace, /function downloadBookingPdf/);
+  assert.match(workspace, /data-booking-pdf/);
+  assert.ok(fs.statSync(path.join(__dirname, "..", "web", "vendor", "html2pdf.bundle.min.js")).size > 800000);
+});

@@ -375,7 +375,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">เปิดไฟล์</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ส่งออกไฟล์</button>' : '<button type="button" disabled>ไม่มีไฟล์แนบจากต้นทาง</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ใบจอง EN (PDF)</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ใบจอง ไทย (PDF)</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }
 
@@ -872,7 +872,7 @@ function billLoadHistory(id) {
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
   if (html2pdfLoader) return html2pdfLoader;
-  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('โหลดเครื่องมือ PDF ไม่สำเร็จ')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF ไม่สำเร็จ')); }; document.head.appendChild(script); });
+  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = '/vendor/html2pdf.bundle.min.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); }; document.head.appendChild(script); });
   return html2pdfLoader;
 }
 async function billDownloadPdf() {
@@ -881,7 +881,7 @@ async function billDownloadPdf() {
   Array.prototype.forEach.call(paper.querySelectorAll('input'), function (input) { input.setAttribute('value', input.value); });
   Array.prototype.forEach.call(paper.querySelectorAll('textarea'), function (textarea) { textarea.textContent = textarea.value; });
   try { var makePdf = await loadHtml2Pdf(); await makePdf().set({ margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(paper).save(); $('billStatus').textContent = 'ดาวน์โหลด “' + filename + '” แล้ว พร้อมส่งใน LINE OA'; }
-  catch (error) { $('billStatus').textContent = 'สร้าง PDF ไม่สำเร็จ โปรดตรวจอินเทอร์เน็ตแล้วลองใหม่'; }
+  catch (error) { $('billStatus').textContent = 'สร้าง PDF ไม่สำเร็จ: ' + (error.message || 'โปรดรีเฟรชหน้าเว็บแล้วลองใหม่'); }
   finally { button.disabled = false; }
 }
 
@@ -997,6 +997,7 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
+<script src="/vendor/html2pdf.bundle.min.js" defer></script>
 <script src="/booking-workspace.js" defer></script>
 </body>
 </html>
