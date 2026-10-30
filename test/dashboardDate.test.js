@@ -59,6 +59,7 @@ test("Dashboard keeps duplicate Drive-file copies out of the normal work list", 
   assert.match(source, /สำเนาไฟล์ซ้ำ/);
   assert.match(source, /function base\(includeHiddenDuplicates\)/);
   assert.match(source, /\$\('hideDup'\)\.onchange/);
+  assert.match(source, /id="lifecycle"[^>]*><option value="active">ใช้งานอยู่<\/option>/);
 });
 
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
