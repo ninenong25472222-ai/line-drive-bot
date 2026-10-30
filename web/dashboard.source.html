@@ -872,7 +872,7 @@ function billLoadHistory(id) {
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
   if (html2pdfLoader) return html2pdfLoader;
-  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = '/vendor/html2pdf.bundle.min.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); }; document.head.appendChild(script); });
+  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = '/assets/rental-document-engine.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); }; document.head.appendChild(script); });
   return html2pdfLoader;
 }
 async function billDownloadPdf() {
@@ -997,7 +997,7 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/vendor/html2pdf.bundle.min.js" defer></script>
+<script src="/assets/rental-document-engine.js" defer></script>
 <script src="/booking-workspace.js" defer></script>
 </body>
 </html>

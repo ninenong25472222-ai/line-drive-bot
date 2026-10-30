@@ -28,7 +28,7 @@
     if (window.html2pdf) return Promise.resolve(window.html2pdf);
     if (window.rentalPdfLoader) return window.rentalPdfLoader;
     window.rentalPdfLoader = new Promise(function (resolve, reject) {
-      var script = document.createElement('script'); script.src = '/vendor/html2pdf.bundle.min.js';
+      var script = document.createElement('script'); script.src = '/assets/rental-document-engine.js';
       script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); };
       script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); };
       document.head.appendChild(script);
