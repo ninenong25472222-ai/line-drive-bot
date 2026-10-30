@@ -376,7 +376,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button><button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
     '</div></article>';
 }
 
@@ -997,7 +997,7 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/booking-workspace.js?v=b3de8c4-preview-drive" defer></script>
+<script src="/booking-workspace.js?v=20261030-drive-originals" defer></script>
 </body>
 </html>
 
