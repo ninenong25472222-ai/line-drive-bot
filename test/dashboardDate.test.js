@@ -86,11 +86,11 @@ test("Dashboard exposes a reversible booking trash action", () => {
   assert.match(source, /runLifecycleAction/);
 });
 
-test("Dashboard opens and exports attached booking files through its own file route", () => {
+test("Dashboard clearly opens the real Google Drive attachment through its own file route", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /data-booking-file=/);
-  assert.match(source, /เปิดไฟล์/);
-  assert.match(source, /ส่งออกไฟล์/);
+  assert.match(source, /ดูไฟล์จริง \(Google Drive\)/);
+  assert.match(source, /ดาวน์โหลดไฟล์จริง/);
   assert.match(source, /\/file/);
 });
 
@@ -120,16 +120,18 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /image_data/);
 });
 
-test("Dashboard can export booking confirmations in English or Thai without a third-party script", () => {
+test("Dashboard previews complete booking confirmations in English or Thai without a third-party script", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
   assert.doesNotMatch(source, /rental-document-engine/);
   assert.match(source, /data-booking-pdf=/);
-  assert.match(source, /ใบจอง EN \(PDF\)/);
+  assert.match(source, /ดูร่างจากข้อมูลระบบ EN/);
   assert.match(workspace, /RENTAL BOOKING CONFIRMATION/);
   assert.match(workspace, /ภาษาใบจอง/);
-  assert.match(workspace, /function downloadBookingPdf/);
-  assert.match(workspace, /function downloadCanvasPdf/);
+  assert.match(workspace, /function previewBookingPdf/);
+  assert.match(workspace, /function canvasPdfBlob/);
+  assert.match(workspace, /missingDocumentFields/);
+  assert.match(workspace, /bookingPreviewModal/);
   assert.match(workspace, /function documentBookingData/);
   assert.match(workspace, /function bookingTemplateCanvas/);
   assert.match(workspace, /รายละเอียดการชำระเงิน/);
