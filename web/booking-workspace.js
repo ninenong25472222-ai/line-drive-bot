@@ -24,16 +24,38 @@
     var minutes = Math.max(0, Math.round((end - start) / 60000)), days = Math.floor(minutes / 1440), hours = Math.floor((minutes % 1440) / 60), mins = minutes % 60;
     return language === 'th' ? days + ' วัน ' + hours + ' ชั่วโมง ' + mins + ' นาที' : days + ' day(s) ' + hours + ' hour(s) ' + mins + ' minute(s)';
   }
-  function pdfLoader() {
-    if (window.html2pdf) return Promise.resolve(window.html2pdf);
-    if (window.rentalPdfLoader) return window.rentalPdfLoader;
-    window.rentalPdfLoader = new Promise(function (resolve, reject) {
-      var script = document.createElement('script'); script.src = '/assets/rental-document-engine.js';
-      script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); };
-      script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); };
-      document.head.appendChild(script);
-    });
-    return window.rentalPdfLoader;
+  function bookingCanvas(data, language) {
+    var isThai = language === 'th', labels = isThai ? {
+      title: 'ใบยืนยันการจองรถเช่า', no: 'เลขที่ใบจอง', customer: 'ข้อมูลผู้เช่า', name: 'ชื่อผู้เช่า', phone: 'โทรศัพท์', email: 'อีเมล', car: 'รถที่จอง', channel: 'ช่องทางการจอง', pickup: 'ส่งมอบรถ', returning: 'รับคืนรถ', location: 'สถานที่', duration: 'ระยะเวลาเช่า', charges: 'สรุปค่าใช้จ่าย', rate: 'ราคาต่อวัน', rental: 'ค่าเช่า', delivery: 'ค่ารับ-ส่ง', paid: 'ยอดโอนจอง', deposit: 'เงินมัดจำ', total: 'ยอดรวมค่าเช่า', note: 'หมายเหตุ', footer: 'กรุณาแสดงเอกสารฉบับนี้เมื่อรับรถ', signature: 'ลายเซ็นผู้เช่า', baht: 'บาท'
+    } : {
+      title: 'RENTAL BOOKING CONFIRMATION', no: 'Booking No.', customer: 'Renter Details', name: 'Renter Name', phone: 'Phone', email: 'Email', car: 'Reserved Vehicle', channel: 'Booking Channel', pickup: 'Vehicle Delivery', returning: 'Vehicle Return', location: 'Location', duration: 'Rental Duration', charges: 'Rental Charges', rate: 'Daily Rate', rental: 'Rental Charge', delivery: 'Delivery / Collection Fee', paid: 'Booking Deposit Paid', deposit: 'Security Deposit', total: 'Total Rental Charge', note: 'Notes', footer: 'Please present this document when collecting the vehicle.', signature: 'Renter Signature', baht: 'THB'
+    };
+    var canvas = document.createElement('canvas'), width = 1240, height = 1754, ctx = canvas.getContext('2d'), margin = 88, y = 0;
+    canvas.width = width; canvas.height = height; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height); ctx.textBaseline = 'top';
+    function font(size, bold) { ctx.font = (bold ? '700 ' : '400 ') + size + 'px Arial, "Noto Sans Thai", sans-serif'; }
+    function text(value, x, top, size, bold, color) { font(size, bold); ctx.fillStyle = color || '#142b40'; ctx.fillText(String(value == null || value === '' ? '-' : value), x, top); }
+    function line(top, x1, x2, color, size) { ctx.strokeStyle = color || '#c6ddea'; ctx.lineWidth = size || 2; ctx.beginPath(); ctx.moveTo(x1, top); ctx.lineTo(x2, top); ctx.stroke(); }
+    function wrap(value, x, top, maxWidth, size, bold, color, gap) { font(size, bold); ctx.fillStyle = color || '#142b40'; var source = String(value == null || value === '' ? '-' : value), words = source.includes(' ') ? source.split(/\s+/) : Array.from(source), rows = [], row = ''; words.forEach(function (part) { var next = row ? row + (source.includes(' ') ? ' ' : '') + part : part; if (ctx.measureText(next).width > maxWidth && row) { rows.push(row); row = part; } else row = next; }); if (row) rows.push(row); rows.forEach(function (rowText, index) { ctx.fillText(rowText, x, top + index * (gap || size * 1.35)); }); return rows.length * (gap || size * 1.35); }
+    function card(x, top, w, h) { ctx.strokeStyle = '#c6ddea'; ctx.lineWidth = 2; ctx.strokeRect(x, top, w, h); }
+    var start = new Date(String(data.pickup_date || '') + 'T' + String(data.pickup_time || '00:00') + ':00+07:00').getTime(), end = new Date(String(data.return_date || '') + 'T' + String(data.return_time || '00:00') + ':00+07:00').getTime(), chargedDays = Math.max(1, Math.ceil(Math.max(0, end - start) / 86400000)), dailyRate = money(data.daily_rate), deliveryFee = money(data.delivery_fee), total = money(data.service_total) || dailyRate * chargedDays + deliveryFee;
+    ctx.fillStyle = '#0870ad'; ctx.fillRect(0, 0, width, 20); text('RENTAL DESK', margin, 70, 42, true, '#0870ad'); text('Car rental booking', margin, 122, 21, false, '#537084');
+    ctx.textAlign = 'right'; text(labels.title, width - margin, 70, 29, true, '#0b405f'); text(labels.no + ': ' + (data.booking_no || '-'), width - margin, 122, 20, false, '#142b40'); ctx.textAlign = 'left'; line(170, margin, width - margin, '#1479b7', 5); y = 220;
+    card(margin, y, 510, 270); card(642, y, 510, 270); text(labels.customer, margin + 24, y + 22, 20, true, '#126d9f'); text(labels.name, margin + 24, y + 68, 16, false, '#5b7384'); wrap(data.customer_name, margin + 24, y + 91, 450, 21, true); text(labels.phone, margin + 24, y + 142, 16, false, '#5b7384'); text(data.customer_phone, margin + 24, y + 165, 20, true); text(labels.email, margin + 24, y + 210, 16, false, '#5b7384'); wrap(data.customer_email, margin + 24, y + 233, 450, 18, true);
+    text(labels.car, 666, y + 22, 20, true, '#126d9f'); text(labels.car, 666, y + 68, 16, false, '#5b7384'); wrap(data.car, 666, y + 91, 450, 21, true); text(labels.channel, 666, y + 142, 16, false, '#5b7384'); text(data.booking_channel, 666, y + 165, 20, true); text(labels.duration, 666, y + 210, 16, false, '#5b7384'); text(durationText(data, language), 666, y + 233, 18, true); y += 310;
+    ctx.fillStyle = '#e9f5fb'; ctx.fillRect(margin, y, width - margin * 2, 190); line(y, margin, width - margin, '#bad8e8'); line(y + 190, margin, width - margin, '#bad8e8'); line(y, width / 2, width / 2, '#bad8e8'); text(labels.pickup, margin + 28, y + 26, 18, false, '#547286'); text(dateTime(data.pickup_date, data.pickup_time, language), margin + 28, y + 60, 24, true); wrap(labels.location + ': ' + (data.pickup_location || '-'), margin + 28, y + 105, 500, 18, false, '#142b40'); text(labels.returning, width / 2 + 28, y + 26, 18, false, '#547286'); text(dateTime(data.return_date, data.return_time, language), width / 2 + 28, y + 60, 24, true); wrap(labels.location + ': ' + (data.return_location || '-'), width / 2 + 28, y + 105, 500, 18, false, '#142b40'); y += 230;
+    card(margin, y, width - margin * 2, 350); text(labels.charges, margin + 24, y + 24, 20, true, '#126d9f'); var costs = [[labels.rate + ' × ' + chargedDays + ' day(s)', dailyRate * chargedDays], [labels.delivery, deliveryFee], [labels.paid, money(data.booking_deposit)], [labels.deposit, money(data.security_deposit)]]; costs.forEach(function (entry, index) { var rowY = y + 75 + index * 48; text(entry[0], margin + 24, rowY, 18, false); ctx.textAlign = 'right'; text(formatMoney(entry[1]) + ' ' + labels.baht, width - margin - 24, rowY, 18, true); ctx.textAlign = 'left'; line(rowY + 35, margin + 24, width - margin - 24, '#e4edf2', 1); }); text(labels.total, margin + 24, y + 282, 24, true, '#063e5c'); ctx.textAlign = 'right'; text(formatMoney(total) + ' ' + labels.baht, width - margin - 24, y + 282, 26, true, '#063e5c'); ctx.textAlign = 'left'; y += 390;
+    card(margin, y, width - margin * 2, 165); text(labels.note, margin + 24, y + 22, 20, true, '#126d9f'); wrap(data.booking_note, margin + 24, y + 60, width - margin * 2 - 48, 18, false, '#142b40'); y += 230;
+    ctx.textAlign = 'center'; text(labels.footer, width / 2, y, 17, false, '#547286'); line(y + 105, width / 2 - 180, width / 2 + 180, '#6f8695', 2); text(labels.signature, width / 2, y + 120, 17, true, '#142b40'); ctx.textAlign = 'left'; return canvas;
+  }
+  function downloadCanvasPdf(canvas, filename) {
+    return new Promise(function (resolve, reject) { canvas.toBlob(async function (imageBlob) {
+      try {
+        if (!imageBlob) throw new Error('สร้างภาพเอกสารไม่สำเร็จ'); var image = new Uint8Array(await imageBlob.arrayBuffer()), encoder = new TextEncoder(), parts = [], offsets = [], size = 0;
+        function add(value) { var bytes = typeof value === 'string' ? encoder.encode(value) : value; parts.push(bytes); size += bytes.length; }
+        function object(number, body) { offsets[number] = size; add(number + ' 0 obj\n'); add(body); add('\nendobj\n'); }
+        add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'); object(1, '<< /Type /Catalog /Pages 2 0 R >>'); object(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>'); object(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>'); offsets[4] = size; add('4 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + canvas.width + ' /Height ' + canvas.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + image.length + ' >>\nstream\n'); add(image); add('\nendstream\nendobj\n'); var stream = 'q\n595 0 0 842 0 0 cm\n/Im1 Do\nQ\n'; object(5, '<< /Length ' + encoder.encode(stream).length + ' >>\nstream\n' + stream + 'endstream'); var xref = size; add('xref\n0 6\n0000000000 65535 f \n'); for (var i = 1; i <= 5; i++) add(String(offsets[i]).padStart(10, '0') + ' 00000 n \n'); add('trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF'); var blob = new Blob(parts, { type: 'application/pdf' }), link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename; document.body.appendChild(link); link.click(); setTimeout(function () { URL.revokeObjectURL(link.href); link.remove(); }, 1000); resolve();
+      } catch (error) { reject(error); }
+    }, 'image/jpeg', 0.96); });
   }
   function bookingDocument(data, language) {
     var isThai = language === 'th', labels = isThai ? {
@@ -53,12 +75,7 @@
     return paper;
   }
   async function downloadBookingPdf(data, language) {
-    var paper = bookingDocument(data, language);
-    document.body.appendChild(paper);
-    try {
-      var makePdf = await pdfLoader();
-      await makePdf().set({ margin: 0, filename: shortFileName('BOOKING-' + (data.booking_no || 'rental') + '-' + (language === 'th' ? 'TH' : 'EN')) + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(paper).save();
-    } finally { paper.remove(); }
+    await downloadCanvasPdf(bookingCanvas(data, language), shortFileName('BOOKING-' + (data.booking_no || 'rental') + '-' + (language === 'th' ? 'TH' : 'EN')) + '.pdf');
   }
   function renderShell() {
     var style = document.createElement('style');

@@ -871,9 +871,7 @@ function billLoadHistory(id) {
 }
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
-  if (html2pdfLoader) return html2pdfLoader;
-  html2pdfLoader = new Promise(function (resolve, reject) { var script = document.createElement('script'); script.src = '/assets/rental-document-engine.js'; script.onload = function () { window.html2pdf ? resolve(window.html2pdf) : reject(new Error('เครื่องมือ PDF ในเว็บไซต์ไม่พร้อมใช้งาน')); }; script.onerror = function () { reject(new Error('โหลดเครื่องมือ PDF จากเว็บไซต์ไม่สำเร็จ')); }; document.head.appendChild(script); });
-  return html2pdfLoader;
+  return Promise.reject(new Error('ใช้หน้าพิมพ์ของเบราว์เซอร์เพื่อบันทึก PDF'));
 }
 async function billDownloadPdf() {
   var button = $('billDownload'), paper = $('billPaper'), filename = billShortName($('billFileName').value) + '.pdf';
@@ -881,7 +879,7 @@ async function billDownloadPdf() {
   Array.prototype.forEach.call(paper.querySelectorAll('input'), function (input) { input.setAttribute('value', input.value); });
   Array.prototype.forEach.call(paper.querySelectorAll('textarea'), function (textarea) { textarea.textContent = textarea.value; });
   try { var makePdf = await loadHtml2Pdf(); await makePdf().set({ margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(paper).save(); $('billStatus').textContent = 'ดาวน์โหลด “' + filename + '” แล้ว พร้อมส่งใน LINE OA'; }
-  catch (error) { $('billStatus').textContent = 'สร้าง PDF ไม่สำเร็จ: ' + (error.message || 'โปรดรีเฟรชหน้าเว็บแล้วลองใหม่'); }
+  catch (error) { window.print(); $('billStatus').textContent = 'เปิดหน้าพิมพ์แล้ว เลือก “Save as PDF” เพื่อบันทึกไฟล์'; }
   finally { button.disabled = false; }
 }
 
@@ -997,7 +995,6 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/assets/rental-document-engine.js" defer></script>
 <script src="/booking-workspace.js" defer></script>
 </body>
 </html>
