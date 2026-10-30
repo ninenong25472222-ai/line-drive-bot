@@ -13,7 +13,7 @@
   function shortFileName(value) { return String(value || '').trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'booking'; }
   function formatMoney(value) { return money(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function dateTime(value, time, language) {
-    if (!value) return '-';
+    if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return '-';
     var date = new Date(value + 'T12:00:00+07:00');
     var locale = language === 'th' ? 'th-TH' : 'en-GB';
     return date.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' }) + (time ? ' · ' + time : '');
@@ -21,8 +21,17 @@
   function durationText(data, language) {
     var start = new Date(String(data.pickup_date || '') + 'T' + String(data.pickup_time || '00:00') + ':00+07:00').getTime();
     var end = new Date(String(data.return_date || '') + 'T' + String(data.return_time || '00:00') + ':00+07:00').getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return language === 'th' ? 'ยังระบุวันและเวลาไม่ครบ' : 'Date and time not fully specified';
     var minutes = Math.max(0, Math.round((end - start) / 60000)), days = Math.floor(minutes / 1440), hours = Math.floor((minutes % 1440) / 60), mins = minutes % 60;
     return language === 'th' ? days + ' วัน ' + hours + ' ชั่วโมง ' + mins + ' นาที' : days + ' day(s) ' + hours + ' hour(s) ' + mins + ' minute(s)';
+  }
+  function documentBookingData(input) {
+    var data = Object.assign({}, input || {});
+    data.pickup_date = data._p || data.pickup_on || data.pickup_date || '';
+    data.return_date = data._r || data.return_on || data.return_date || '';
+    data.pickup_time = data._pt || data.pickup_time || '';
+    data.return_time = data._rt || data.return_time || '';
+    return data;
   }
   function bookingCanvas(data, language) {
     var isThai = language === 'th', labels = isThai ? {
@@ -37,7 +46,7 @@
     function line(top, x1, x2, color, size) { ctx.strokeStyle = color || '#c6ddea'; ctx.lineWidth = size || 2; ctx.beginPath(); ctx.moveTo(x1, top); ctx.lineTo(x2, top); ctx.stroke(); }
     function wrap(value, x, top, maxWidth, size, bold, color, gap) { font(size, bold); ctx.fillStyle = color || '#142b40'; var source = String(value == null || value === '' ? '-' : value), words = source.includes(' ') ? source.split(/\s+/) : Array.from(source), rows = [], row = ''; words.forEach(function (part) { var next = row ? row + (source.includes(' ') ? ' ' : '') + part : part; if (ctx.measureText(next).width > maxWidth && row) { rows.push(row); row = part; } else row = next; }); if (row) rows.push(row); rows.forEach(function (rowText, index) { ctx.fillText(rowText, x, top + index * (gap || size * 1.35)); }); return rows.length * (gap || size * 1.35); }
     function card(x, top, w, h) { ctx.strokeStyle = '#c6ddea'; ctx.lineWidth = 2; ctx.strokeRect(x, top, w, h); }
-    var start = new Date(String(data.pickup_date || '') + 'T' + String(data.pickup_time || '00:00') + ':00+07:00').getTime(), end = new Date(String(data.return_date || '') + 'T' + String(data.return_time || '00:00') + ':00+07:00').getTime(), chargedDays = Math.max(1, Math.ceil(Math.max(0, end - start) / 86400000)), dailyRate = money(data.daily_rate), deliveryFee = money(data.delivery_fee), total = money(data.service_total) || dailyRate * chargedDays + deliveryFee;
+    var start = new Date(String(data.pickup_date || '') + 'T' + String(data.pickup_time || '00:00') + ':00+07:00').getTime(), end = new Date(String(data.return_date || '') + 'T' + String(data.return_time || '00:00') + ':00+07:00').getTime(), chargedDays = Number.isFinite(start) && Number.isFinite(end) && end >= start ? Math.max(1, Math.ceil((end - start) / 86400000)) : 1, dailyRate = money(data.daily_rate), deliveryFee = money(data.delivery_fee), total = money(data.service_total) || dailyRate * chargedDays + deliveryFee;
     ctx.fillStyle = '#0870ad'; ctx.fillRect(0, 0, width, 20); text('RENTAL DESK', margin, 70, 42, true, '#0870ad'); text('Car rental booking', margin, 122, 21, false, '#537084');
     ctx.textAlign = 'right'; text(labels.title, width - margin, 70, 29, true, '#0b405f'); text(labels.no + ': ' + (data.booking_no || '-'), width - margin, 122, 20, false, '#142b40'); ctx.textAlign = 'left'; line(170, margin, width - margin, '#1479b7', 5); y = 220;
     card(margin, y, 510, 270); card(642, y, 510, 270); text(labels.customer, margin + 24, y + 22, 20, true, '#126d9f'); text(labels.name, margin + 24, y + 68, 16, false, '#5b7384'); wrap(data.customer_name, margin + 24, y + 91, 450, 21, true); text(labels.phone, margin + 24, y + 142, 16, false, '#5b7384'); text(data.customer_phone, margin + 24, y + 165, 20, true); text(labels.email, margin + 24, y + 210, 16, false, '#5b7384'); wrap(data.customer_email, margin + 24, y + 233, 450, 18, true);
@@ -75,6 +84,7 @@
     return paper;
   }
   async function downloadBookingPdf(data, language) {
+    data = documentBookingData(data);
     await downloadCanvasPdf(bookingCanvas(data, language), shortFileName('BOOKING-' + (data.booking_no || 'rental') + '-' + (language === 'th' ? 'TH' : 'EN')) + '.pdf');
   }
   function renderShell() {
