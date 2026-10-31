@@ -49,8 +49,8 @@ function carPayload(input: Record<string, unknown>) {
 }
 function bookingPayload(input: Record<string, unknown>) {
   const row: Record<string, unknown> = {};
-  for (const field of ["car_id", "customer_name", "customer_phone", "customer_email", "booking_channel", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location"]) row[field] = text(input[field], field.endsWith("date") ? 10 : field.endsWith("time") ? 5 : 500);
-  row.booking_note = text(input.booking_note, 2000); row.wants_tax_invoice = Boolean(input.wants_tax_invoice);
+  for (const field of ["car_id", "customer_name", "customer_phone", "customer_email", "booking_channel", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location", "tax_company_name"]) row[field] = text(input[field], field.endsWith("date") ? 10 : field.endsWith("time") ? 5 : 500);
+  row.booking_note = text(input.booking_note, 2000); row.wants_tax_invoice = Boolean(input.wants_tax_invoice); row.withhold_tax_5 = Boolean(input.withhold_tax_5);
   for (const field of ["daily_rate", "booking_deposit", "security_deposit", "delivery_fee", "service_total"]) row[field] = money(input[field]);
   return row;
 }
@@ -139,6 +139,7 @@ async function saveBookingOption(req: Request, url: string, key: string) {
 async function saveBooking(req: Request, url: string, key: string) {
   const booking = bookingPayload(await req.json());
   if (!text(booking.car_id) || !text(booking.customer_name) || !dateOk(text(booking.pickup_date)) || !dateOk(text(booking.return_date)) || !timeOk(text(booking.pickup_time)) || !timeOk(text(booking.return_time))) return response({ error: "กรอกข้อมูลลูกค้า รถ วัน และเวลาให้ครบ" }, 400);
+  if (booking.wants_tax_invoice && !text(booking.tax_company_name)) return response({ error: "กรอกชื่อบริษัทสำหรับใบกำกับภาษีให้ครบ" }, 400);
   if (["daily_rate", "booking_deposit", "security_deposit", "delivery_fee", "service_total"].some((field) => booking[field] === null)) return response({ error: "ยอดเงินต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป" }, 400);
   if (slot(text(booking.pickup_date), text(booking.pickup_time)) >= slot(text(booking.return_date), text(booking.return_time))) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
   const found = await rest(url, key, `rental_cars?id=eq.${encodeURIComponent(text(booking.car_id))}&select=id,car_ref,model,status,active&limit=1`);
