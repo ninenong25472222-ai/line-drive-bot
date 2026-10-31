@@ -43,7 +43,7 @@ async function fetchBookings(url, key, query) {
 async function archiveDuplicateBookings({ url, key, now }) {
     const summary = { scanned: 0, archived: 0, skipped: 0, failed: 0 };
     const candidates = await fetchBookings(url, key,
-        "select=id,duplicate_of,drive_file_id,deletion_status&duplicate_of=not.is.null&deletion_status=in.(active,restored)&limit=1000");
+        "select=id,duplicate_of,drive_file_id,deletion_status&duplicate_of=not.is.null&deletion_status=eq.active&limit=1000");
     summary.scanned = candidates.length;
     if (!candidates.length) return summary;
 
