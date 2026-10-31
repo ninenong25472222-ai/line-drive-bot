@@ -73,27 +73,28 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
   if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
   const now = new Date().toISOString();
   const hasFile = Boolean(text(current.drive_file_id));
+  const isDuplicate = Boolean(text(current.duplicate_of));
   let patch: Record<string, unknown>;
   if (action === "queue_trash") {
     if (["pending_move", "pending_confirmation", "pending_permanent_delete", "deleted"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในขั้นตอนถังขยะแล้ว" }, 409);
     patch = {
       previous_status: text(current.status) || "รอตรวจสอบ",
-      status: "ยกเลิก",
-      deletion_status: hasFile ? "pending_move" : "pending_confirmation",
-      trash_reason: text(input.trash_reason, 500) || "ย้ายจากหน้ารายการจอง",
-      pending_deletion_at: hasFile ? null : now,
-      trashed_at: hasFile ? null : now,
+      ...(isDuplicate ? {} : { status: "ยกเลิก" }),
+      deletion_status: hasFile && !isDuplicate ? "pending_move" : "pending_confirmation",
+      trash_reason: text(input.trash_reason, 500) || (isDuplicate ? "สำเนารายการ — ใช้ไฟล์ Google Drive เดียวกับรายการหลัก" : "ย้ายจากหน้ารายการจอง"),
+      pending_deletion_at: hasFile && !isDuplicate ? null : now,
+      trashed_at: hasFile && !isDuplicate ? null : now,
       restored_at: null,
       deleted_at: null,
     };
   } else if (action === "restore") {
     if (text(current.deletion_status) === "deleted") return response({ error: "รายการนี้ลบไฟล์ถาวรแล้ว จึงกู้คืนจากระบบไม่ได้" }, 409);
-    patch = hasFile && text(current.deletion_status) === "pending_confirmation"
+    patch = !isDuplicate && hasFile && text(current.deletion_status) === "pending_confirmation"
       ? { deletion_status: "restore_requested", restored_at: null }
       : { deletion_status: "restored", status: text(current.previous_status) || "รอตรวจสอบ", restored_at: now, pending_deletion_at: null, trash_reason: null };
   } else {
     if (text(current.deletion_status) !== "pending_confirmation") return response({ error: "ยืนยันลบได้เฉพาะรายการที่ย้ายเข้าถังขยะแล้ว" }, 409);
-    patch = hasFile
+    patch = hasFile && !isDuplicate
       ? { deletion_status: "pending_permanent_delete" }
       : { deletion_status: "deleted", deleted_at: now };
   }
@@ -141,6 +142,7 @@ async function saveBooking(req: Request, url: string, key: string) {
   if (!text(booking.car_id) || !text(booking.customer_name) || !dateOk(text(booking.pickup_date)) || !dateOk(text(booking.return_date)) || !timeOk(text(booking.pickup_time)) || !timeOk(text(booking.return_time))) return response({ error: "กรอกข้อมูลลูกค้า รถ วัน และเวลาให้ครบ" }, 400);
   if (booking.wants_tax_invoice && !text(booking.tax_company_name)) return response({ error: "กรอกชื่อบริษัทสำหรับใบกำกับภาษีให้ครบ" }, 400);
   if (["daily_rate", "booking_deposit", "security_deposit", "delivery_fee", "service_total"].some((field) => booking[field] === null)) return response({ error: "ยอดเงินต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป" }, 400);
+  if (Number(booking.daily_rate) <= 0) return response({ error: "ราคาต่อวันต้องมากกว่า 0 บาท" }, 400);
   if (slot(text(booking.pickup_date), text(booking.pickup_time)) >= slot(text(booking.return_date), text(booking.return_time))) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
   const found = await rest(url, key, `rental_cars?id=eq.${encodeURIComponent(text(booking.car_id))}&select=id,car_ref,model,status,active&limit=1`);
   const car = Array.isArray(found) ? found[0] : null;

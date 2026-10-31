@@ -1516,9 +1516,10 @@ if (getAppSheetSpreadsheetId()) {
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
 }
 
-// The lifecycle worker is safe to run repeatedly: only records that have not
-// already entered the review queue are moved. It does not delete Drive files.
-if (cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")) {
+// Run the reversible duplicate archive even when the Drive review-folder
+// setting is absent. The worker never moves/deletes a shared file referenced
+// by both a duplicate row and its canonical booking.
+if (cleanText(process.env.RENTALPRO_SUPABASE_URL || "") && cleanText(process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY || "")) {
     setTimeout(() => void runPendingDeletionQueue(), 30000);
     setInterval(
         () => void runPendingDeletionQueue(),

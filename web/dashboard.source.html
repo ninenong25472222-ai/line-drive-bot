@@ -309,7 +309,7 @@ function prep(r) {
 
 /* ====== ตัวกรอง / รายการงาน ====== */
 function base(includeHiddenDuplicates) {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, hideDup = $('hideDup').checked;
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, hideDup = $('hideDup').checked && lifecycle !== 'review' && lifecycle !== 'deleted';
   return rows.filter(function (r) {
     var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
     return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
@@ -350,7 +350,7 @@ function card(e) {
   var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' · ' + t : '') : 'ไม่ระบุวัน'; };
   var trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>';
   if (r.deletion_status === 'pending_move') trashAction = '<button type="button" disabled>รอย้ายไฟล์เข้าถังขยะ</button>';
-  if (r.deletion_status === 'pending_confirmation') trashAction = '<button class="edit" type="button" data-restore="' + esc(r.id) + '">กู้คืน</button><button class="trash" type="button" data-delete="' + esc(r.id) + '">ยืนยันลบไฟล์</button>';
+  if (r.deletion_status === 'pending_confirmation') trashAction = '<button class="edit" type="button" data-restore="' + esc(r.id) + '">กู้คืน</button><button class="trash" type="button" data-delete="' + esc(r.id) + '">' + (r._duplicate ? 'ยืนยันลบรายการสำเนา' : 'ยืนยันลบไฟล์') + '</button>';
   if (r.deletion_status === 'restore_requested') trashAction = '<button type="button" disabled>รอกู้คืนไฟล์</button>';
   if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
@@ -468,7 +468,10 @@ function openTrash(id) {
   runLifecycleAction(id, 'queue_trash');
 }
 async function runLifecycleAction(id, action) {
-  var wording = { queue_trash: 'ย้ายรายการนี้เข้าถังขยะหรือไม่? ยอดจองจะยังอยู่ในรายงานรายเดือน', restore: 'กู้คืนรายการและไฟล์กลับมาใช้งานหรือไม่?', confirm_delete: 'ยืนยันลบไฟล์ถาวรหรือไม่? รายการและยอดจองจะยังเก็บไว้ แต่ไฟล์จะลบไม่ได้' }[action] || 'ยืนยันการทำรายการหรือไม่?';
+  var targetRow = rows.find(function (row) { return String(row.id) === String(id); });
+  var wording = action === 'confirm_delete' && targetRow && targetRow._duplicate
+    ? 'ยืนยันนำรายการสำเนานี้ออกจากหน้าทำงานหรือไม่? ข้อมูลยอดจองจะยังเก็บไว้ และไฟล์ Google Drive ที่ใช้ร่วมกับรายการหลักจะไม่ถูกลบ'
+    : ({ queue_trash: 'ย้ายรายการนี้เข้าถังขยะหรือไม่? ยอดจองจะยังอยู่ในรายงานรายเดือน', restore: 'กู้คืนรายการและไฟล์กลับมาใช้งานหรือไม่?', confirm_delete: 'ยืนยันลบไฟล์ถาวรหรือไม่? รายการและยอดจองจะยังเก็บไว้ แต่ไฟล์จะลบไม่ได้' }[action] || 'ยืนยันการทำรายการหรือไม่?');
   if (!window.confirm(wording)) return;
   var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่อยืนยัน');
   if (!token) return;
@@ -484,7 +487,7 @@ async function runLifecycleAction(id, action) {
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     refreshAll();
-    window.alert(action === 'queue_trash' ? 'ส่งเข้าคิวถังขยะแล้ว ระบบจะย้ายไฟล์เมื่อบอตทำงาน' : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : 'ส่งคำสั่งลบไฟล์ถาวรแล้ว');
+    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว ระบบจะย้ายไฟล์เมื่อบอตทำงาน') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : 'ส่งคำสั่งลบไฟล์ถาวรแล้ว');
   } catch (error) {
     window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
   }
