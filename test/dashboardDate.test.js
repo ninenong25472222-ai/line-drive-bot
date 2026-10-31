@@ -62,6 +62,23 @@ test("Dashboard keeps duplicate Drive-file copies out of the normal work list", 
   assert.match(source, /id="lifecycle"[^>]*><option value="active">ใช้งานอยู่<\/option>/);
 });
 
+test("Dashboard improves Thai readability, mobile calendar density, quick filters, and action hierarchy", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /--mut:#536579/);
+  assert.match(source, /\.tag,\.badge\{font-size:13px/);
+  assert.match(source, /\.stats span\{font-size:14px/);
+  assert.match(source, /\.cd small\{font-size:12px/);
+  assert.match(source, /\.cd \.calDots\{display:flex/);
+  assert.match(source, /\.btn\.primary\{background:var\(--brand\)/);
+  assert.match(source, /id="rf"[^>]*aria-label="รีเฟรชข้อมูล"/);
+  assert.match(source, /<details class="filterMore">/);
+  assert.match(source, /class="wide dangerActions"/);
+  assert.doesNotMatch(source, /🚗|📍/);
+  assert.match(source, /data-quick-filter="incomplete"/);
+  assert.match(source, /data-quick-filter="duplicates"/);
+  assert.match(source, /\.mainColumns\{display:grid;grid-template-columns:minmax\(0,1fr\) 360px/);
+});
+
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /id="billingBtn"[^>]*>ออกบิล \/ ภาษี/);

@@ -76,6 +76,57 @@ h1{font-size:26px;line-height:1.2;margin:0}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .billRight input{width:174px}
 .billingTabs{display:flex;gap:8px;padding:0 18px 12px;border-bottom:1px solid var(--line)}.billingTabs .on{background:#e3f1fa;border-color:#7abce4;color:#075e99}.billPanel{padding:18px;background:#f8fbfd}.billPanel h3{margin:0 0 4px}.billSettingsGrid{display:grid;grid-template-columns:1.2fr .9fr;gap:18px;margin-top:14px}.billSettingsGrid label{display:grid;gap:5px;color:var(--mut);font-size:13px;margin-bottom:11px}.billSettingsGrid textarea{resize:vertical}.billSettingsGrid .save{width:100%;margin-top:7px}.billUploadHint{font-size:12px;color:var(--mut);margin:-6px 0 12px}.billCompanyHeader{display:flex;gap:11px;align-items:flex-start}.billCompanyInfo{min-width:0;flex:1}.billLogoBox{width:56px;height:56px;flex:0 0 56px;border:1px solid #c8d5df;border-radius:5px;display:grid;place-items:center;overflow:hidden;color:#6a7c8a;font-size:10px;font-weight:700;background:#f8fbfd}.billLogoBox img{width:100%;height:100%;object-fit:contain}.billSignatureLine{position:relative;display:flex;justify-content:center;align-items:flex-end}.billSignatureLine img{max-width:140px;max-height:42px;object-fit:contain;position:absolute;bottom:2px}.billSignatureLine:has(img[hidden]){height:46px}.billDelInline{display:none}@media(max-width:700px){.billSettingsGrid{grid-template-columns:1fr}.billingTabs{padding-left:12px;padding-right:12px}.billingTabs .btn{padding:8px 10px;font-size:13px}.billCompanyHeader{gap:8px}.billLogoBox{width:45px;height:45px;flex-basis:45px}.billDelInline{display:inline-block;margin-top:5px}.billTable th:nth-child(6),.billTable td:nth-child(6){display:none}}@media print{.billingTabs,.billPanel{display:none!important}.billLogoBox{border:0!important}.billSignatureLine img{display:block!important}}
+/* อ่านง่ายขึ้นสำหรับอักษรไทย และแยกสีแบรนด์ออกจากสีสถานะ */
+:root{--mut:#536579;--brand:#0d5f96}
+.app{max-width:1440px}
+.muted{font-size:14px}
+.stats span{font-size:14px}
+.stats .statAction{font:inherit;color:inherit;text-align:left;cursor:pointer;border:0;background:transparent;padding:2px 6px;border-radius:10px}
+.stats .statAction:hover,.stats .statAction[aria-pressed="true"]{background:#e7f1f8;box-shadow:0 0 0 1px #bfd6e6 inset}
+.stats .statAction span{display:block;color:var(--mut)}
+.tag,.badge{font-size:13px;line-height:1.45;padding:1px 10px}
+.meta{font-size:14px}
+.det label{font-size:13px}
+.reparseItem small,.reparseState{font-size:13px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700;box-shadow:0 2px 6px #0d5f9630}
+.btn.primary:hover{background:#094d7b}
+.save,.login .go{background:var(--brand);border-color:var(--brand)}
+.btn.iconBtn{min-width:42px;width:42px;padding:9px;display:inline-grid;place-items:center}
+.iconBtn svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.filters{grid-template-columns:minmax(240px,1fr) minmax(170px,240px) auto;align-items:start}
+.filters .filterMore{position:relative;min-width:140px}
+.filterMore summary{list-style:none;text-align:center;display:flex;align-items:center;justify-content:center}
+.filterMore summary::-webkit-details-marker{display:none}
+.filterExtras{position:absolute;right:0;top:calc(100% + 6px);z-index:8;width:min(360px,calc(100vw - 56px));padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px #14293d20;display:grid;grid-template-columns:1fr;gap:8px}
+.filterExtras .chip{border-radius:9px;justify-content:flex-start}
+.filterExtras .ctl{font-size:14px}
+.acts{gap:8px}
+.acts a,.acts button{min-height:42px}
+.dangerActions{display:flex;justify-content:flex-end;border-top:1px solid #f2e2e0;padding-top:8px}
+.acts .drive{background:#fff3e7;color:#8b4e0a;border:1px solid #efd6b7}
+.meta svg{width:15px;height:15px;vertical-align:-2px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cd small{font-size:12px;line-height:1.4;min-height:17px}
+.calDots,.calCount{display:none}
+.mainColumns{display:block}
+@media(min-width:1100px){.mainColumns{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}.mainColumns #list{grid-column:1;grid-row:1}.mainColumns #calendar{grid-column:2;grid-row:1;position:sticky;top:12px}.mainColumns:has(#calendar[hidden]){display:block}}
+@media(max-width:700px){
+  .app{padding:12px 10px 48px}
+  .top{display:block}.topActions{justify-content:flex-start;margin-top:10px;gap:6px}
+  .topActions .btn{min-height:42px;padding:8px 11px;font-size:14px}
+  .topActions .iconBtn{padding:8px;width:42px}
+  .filters{grid-template-columns:minmax(0,1fr) minmax(132px,.7fr);gap:8px}
+  .filters .search{grid-column:1/-1}
+  .filters .filterMore{grid-column:1/-1}
+  .filterExtras{position:static;width:100%;margin-top:8px;box-shadow:none}
+  .stats{gap:6px 8px;justify-content:space-between}.stats div,.stats .statAction{min-width:calc(33.333% - 8px);flex:1}
+  .stats b{font-size:22px}.stats span{font-size:13px;line-height:1.4}
+  .tag,.badge{font-size:12px;padding:2px 8px}
+  .meta{font-size:13px}
+  .cd{min-height:58px;align-items:center;text-align:center;padding:4px 2px;gap:3px}
+  .cd b{font-size:14px}.cd small{display:none}.cd .calDots{display:flex;gap:2px;height:7px;align-items:center;justify-content:center}.cd .eventDot{width:5px;height:5px;border-radius:50%;display:inline-block}.cd .eventDot.cp{background:#1478b8}.cd .eventDot.cr{background:#0f8a6a}.cd .calCount{display:block;font-size:11px;line-height:1.1;color:var(--mut);white-space:nowrap}
+  .dangerActions{margin-top:4px}
+}
+@media(max-width:360px){.topActions .btn{font-size:13px;padding:7px 8px}.stats span{font-size:12px}}
 </style>
 </head>
 <body>
@@ -83,11 +134,11 @@ h1{font-size:26px;line-height:1.2;margin:0}
 <header class="top">
   <div><h1>Rental Desk</h1><div class="muted" id="upd">กำลังโหลด…</div></div>
   <div class="topActions">
-    <button class="btn" id="bookingBtn" type="button">ออกใบจอง</button>
+    <button class="btn primary" id="bookingBtn" type="button">ออกใบจอง</button>
     <button class="btn" id="carsBtn" type="button">ข้อมูลรถ</button>
     <button class="btn" id="settingsBtn" type="button">ตั้งค่าข้อมูล</button>
     <button class="btn" id="billingBtn" type="button">ออกบิล / ภาษี</button>
-    <button class="btn" id="rf">↻ รีเฟรช</button>
+    <button class="btn iconBtn" id="rf" type="button" aria-label="รีเฟรชข้อมูล" title="รีเฟรชข้อมูล"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.6 9a7 7 0 0 1 11.7-2L20 12M4 12l2.7 5a7 7 0 0 0 11.7-2"/></svg></button>
   </div>
 </header>
 
@@ -107,8 +158,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div><b id="sTotal">—</b><span>รายการ</span></div>
     <div><b id="sSoon">—</b><span>รับ/คืน ภายใน 48 ชม.</span></div>
     <div><b id="sOther">—</b><span>Other</span></div>
-    <div class="w"><b id="sBad">—</b><span>ข้อมูลวันที่ไม่ครบ</span></div>
-    <div class="w"><b id="sDup">—</b><span>สำเนาไฟล์ซ้ำ</span></div>
+    <button class="statAction w" id="sBadAction" type="button" data-quick-filter="incomplete" aria-pressed="false"><b id="sBad">—</b><span>ข้อมูลวันที่ไม่ครบ</span></button>
+    <button class="statAction w" id="sDupAction" type="button" data-quick-filter="duplicates" aria-pressed="false"><b id="sDup">—</b><span>สำเนาไฟล์ซ้ำ</span></button>
   </div>
 
   <section class="panel filters">
@@ -117,7 +168,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <option value="upcoming">ตั้งแต่วันนี้</option><option value="today">เฉพาะวันนี้</option><option value="week">7 วันข้างหน้า</option>
       <option value="month">30 วันข้างหน้า</option><option value="past">ที่ผ่านมาแล้ว</option><option value="all">ทั้งหมด</option>
     </select>
-    <select class="ctl" id="mode" aria-label="ประเภทงาน">
+    <details class="filterMore"><summary class="btn">ตัวกรองเพิ่มเติม</summary><div class="filterExtras"><select class="ctl" id="mode" aria-label="ประเภทงาน">
       <option value="both">รับและคืนรถ</option><option value="pickup">เฉพาะรับรถ</option><option value="return">เฉพาะคืนรถ</option>
     </select>
     <select class="ctl" id="source" aria-label="แหล่งข้อมูล"><option value="">ทุกแหล่งข้อมูล</option></select>
@@ -125,12 +176,11 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <option value="">Booking + Other</option><option value="booking">เฉพาะ Booking</option><option value="other">เฉพาะ Other</option>
     </select>
     <select class="ctl" id="lifecycle" aria-label="สถานะถังขยะ"><option value="active">ใช้งานอยู่</option><option value="">ทุกสถานะถังขยะ</option><option value="review">อยู่ในถังขยะ / รอยืนยัน</option><option value="deleted">ลบถาวรแล้ว</option></select>
+    <label class="chip"><input id="hideDup" type="checkbox" checked> ซ่อนสำเนาไฟล์ซ้ำ</label><label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะสำเนาไฟล์ซ้ำ</label></div></details>
   </section>
 
   <div class="row2">
     <button class="btn" id="calbtn" aria-expanded="false" aria-controls="calendar">▦ ปฏิทิน</button>
-    <label class="chip"><input id="hideDup" type="checkbox" checked> ซ่อนสำเนาไฟล์ซ้ำ</label>
-    <label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะสำเนาไฟล์ซ้ำ</label>
     <button class="chip" id="dayChip" hidden></button>
   </div>
 
@@ -139,7 +189,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <span class="muted" id="reparseHint"></span>
   </div>
 
-  <section class="panel" id="calendar" hidden>
+  <div class="mainColumns" id="mainColumns"><section class="panel" id="calendar" hidden>
     <div class="calh">
       <button class="btn" id="cPrev" aria-label="เดือนก่อน">‹</button><b id="calTitle"></b>
       <button class="btn" id="cNext" aria-label="เดือนถัดไป">›</button><button class="btn" id="cToday">เดือนนี้</button>
@@ -148,7 +198,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
     <div class="muted" style="margin-top:8px">▲ รับรถ · ▼ คืนรถ · แตะวันที่เพื่อดูเฉพาะวันนั้น</div>
   </section>
 
-  <section id="list" aria-live="polite"></section>
+  <section id="list" aria-live="polite"></section></div>
 </div>
 </main>
 
@@ -258,7 +308,7 @@ var CONFIG = {
 var $ = function (id) { return document.getElementById(id); };
 var SB = !!CONFIG.SUPABASE_URL;
 var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null, reparsePlan = [];
-var view = { day: '', cal: null, editingId: '' };
+var view = { day: '', cal: null, editingId: '', quickFilter: '' };
 
 /* ====== ตัวช่วย ====== */
 var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"'`]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]; }); };
@@ -309,10 +359,10 @@ function prep(r) {
 
 /* ====== ตัวกรอง / รายการงาน ====== */
 function base(includeHiddenDuplicates) {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, hideDup = $('hideDup').checked && lifecycle !== 'review' && lifecycle !== 'deleted';
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, quickFilter = view.quickFilter || '', hideDup = $('hideDup').checked && lifecycle !== 'review' && lifecycle !== 'deleted' && quickFilter !== 'duplicates';
   return rows.filter(function (r) {
     var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
-    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (!quickFilter || (quickFilter === 'incomplete' && r._bad) || (quickFilter === 'duplicates' && r._duplicate)) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
   });
 }
 function events(list) {
@@ -363,7 +413,7 @@ function card(e) {
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
-    '<span class="meta">🚗 ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · 📍 ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
+    '<span class="meta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11l2 2v5h-2v-2H5v2H3v-5l2-2zM6 11h12M7 14h.01M17 14h.01"/></svg> ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
     '<span class="chev" aria-hidden="true">⌄</span></button>' +
     '<div class="det">' +
     '<div><label>เลขจอง</label><b>' + esc(r.booking_no || '-') + '</b></div>' +
@@ -376,7 +426,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' + trashAction : '') + '</div>' +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
     '</div></article>';
 }
 
@@ -393,8 +443,9 @@ function render() {
   $('sTotal').textContent = list.length;
   $('sOther').textContent = list.filter(function (r) { return r._oth; }).length;
   $('sBad').textContent = list.filter(function (r) { return r._bad; }).length;
-  $('sDup').textContent = allMatching.filter(function (r) { return r._duplicate; }).length;
+  $('sDup').textContent = rows.filter(function (r) { return r._duplicate && r.deletion_status !== 'deleted'; }).length;
   $('sSoon').textContent = list.filter(function (r) { return (r._p && inWin(r._p, r._pt)) || (r._r && inWin(r._r, r._rt)); }).length;
+  document.querySelectorAll('[data-quick-filter]').forEach(function (button) { button.setAttribute('aria-pressed', String(view.quickFilter === button.dataset.quickFilter)); });
   // ชิปวันที่เลือก
   $('dayChip').hidden = !view.day;
   if (view.day) $('dayChip').textContent = 'แสดงเฉพาะ ' + thaiDate(view.day, { day: 'numeric', month: 'long' }) + '  ✕';
@@ -430,7 +481,8 @@ function renderCal() {
     var iso = y + '-' + pad(m + 1) + '-' + pad(d), ev = by[iso] || [];
     h += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="วันที่ ' + d + ' มี ' + ev.length + ' งาน"><b>' + d + '</b>' +
       ev.slice(0, 2).map(function (x) { return '<small class="c' + x.t + '">' + (x.t === 'p' ? '▲' : '▼') + ' ' + esc(x.r.customer_name || x.r.company || 'รายการ') + '</small>'; }).join('') +
-      (ev.length > 2 ? '<small class="mo">+' + (ev.length - 2) + ' งาน</small>' : '') + '</button>';
+      (ev.length > 2 ? '<small class="mo">+' + (ev.length - 2) + ' งาน</small>' : '') +
+      '<span class="calDots" aria-hidden="true">' + ev.slice(0, 4).map(function (x) { return '<i class="eventDot c' + x.t + '"></i>'; }).join('') + '</span><span class="calCount">' + (ev.length ? ev.length + ' งาน' : '') + '</span></button>';
   }
   $('calgrid').innerHTML = h;
 }
@@ -956,6 +1008,15 @@ $('calgrid').addEventListener('click', function (e) {
 $('dayChip').onclick = function () { view.day = ''; refreshAll(); };
 $('onlyDup').onchange = function () { LIMIT = 150; refreshAll(); };
 $('hideDup').onchange = function () { LIMIT = 150; refreshAll(); };
+document.querySelectorAll('[data-quick-filter]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    view.quickFilter = view.quickFilter === button.dataset.quickFilter ? '' : button.dataset.quickFilter;
+    view.day = ''; $('onlyDup').checked = false;
+    if (view.quickFilter === 'duplicates') $('lifecycle').value = 'review';
+    else if (view.quickFilter === 'incomplete') $('lifecycle').value = 'active';
+    LIMIT = 150; refreshAll();
+  });
+});
 $('calbtn').onclick = function () {
   var h = !$('calendar').hidden; $('calendar').hidden = h;
   $('calbtn').setAttribute('aria-expanded', String(!h)); $('calbtn').classList.toggle('on', !h);
@@ -967,7 +1028,7 @@ $('cNext').onclick = function () { moveCal(1); };
 $('cToday').onclick = function () { view.cal = null; renderCal(); };
 var timer;
 $('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { LIMIT = 150; refreshAll(); }, 150); });
-['period', 'mode', 'source', 'kind', 'lifecycle'].forEach(function (id) { $(id).addEventListener('change', function () { if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
+['period', 'mode', 'source', 'kind', 'lifecycle'].forEach(function (id) { $(id).addEventListener('change', function () { view.quickFilter = ''; if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
 $('rf').onclick = function () { load(); };
 $('retry').onclick = function () { load(); };
 $('reparseAll').onclick = openReparseModal;
