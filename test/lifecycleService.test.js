@@ -2,7 +2,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { queueExpiredBookings, shouldQueueForDeletion } = require("../services/bookingLifecycleService");
+const { queueExpiredBookings, shouldQueueForDeletion, supabaseApiKeyHeaders } = require("../services/bookingLifecycleService");
+
+test("lifecycle supports modern Supabase secret keys without a Bearer JWT", () => {
+    assert.deepEqual(supabaseApiKeyHeaders("sb_secret_example"), { apikey: "sb_secret_example" });
+    assert.deepEqual(supabaseApiKeyHeaders("legacy-service-role"), {
+        apikey: "legacy-service-role",
+        Authorization: "Bearer legacy-service-role"
+    });
+});
 
 test("Render runs the deletion queue each minute and records scheduler errors", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");

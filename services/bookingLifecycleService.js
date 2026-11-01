@@ -14,14 +14,23 @@ function shouldQueueForDeletion(booking, cutoffDate) {
     return Boolean(booking?.return_on && booking.return_on <= cutoffDate);
 }
 
+function supabaseApiKeyHeaders(key) {
+    const headers = { apikey: key };
+    // New Supabase sb_secret_* keys authenticate via `apikey` only. Sending
+    // them as Bearer tokens makes PostgREST try to parse them as JWTs and fail.
+    if (!String(key || "").startsWith("sb_secret_")) {
+        headers.Authorization = `Bearer ${key}`;
+    }
+    return headers;
+}
+
 async function updateBooking(url, key, id, patch) {
     const response = await fetch(
         `${url}/rest/v1/rental_bookings?id=eq.${encodeURIComponent(id)}`,
         {
             method: "PATCH",
             headers: {
-                apikey: key,
-                Authorization: `Bearer ${key}`,
+                ...supabaseApiKeyHeaders(key),
                 "Content-Type": "application/json",
                 Prefer: "return=minimal"
             },
@@ -34,7 +43,7 @@ async function updateBooking(url, key, id, patch) {
 
 async function fetchBookings(url, key, query) {
     const response = await fetch(`${url}/rest/v1/rental_bookings?${query}`, {
-        headers: { apikey: key, Authorization: `Bearer ${key}` }
+        headers: supabaseApiKeyHeaders(key)
     });
     if (!response.ok) throw new Error(`BOOKING_LIFECYCLE_QUERY_FAILED_${response.status}`);
     return response.json();
@@ -229,4 +238,4 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
     return summary;
 }
 
-module.exports = { isoDaysAgo, shouldQueueForDeletion, archiveDuplicateBookings, queueExpiredBookings };
+module.exports = { isoDaysAgo, shouldQueueForDeletion, archiveDuplicateBookings, queueExpiredBookings, supabaseApiKeyHeaders };
