@@ -77,7 +77,7 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
   let patch: Record<string, unknown>;
   if (action === "delete_now") {
     if (!["ยกเลิก", "ผิดพลาด"].includes(text(current.status))) return response({ error: "ลบถาวรได้เฉพาะรายการที่ยกเลิกหรือผิดพลาดแล้ว" }, 409);
-    if (!["active", "restored"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในถังขยะหรือถูกลบแล้ว" }, 409);
+    if (!["active", "restored", "pending_move", "move_failed"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในขั้นตอนยืนยันลบหรือถูกลบแล้ว" }, 409);
     patch = {
       previous_status: text(current.status),
       deletion_status: hasFile && !isDuplicate ? "pending_permanent_delete" : "deleted",

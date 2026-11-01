@@ -1374,18 +1374,25 @@ app.get("/health", (req, res) => {
     });
 });
 
+let pendingDeletionRunActive = false;
 async function runPendingDeletionQueue() {
-    const result = await queueExpiredBookings({
-        drive: google.drive({
-            version: "v3",
-            auth
-        }),
-        supabaseUrl: process.env.RENTALPRO_SUPABASE_URL,
-        serviceRoleKey: process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY,
-        pendingFolderId: cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")
-    });
-    console.log("PENDING_DELETION_QUEUE:", result);
-    return result;
+    if (pendingDeletionRunActive) return { skipped: true, reason: "previous run is still active" };
+    pendingDeletionRunActive = true;
+    try {
+        const result = await queueExpiredBookings({
+            drive: google.drive({
+                version: "v3",
+                auth
+            }),
+            supabaseUrl: process.env.RENTALPRO_SUPABASE_URL,
+            serviceRoleKey: process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY,
+            pendingFolderId: cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")
+        });
+        console.log("PENDING_DELETION_QUEUE:", result);
+        return result;
+    } finally {
+        pendingDeletionRunActive = false;
+    }
 }
 
 // The worker moves a file to the protected review folder first.  A permanent
@@ -1520,11 +1527,15 @@ if (getAppSheetSpreadsheetId()) {
 // setting is absent. The worker never moves/deletes a shared file referenced
 // by both a duplicate row and its canonical booking.
 if (cleanText(process.env.RENTALPRO_SUPABASE_URL || "") && cleanText(process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY || "")) {
-    setTimeout(() => void runPendingDeletionQueue(), 30000);
+    const pendingDeletionInterval = Math.max(60000, Number(process.env.PENDING_DELETION_INTERVAL_MS || 60000));
+    console.log("PENDING_DELETION_SCHEDULER_STARTED:", { intervalMs: pendingDeletionInterval, reviewFolderConfigured: Boolean(cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")) });
+    setTimeout(() => void runPendingDeletionQueue().catch((error) => console.error("PENDING_DELETION_QUEUE_ERROR:", error?.message || error)), 30000);
     setInterval(
-        () => void runPendingDeletionQueue(),
-        Math.max(60000, Number(process.env.PENDING_DELETION_INTERVAL_MS || 60000))
+        () => void runPendingDeletionQueue().catch((error) => console.error("PENDING_DELETION_QUEUE_ERROR:", error?.message || error)),
+        pendingDeletionInterval
     );
+} else {
+    console.error("PENDING_DELETION_SCHEDULER_DISABLED:", { supabaseUrlConfigured: Boolean(cleanText(process.env.RENTALPRO_SUPABASE_URL || "")), serviceKeyConfigured: Boolean(cleanText(process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY || "")) });
 }
 
 if (process.env.SUPABASE_BACKFILL_ONCE === "true") {

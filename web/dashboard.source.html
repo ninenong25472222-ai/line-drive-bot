@@ -518,7 +518,7 @@ function card(e) {
   if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
-  var directDelete = !r._inTrash && ['ยกเลิก', 'ผิดพลาด'].indexOf(String(r.status || '')) >= 0
+  var directDelete = ['ยกเลิก', 'ผิดพลาด'].indexOf(String(r.status || '')) >= 0 && ['active', 'restored', 'pending_move', 'move_failed'].indexOf(String(r.deletion_status || 'active')) >= 0
     ? '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบถาวร</button>' : '';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
@@ -709,7 +709,7 @@ async function runLifecycleAction(id, action) {
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     refreshAll();
-    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว บอตจะย้ายไฟล์ให้อัตโนมัติ') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : action === 'delete_now' ? (updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที โดยยังเก็บยอดจองไว้') : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที');
+    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว บอตจะย้ายไฟล์ให้อัตโนมัติ') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : action === 'delete_now' ? (targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ยอดจองยังอยู่ และไฟล์หลักไม่ถูกลบ' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที โดยยังเก็บยอดจองไว้') : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที');
   } catch (error) {
     window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : error.message || 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
   }

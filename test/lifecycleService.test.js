@@ -1,6 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { queueExpiredBookings, shouldQueueForDeletion } = require("../services/bookingLifecycleService");
+
+test("Render runs the deletion queue each minute and records scheduler errors", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+    assert.match(source, /PENDING_DELETION_SCHEDULER_STARTED/);
+    assert.match(source, /PENDING_DELETION_INTERVAL_MS \|\| 60000/);
+    assert.match(source, /PENDING_DELETION_QUEUE_ERROR/);
+    assert.match(source, /previous run is still active/);
+});
 
 test("lifecycle moves an expired Drive file to review before requesting confirmation", async () => {
     const originalFetch = global.fetch;

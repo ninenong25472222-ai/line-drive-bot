@@ -139,6 +139,7 @@ test("administrator API allows direct permanent deletion only for cancelled or i
   const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
   assert.match(source, /"delete_now"/);
   assert.match(source, /\["ยกเลิก", "ผิดพลาด"\]\.includes\(text\(current\.status\)\)/);
+  assert.match(source, /"pending_move", "move_failed"/);
   assert.match(source, /hasFile && !isDuplicate \? "pending_permanent_delete" : "deleted"/);
 });
 
