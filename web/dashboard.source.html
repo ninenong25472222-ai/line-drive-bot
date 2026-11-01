@@ -489,20 +489,22 @@ function renderCal() {
   var days = {}, weeks = [];
   for (var wi = 0; wi < weekCount; wi++) weeks.push({ bars: [], lanes: [] });
   base().forEach(function (r) {
-    var start = r._p || r._r, end = r._r || r._p;
-    if (!start || !end || end < monthStart || start > monthEnd) return;
+    var hasPickup = Boolean(r._p), hasReturn = Boolean(r._r), start = r._p || r._r, end = r._r || r._p;
+    if (!start || !end) return;
     if (end < start) end = start;
+    if (end < monthStart || start > monthEnd) return;
     var clippedStart = start < monthStart ? monthStart : start, clippedEnd = end > monthEnd ? monthEnd : end;
-    [start, end].forEach(function (date, index) {
+    [[r._p, 'p'], [r._r, 'r']].forEach(function (entry) {
+      var date = entry[0];
       if (!date || date < monthStart || date > monthEnd) return;
-      (days[date] = days[date] || []).push({ t: index === 0 ? 'p' : 'r' });
+      (days[date] = days[date] || []).push({ t: entry[1] });
     });
     var cursor = clippedStart;
     while (cursor <= clippedEnd) {
       var current = new Date(cursor + 'T00:00:00Z'), day = current.getUTCDate(), weekIndex = Math.floor((first + day - 1) / 7), weekEndDay = Math.min(n, day + (6 - current.getUTCDay())), segmentEnd = y + '-' + pad(m + 1) + '-' + pad(weekEndDay);
       if (segmentEnd > clippedEnd) segmentEnd = clippedEnd;
       var segmentEndDay = Number(segmentEnd.slice(8, 10));
-      weeks[weekIndex].bars.push({ startDay: current.getUTCDay(), endDay: new Date(segmentEnd + 'T00:00:00Z').getUTCDay(), start: cursor === start, end: segmentEnd === end, label: (r.customer_name || r.company || r.car || 'รายการ') });
+      weeks[weekIndex].bars.push({ startDay: current.getUTCDay(), endDay: new Date(segmentEnd + 'T00:00:00Z').getUTCDay(), start: hasPickup && cursor === start, end: hasReturn && segmentEnd === end, pickupMissing: !hasPickup, label: (r.customer_name || r.company || r.car || 'รายการ') });
       current.setUTCDate(new Date(segmentEnd + 'T00:00:00Z').getUTCDate() + 1);
       cursor = current.getUTCFullYear() + '-' + pad(current.getUTCMonth() + 1) + '-' + pad(current.getUTCDate());
     }
@@ -522,7 +524,7 @@ function renderCal() {
       var lane = 0;
       while (lane < laneEnds.length && laneEnds[lane] >= bar.startDay) lane++;
       laneEnds[lane] = bar.endDay;
-      var label = (bar.start ? 'ส่งรถ · ' : '') + bar.label + (bar.end ? ' · คืนรถ' : '');
+      var label = (bar.start ? 'ส่งรถ · ' : (bar.pickupMissing && bar.end ? 'คืนรถ · ' : '')) + bar.label + (bar.end && !bar.pickupMissing ? ' · คืนรถ' : '');
       return '<div class="calBar' + (bar.start ? ' isStart' : '') + (bar.end ? ' isEnd' : '') + '" style="grid-column:' + (bar.startDay + 1) + '/' + (bar.endDay + 2) + ';grid-row:' + (lane + 1) + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><span class="barLabel">' + esc(label) + '</span></div>';
     }).join('');
     h += '<div class="calWeek" style="min-height:' + Math.max(108, 38 + laneEnds.length * 21) + 'px"><div class="calDays">' + daysHtml + '</div><div class="calBarLayer">' + barsHtml + '</div></div>';
