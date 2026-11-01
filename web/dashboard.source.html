@@ -71,6 +71,19 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .cd b{font-size:13px}.cd.td{border-color:var(--p);box-shadow:inset 0 0 0 1px var(--p)}.cd.sel{background:#e3f1fa}
 .cd small{font-size:10.5px;line-height:1.3;border-radius:4px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cd .cp{background:#e3f1fa;color:#0f5f93}.cd .cr{background:#dff3ec;color:#0b6b52}.cd .mo{color:var(--mut)}
+.calWeekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin-bottom:4px}
+.calg{display:block}
+.calLegend{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:13px;color:var(--mut)}
+.calLegendLine{display:inline-block;width:28px;height:9px;border-radius:99px;background:#dceefa;border:1px solid #9bc9e0;flex:0 0 auto}
+.calWeek{position:relative;min-height:108px;margin-bottom:4px}
+.calDays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calDays .cd{height:108px;min-height:108px}
+.calDays .cd.blank{visibility:hidden}
+.calBarLayer{position:absolute;z-index:2;top:34px;left:0;right:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:18px;gap:3px 4px;pointer-events:none}
+.calBar{height:18px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:1px solid #9bc9e0;border-radius:7px;background:#dceefa;color:#124d70;padding:0 6px;font-size:11px;font-weight:600;line-height:16px}
+.calBar.isStart{border-top-left-radius:9px;border-bottom-left-radius:9px}
+.calBar.isEnd{border-top-right-radius:9px;border-bottom-right-radius:9px}
+.calBar .barLabel{display:block;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:700px){.filters{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.det{grid-template-columns:1fr}.wide{grid-column:auto}.cd small{font-size:9.5px}.cd{min-height:56px}.editGrid{grid-template-columns:1fr}.topActions{justify-content:flex-start}.billingTools,.billProfile{grid-template-columns:1fr 1fr}.billScroll{padding:6px}.billPaper{padding:18px 14px;min-height:0}.billTop,.billFoot{grid-template-columns:1fr;display:grid}.billCompany{max-width:none}.billRight{text-align:left}.billRight label{justify-content:flex-start}.billSign{gap:18px}.billTable th:nth-child(3),.billTable td:nth-child(3){width:12%}.billTable th:nth-child(4),.billTable td:nth-child(4){width:18%}.billTable th:nth-child(5),.billTable td:nth-child(5){width:19%}}
 @media print{body>*{visibility:hidden!important}.modalBg:has(#billPaper),.modalBg:has(#billPaper) *{visibility:visible!important}.modalBg:has(#billPaper){position:static!important;background:#fff!important;padding:0!important;display:block!important}.billingModal{width:100%!important;box-shadow:none!important}.billingHead,.billingTools,.billingActions,.billProfile,.billStatus,.billHistory{display:none!important}.billScroll{padding:0!important;overflow:visible!important;background:#fff!important;max-height:none!important}.billPaper{box-shadow:none!important;width:210mm!important;min-height:297mm!important}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -124,6 +137,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
   .meta{font-size:13px}
   .cd{min-height:58px;align-items:center;text-align:center;padding:4px 2px;gap:3px}
   .cd b{font-size:14px}.cd small{display:none}.cd .calDots{display:flex;gap:2px;height:7px;align-items:center;justify-content:center}.cd .eventDot{width:5px;height:5px;border-radius:50%;display:inline-block}.cd .eventDot.cp{background:#1478b8}.cd .eventDot.cr{background:#0f8a6a}.cd .calCount{display:block;font-size:11px;line-height:1.1;color:var(--mut);white-space:nowrap}
+  .calWeek{min-height:88px}.calDays .cd{height:88px;min-height:88px}.calBarLayer{top:32px;grid-auto-rows:11px;gap:2px 4px}.calBar{height:10px;padding:0;border:0;border-radius:5px}.calBar .barLabel{display:none}
   .dangerActions{margin-top:4px}
 }
 @media(max-width:360px){.topActions .btn{font-size:13px;padding:7px 8px}.stats span{font-size:12px}}
@@ -169,7 +183,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <option value="month">30 วันข้างหน้า</option><option value="past">ที่ผ่านมาแล้ว</option><option value="all">ทั้งหมด</option>
     </select>
     <details class="filterMore"><summary class="btn">ตัวกรองเพิ่มเติม</summary><div class="filterExtras"><select class="ctl" id="mode" aria-label="ประเภทงาน">
-      <option value="both">รับและคืนรถ</option><option value="pickup">เฉพาะรับรถ</option><option value="return">เฉพาะคืนรถ</option>
+      <option value="both">ส่งและคืนรถ</option><option value="pickup">เฉพาะส่งรถ</option><option value="return">เฉพาะคืนรถ</option>
     </select>
     <select class="ctl" id="source" aria-label="แหล่งข้อมูล"><option value="">ทุกแหล่งข้อมูล</option></select>
     <select class="ctl" id="kind" aria-label="ชนิดรายการ">
@@ -195,7 +209,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <button class="btn" id="cNext" aria-label="เดือนถัดไป">›</button><button class="btn" id="cToday">เดือนนี้</button>
     </div>
     <div class="calg" id="calgrid"></div>
-    <div class="muted" style="margin-top:8px">▲ รับรถ · ▼ คืนรถ · แตะวันที่เพื่อดูเฉพาะวันนั้น</div>
+    <div class="calLegend"><span class="calLegendLine" aria-hidden="true"></span><span>แถบแสดงช่วงเช่าตั้งแต่วันส่งรถถึงวันคืนรถ · แตะวันที่เพื่อดูรายการ</span></div>
   </section>
 
   <section id="list" aria-live="polite"></section></div>
@@ -407,7 +421,7 @@ function card(e) {
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
-    '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'รับรถ' : 'คืนรถ') + '</span>' +
+    '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : 'คืนรถ') + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
@@ -418,7 +432,7 @@ function card(e) {
     '<div class="det">' +
     '<div><label>เลขจอง</label><b>' + esc(r.booking_no || '-') + '</b></div>' +
     '<div><label>ลูกค้า / โทร</label><b>' + esc((r.customer_name || '-') + ' · ' + (r.customer_phone || '-')) + '</b></div>' +
-    '<div><label>รับรถ</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
+    '<div><label>ส่งรถ</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
     (r._duplicate ? '<div class="wide"><label>ข้อมูลรายการหลัก</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
     (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
@@ -470,19 +484,48 @@ function renderCal() {
   if (!view.cal) view.cal = { y: +today.slice(0, 4), m: +today.slice(5, 7) - 1 };
   var y = view.cal.y, m = view.cal.m;
   var first = new Date(Date.UTC(y, m, 1)).getUTCDay(), n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  var monthStart = y + '-' + pad(m + 1) + '-01', monthEnd = y + '-' + pad(m + 1) + '-' + pad(n), weekCount = Math.ceil((first + n) / 7);
   $('calTitle').textContent = new Date(Date.UTC(y, m, 1)).toLocaleDateString('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  var by = {};
+  var days = {}, weeks = [];
+  for (var wi = 0; wi < weekCount; wi++) weeks.push({ bars: [], lanes: [] });
   base().forEach(function (r) {
-    if (r._p) (by[r._p] = by[r._p] || []).push({ t: 'p', r: r });
-    if (r._r) (by[r._r] = by[r._r] || []).push({ t: 'r', r: r });
+    var start = r._p || r._r, end = r._r || r._p;
+    if (!start || !end || end < monthStart || start > monthEnd) return;
+    if (end < start) end = start;
+    var clippedStart = start < monthStart ? monthStart : start, clippedEnd = end > monthEnd ? monthEnd : end;
+    [start, end].forEach(function (date, index) {
+      if (!date || date < monthStart || date > monthEnd) return;
+      (days[date] = days[date] || []).push({ t: index === 0 ? 'p' : 'r' });
+    });
+    var cursor = clippedStart;
+    while (cursor <= clippedEnd) {
+      var current = new Date(cursor + 'T00:00:00Z'), day = current.getUTCDate(), weekIndex = Math.floor((first + day - 1) / 7), weekEndDay = Math.min(n, day + (6 - current.getUTCDay())), segmentEnd = y + '-' + pad(m + 1) + '-' + pad(weekEndDay);
+      if (segmentEnd > clippedEnd) segmentEnd = clippedEnd;
+      var segmentEndDay = Number(segmentEnd.slice(8, 10));
+      weeks[weekIndex].bars.push({ startDay: current.getUTCDay(), endDay: new Date(segmentEnd + 'T00:00:00Z').getUTCDay(), start: cursor === start, end: segmentEnd === end, label: (r.customer_name || r.company || r.car || 'รายการ') });
+      current.setUTCDate(new Date(segmentEnd + 'T00:00:00Z').getUTCDate() + 1);
+      cursor = current.getUTCFullYear() + '-' + pad(current.getUTCMonth() + 1) + '-' + pad(current.getUTCDate());
+    }
   });
-  var h = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(function (d) { return '<div class="cw">' + d + '</div>'; }).join('') + '<div></div>'.repeat(first);
-  for (var d = 1; d <= n; d++) {
-    var iso = y + '-' + pad(m + 1) + '-' + pad(d), ev = by[iso] || [];
-    h += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="วันที่ ' + d + ' มี ' + ev.length + ' งาน"><b>' + d + '</b>' +
-      ev.slice(0, 2).map(function (x) { return '<small class="c' + x.t + '">' + (x.t === 'p' ? '▲' : '▼') + ' ' + esc(x.r.customer_name || x.r.company || 'รายการ') + '</small>'; }).join('') +
-      (ev.length > 2 ? '<small class="mo">+' + (ev.length - 2) + ' งาน</small>' : '') +
-      '<span class="calDots" aria-hidden="true">' + ev.slice(0, 4).map(function (x) { return '<i class="eventDot c' + x.t + '"></i>'; }).join('') + '</span><span class="calCount">' + (ev.length ? ev.length + ' งาน' : '') + '</span></button>';
+
+  var weekdays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+  var h = '<div class="calWeekdays">' + weekdays.map(function (d) { return '<div class="cw">' + d + '</div>'; }).join('') + '</div>';
+  for (var wi = 0; wi < weekCount; wi++) {
+    var daysHtml = '', bars = weeks[wi].bars.sort(function (a, b) { return a.startDay - b.startDay || b.endDay - a.endDay; }), laneEnds = [];
+    for (var ci = 0; ci < 7; ci++) {
+      var dayNo = wi * 7 + ci - first + 1;
+      if (dayNo < 1 || dayNo > n) { daysHtml += '<div class="cd blank" aria-hidden="true"></div>'; continue; }
+      var iso = y + '-' + pad(m + 1) + '-' + pad(dayNo), ev = days[iso] || [];
+      daysHtml += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="วันที่ ' + dayNo + ' มี ' + ev.length + ' งาน"><b>' + dayNo + '</b><span class="calDots" aria-hidden="true">' + ev.slice(0, 4).map(function (x) { return '<i class="eventDot c' + x.t + '"></i>'; }).join('') + '</span><span class="calCount">' + (ev.length ? ev.length + ' งาน' : '') + '</span></button>';
+    }
+    var barsHtml = bars.map(function (bar) {
+      var lane = 0;
+      while (lane < laneEnds.length && laneEnds[lane] >= bar.startDay) lane++;
+      laneEnds[lane] = bar.endDay;
+      var label = (bar.start ? 'ส่งรถ · ' : '') + bar.label + (bar.end ? ' · คืนรถ' : '');
+      return '<div class="calBar' + (bar.start ? ' isStart' : '') + (bar.end ? ' isEnd' : '') + '" style="grid-column:' + (bar.startDay + 1) + '/' + (bar.endDay + 2) + ';grid-row:' + (lane + 1) + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><span class="barLabel">' + esc(label) + '</span></div>';
+    }).join('');
+    h += '<div class="calWeek" style="min-height:' + Math.max(108, 38 + laneEnds.length * 21) + 'px"><div class="calDays">' + daysHtml + '</div><div class="calBarLayer">' + barsHtml + '</div></div>';
   }
   $('calgrid').innerHTML = h;
 }
