@@ -141,6 +141,89 @@ h1{font-size:26px;line-height:1.2;margin:0}
   .dangerActions{margin-top:4px}
 }
 @media(max-width:360px){.topActions .btn{font-size:13px;padding:7px 8px}.stats span{font-size:12px}}
+/* Jiraporn Coastal Premium: สีแบรนด์และพื้นผิวแยกตามบทบาท */
+:root{--ink:#183044;--mut:#536579;--paper:#f5f8f6;--card:#fff;--line:#dbe7e4;--p:#087e8b;--r:#e9825b;--o:#6b70b5;--brand:#123b5d;--accent:#e9825b;--warn:#8e5d05;--warnbg:#fff3d9;--err:#b42318}
+body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var(--paper)}
+.app{max-width:1480px}
+.top{align-items:center;padding:15px 18px;border-radius:20px;background:linear-gradient(112deg,#123b5d 0%,#14596b 65%,#087e8b 100%);color:#fff;box-shadow:0 10px 28px #123b5d1a}
+.top h1{letter-spacing:.01em}.top .muted{color:#d3e8e8}
+.topActions .btn:not(.primary){color:#fff;background:#ffffff14;border-color:#ffffff3b;transition:background .16s ease,transform .16s ease}
+.topActions .btn:not(.primary):hover{background:#ffffff26;transform:translateY(-1px)}
+.topActions .btn.primary{background:var(--accent);border-color:var(--accent);color:#17364a;box-shadow:0 3px 9px #071f302e}
+.topActions .btn.primary:hover{background:#f29a73;border-color:#f29a73}
+.btn,.chip,.calView,.acts a,.acts button{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.btn:hover,.acts a:hover,.acts button:hover{transform:translateY(-1px);box-shadow:0 3px 10px #19384b12}
+.panel{border-color:#dbe7e4;box-shadow:0 5px 18px #18304409}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:0;border:0;margin:16px 0}
+.stats div,.stats .statAction{min-width:0;min-height:88px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#fff,#f7faf9);padding:12px 14px;box-shadow:0 3px 12px #18304408}
+.stats .statAction{font:inherit;color:inherit;text-align:left;cursor:pointer}
+.stats b{font-size:25px;color:var(--brand)}
+.stats .w b{color:#a45a14}
+.stats span{font-size:13px;line-height:1.4}
+.stats .statAction:hover,.stats .statAction[aria-pressed="true"]{background:#e5f1ee;border-color:#a5cac1;box-shadow:0 0 0 2px #a5cac133}
+.stats div:nth-child(2){border-top:3px solid #087e8b}.stats div:nth-child(3){border-top:3px solid #6b70b5}
+.stats .statAction.w{border-top:3px solid #e7a63f}
+.today{font-size:20px;color:var(--brand);margin:16px 0 10px}
+.card{border-color:#dbe7e4;box-shadow:0 2px 8px #18304408;transition:box-shadow .16s ease,transform .16s ease}
+.card:hover{box-shadow:0 6px 18px #18304412;transform:translateY(-1px)}
+.card.p .bar{background:var(--p)}.card.r .bar{background:var(--accent)}.card.s .bar{background:#6b70b5}
+.tag.p{background:#d9efec;color:#075e67}.tag.r{background:#fff0e9;color:#91472b}
+.badge{background:#eef3f2;color:#43596b}.badge.w{background:#fff3d9;color:#80530d}
+.calh{gap:9px;margin-bottom:12px}.calh b{font-size:17px;color:var(--brand)}
+.calh .btn{min-height:38px;padding:6px 12px;border-radius:11px}
+.calViews{display:flex;gap:6px;padding:4px;border-radius:12px;background:#edf3f1;margin:0 0 12px}
+.calView{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:#536579;font-size:13px;font-weight:600}
+.calView.on{background:#fff;color:var(--brand);box-shadow:0 2px 7px #18304414}
+.calWeekdays{gap:3px}.cw{font-size:12px;font-weight:600;color:#647784}
+.calWeek{min-height:0;margin:0}.calDays{gap:3px}.calDays .cd{height:auto;min-height:69px;padding:5px 3px;border-color:#e2ebe8;border-radius:11px;align-items:center;text-align:center;gap:3px;transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}
+.calDays .cd:hover:not(.blank){border-color:#7eaaa2;background:#f0f7f4}
+.calDays .cd b{font-size:14px;color:#314a5d}
+.calDays .cd.td{border-color:#087e8b;box-shadow:inset 0 0 0 1px #087e8b;background:#f0f8f6}
+.calDays .cd.sel{background:#123b5d;color:#fff;border-color:#123b5d;box-shadow:0 3px 9px #123b5d26}
+.calDays .cd.sel b,.calDays .cd.sel .calCount{color:#fff}
+.calDots{display:flex;gap:3px;min-height:7px;align-items:center;justify-content:center}
+.calDots .eventDot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.calDots .eventDot.cp{background:#087e8b}.calDots .eventDot.cr{background:#e9825b}
+.calCount{display:block;font-size:10px;font-weight:600;line-height:1.2;color:#607384;white-space:nowrap}
+.calLegend{font-size:12px;margin:10px 2px 0}.calLegendDot{width:8px;height:8px;background:#087e8b;border-radius:50%;flex:0 0 auto}
+.calDayDetails{margin-top:12px;padding:12px;border:1px solid #d7e6e1;border-radius:14px;background:#f7faf9}
+.calDayDetails h3{margin:0;color:var(--brand);font-size:15px}.calDayDetailsHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.calDayDetailsHead button{border:0;background:transparent;color:var(--mut);font-size:20px;line-height:1}
+.calDayRental{padding:9px 0;border-top:1px solid #e2ebe8}.calDayRental b,.calDayRental small{display:block}.calDayRental b{font-size:13px}.calDayRental small{font-size:12px;color:var(--mut)}
+.calTimeline{overflow:hidden}.timelineScroller{overflow:auto;border:1px solid var(--line);border-radius:13px;background:#fff;scrollbar-color:#b9cfca #edf3f1}
+.timelineHeader,.timelineEntry{display:grid;grid-template-columns:170px minmax(var(--track-width),1fr);min-width:calc(170px + var(--track-width))}
+.timelineHeader{position:sticky;top:0;z-index:2;background:#edf4f1;border-bottom:1px solid var(--line)}
+.timelineCarHead{padding:8px 10px;font-size:12px;font-weight:700;color:var(--brand);position:sticky;left:0;background:#edf4f1;z-index:3}
+.timelineAxis{display:grid;grid-template-columns:repeat(var(--days),minmax(31px,1fr))}
+.timelineAxis span{padding:5px 1px;text-align:center;font-size:11px;color:#5e7180;border-left:1px solid #e2ebe8}
+.timelineEntry{min-height:47px;border-bottom:1px solid #e8efed}
+.timelineEntry:last-child{border-bottom:0}
+.timelineVehicle{position:sticky;left:0;z-index:1;background:#fff;padding:7px 9px;border-right:1px solid #e2ebe8;overflow:hidden}
+.timelineVehicle b,.timelineVehicle small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.timelineVehicle b{font-size:12px;color:#29465a}.timelineVehicle small{font-size:11px;color:var(--mut)}
+.timelineTrack{position:relative;min-width:var(--track-width);min-height:47px}
+.timelineCells{position:absolute;inset:0;display:grid;grid-template-columns:repeat(var(--days),minmax(31px,1fr))}
+.timelineCells i{border-left:1px solid #e8efed}.timelineCells i.weekend{background:#f8faf9}
+.timelineRangeLayer{position:absolute;inset:6px 0;display:grid;grid-template-columns:repeat(var(--days),minmax(31px,1fr));pointer-events:none}
+.timelineRange{align-self:center;min-width:0;height:27px;border:0;border-radius:8px;background:linear-gradient(90deg,#087e8b,#16939a);color:#fff;text-align:left;padding:2px 7px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;box-shadow:0 2px 5px #087e8b24}
+.timelineRange.return{background:linear-gradient(90deg,#d96f4d,#e9825b)}
+.timelineRange:hover{filter:brightness(1.05)}
+.mainColumns.timelineMode{display:block}
+@media(min-width:1100px){.mainColumns.timelineMode #calendar{position:static}.mainColumns.timelineMode #list{margin-top:14px}}
+@media(max-width:700px){
+  .app{padding:10px 10px 48px}.top{border-radius:17px;padding:13px}.top h1{font-size:23px}
+  .topActions{margin-top:10px}.topActions .btn{font-size:13px;padding:7px 9px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .stats div,.stats .statAction{min-height:76px;padding:10px 11px;border-radius:14px}
+  .stats b{font-size:23px}.stats span{font-size:12px}
+  .calDays{gap:3px}.calDays .cd{min-height:58px;border-radius:9px}.calDays .cd b{font-size:13px}
+  .calCount{font-size:9px}.calDots .eventDot{width:5px;height:5px}
+  .timelineHeader,.timelineEntry{grid-template-columns:130px minmax(var(--track-width),1fr);min-width:calc(130px + var(--track-width))}
+  .timelineAxis{grid-template-columns:repeat(var(--days),minmax(31px,1fr))}.timelineAxis span{font-size:10px}
+  .timelineVehicle{padding:7px}.timelineVehicle b{font-size:11px}.timelineVehicle small{font-size:10px}
+  .timelineTrack{min-width:var(--track-width)}.timelineCells,.timelineRangeLayer{grid-template-columns:repeat(var(--days),minmax(31px,1fr))}
+  .timelineRange{font-size:10px;padding:2px 5px}
+}
 </style>
 </head>
 <body>
@@ -208,8 +291,14 @@ h1{font-size:26px;line-height:1.2;margin:0}
       <button class="btn" id="cPrev" aria-label="เดือนก่อน">‹</button><b id="calTitle"></b>
       <button class="btn" id="cNext" aria-label="เดือนถัดไป">›</button><button class="btn" id="cToday">เดือนนี้</button>
     </div>
+    <div class="calViews" role="group" aria-label="รูปแบบปฏิทิน">
+      <button class="calView on" id="calMonthBtn" type="button" aria-pressed="true">ภาพรวมเดือน</button>
+      <button class="calView" id="calTimelineBtn" type="button" aria-pressed="false">เส้นเวลารถเช่า</button>
+    </div>
     <div class="calg" id="calgrid"></div>
-    <div class="calLegend"><span class="calLegendLine" aria-hidden="true"></span><span>แถบแสดงช่วงเช่าตั้งแต่วันส่งรถถึงวันคืนรถ · แตะวันที่เพื่อดูรายการ</span></div>
+    <div class="calLegend"><span class="calLegendDot" aria-hidden="true"></span><span>จำนวนรถที่มีการเช่าในวันนั้น · แตะวันที่เพื่อดูรายการ</span></div>
+    <div id="calTimeline" class="calTimeline" hidden></div>
+    <section id="calDayDetails" class="calDayDetails" hidden></section>
   </section>
 
   <section id="list" aria-live="polite"></section></div>
@@ -322,7 +411,7 @@ var CONFIG = {
 var $ = function (id) { return document.getElementById(id); };
 var SB = !!CONFIG.SUPABASE_URL;
 var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null, reparsePlan = [];
-var view = { day: '', cal: null, editingId: '', quickFilter: '' };
+var view = { day: '', cal: null, calMode: 'month', editingId: '', quickFilter: '' };
 
 /* ====== ตัวช่วย ====== */
 var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"'`]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]; }); };
@@ -381,6 +470,16 @@ function base(includeHiddenDuplicates) {
 }
 function events(list) {
   var m = $('mode').value, out = [];
+  if (view.day) {
+    list.forEach(function (r) {
+      var inRental = r._p && r._r && r._p <= view.day && view.day <= r._r;
+      if (inRental || r._p === view.day || r._r === view.day) {
+        var type = r._p === view.day ? 'p' : (r._r === view.day ? 'r' : 's');
+        out.push({ r: r, t: type, d: view.day, tm: type === 'r' ? r._rt : r._pt });
+      }
+    });
+    return out;
+  }
   list.forEach(function (r) {
     var e = [];
     if (m !== 'return') e.push({ r: r, t: 'p', d: r._p, tm: r._pt });
@@ -407,7 +506,7 @@ function inWin(d, t) {
 function editToken() { try { return sessionStorage.getItem('rd_edit_token') || ''; } catch (e) { return ''; } }
 
 function card(e) {
-  var r = e.r, p = e.t === 'p', place = p ? r.pickup_location : r.return_location;
+  var r = e.r, p = e.t === 'p', stay = e.t === 's', place = e.t === 'r' ? r.return_location : r.pickup_location;
   var url = safeUrl(r.drive_url), tel = telOf(r.customer_phone);
   var hasActualFileName = r.file_name && !/^AppSheet-[^.]+\.row$/i.test(r.file_name);
   var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
@@ -421,7 +520,7 @@ function card(e) {
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
-    '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : 'คืนรถ') + '</span>' +
+    '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
@@ -486,50 +585,69 @@ function renderCal() {
   var first = new Date(Date.UTC(y, m, 1)).getUTCDay(), n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   var monthStart = y + '-' + pad(m + 1) + '-01', monthEnd = y + '-' + pad(m + 1) + '-' + pad(n), weekCount = Math.ceil((first + n) / 7);
   $('calTitle').textContent = new Date(Date.UTC(y, m, 1)).toLocaleDateString('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  var days = {}, weeks = [];
-  for (var wi = 0; wi < weekCount; wi++) weeks.push({ bars: [], lanes: [] });
-  base().forEach(function (r) {
-    var hasPickup = Boolean(r._p), hasReturn = Boolean(r._r), start = r._p || r._r, end = r._r || r._p;
+  var days = {}, list = base();
+  list.forEach(function (r) {
+    var start = r._p || r._r, end = r._r || r._p;
     if (!start || !end) return;
     if (end < start) end = start;
     if (end < monthStart || start > monthEnd) return;
-    var clippedStart = start < monthStart ? monthStart : start, clippedEnd = end > monthEnd ? monthEnd : end;
-    [[r._p, 'p'], [r._r, 'r']].forEach(function (entry) {
-      var date = entry[0];
-      if (!date || date < monthStart || date > monthEnd) return;
-      (days[date] = days[date] || []).push({ t: entry[1] });
-    });
-    var cursor = clippedStart;
-    while (cursor <= clippedEnd) {
-      var current = new Date(cursor + 'T00:00:00Z'), day = current.getUTCDate(), weekIndex = Math.floor((first + day - 1) / 7), weekEndDay = Math.min(n, day + (6 - current.getUTCDay())), segmentEnd = y + '-' + pad(m + 1) + '-' + pad(weekEndDay);
-      if (segmentEnd > clippedEnd) segmentEnd = clippedEnd;
-      var segmentEndDay = Number(segmentEnd.slice(8, 10));
-      weeks[weekIndex].bars.push({ startDay: current.getUTCDay(), endDay: new Date(segmentEnd + 'T00:00:00Z').getUTCDay(), start: hasPickup && cursor === start, end: hasReturn && segmentEnd === end, pickupMissing: !hasPickup, label: (r.customer_name || r.company || r.car || 'รายการ') });
-      current.setUTCDate(new Date(segmentEnd + 'T00:00:00Z').getUTCDate() + 1);
-      cursor = current.getUTCFullYear() + '-' + pad(current.getUTCMonth() + 1) + '-' + pad(current.getUTCDate());
+    var cursor = start < monthStart ? monthStart : start, stop = end > monthEnd ? monthEnd : end;
+    while (cursor <= stop) {
+      (days[cursor] = days[cursor] || []).push({ row: r, type: cursor === r._p ? 'p' : (cursor === r._r ? 'r' : 's') });
+      cursor = addDays(cursor, 1);
     }
   });
-
   var weekdays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
   var h = '<div class="calWeekdays">' + weekdays.map(function (d) { return '<div class="cw">' + d + '</div>'; }).join('') + '</div>';
   for (var wi = 0; wi < weekCount; wi++) {
-    var daysHtml = '', bars = weeks[wi].bars.sort(function (a, b) { return a.startDay - b.startDay || b.endDay - a.endDay; }), laneEnds = [];
+    var daysHtml = '';
     for (var ci = 0; ci < 7; ci++) {
       var dayNo = wi * 7 + ci - first + 1;
       if (dayNo < 1 || dayNo > n) { daysHtml += '<div class="cd blank" aria-hidden="true"></div>'; continue; }
-      var iso = y + '-' + pad(m + 1) + '-' + pad(dayNo), ev = days[iso] || [];
-      daysHtml += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="วันที่ ' + dayNo + ' มี ' + ev.length + ' งาน"><b>' + dayNo + '</b><span class="calDots" aria-hidden="true">' + ev.slice(0, 4).map(function (x) { return '<i class="eventDot c' + x.t + '"></i>'; }).join('') + '</span><span class="calCount">' + (ev.length ? ev.length + ' งาน' : '') + '</span></button>';
+      var iso = y + '-' + pad(m + 1) + '-' + pad(dayNo), booked = days[iso] || [], cars = new Set(booked.map(function (item) { return item.row.car || item.row.id; }));
+      daysHtml += '<button type="button" class="cd' + (iso === today ? ' td' : '') + (iso === view.day ? ' sel' : '') + '" data-d="' + iso + '" aria-label="' + esc(thaiDate(iso, { day: 'numeric', month: 'long' }) + ' มีรถเช่า ' + cars.size + ' คัน') + '"><b>' + dayNo + '</b><span class="calDots" aria-hidden="true">' + booked.slice(0, 3).map(function (item) { return '<i class="eventDot ' + (item.type === 'p' ? 'cp' : item.type === 'r' ? 'cr' : 'stay') + '"></i>'; }).join('') + '</span><span class="calCount">' + (cars.size ? cars.size + ' คัน' : '') + '</span></button>';
     }
-    var barsHtml = bars.map(function (bar) {
-      var lane = 0;
-      while (lane < laneEnds.length && laneEnds[lane] >= bar.startDay) lane++;
-      laneEnds[lane] = bar.endDay;
-      var label = (bar.start ? 'ส่งรถ · ' : (bar.pickupMissing && bar.end ? 'คืนรถ · ' : '')) + bar.label + (bar.end && !bar.pickupMissing ? ' · คืนรถ' : '');
-      return '<div class="calBar' + (bar.start ? ' isStart' : '') + (bar.end ? ' isEnd' : '') + '" style="grid-column:' + (bar.startDay + 1) + '/' + (bar.endDay + 2) + ';grid-row:' + (lane + 1) + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><span class="barLabel">' + esc(label) + '</span></div>';
-    }).join('');
-    h += '<div class="calWeek" style="min-height:' + Math.max(108, 38 + laneEnds.length * 21) + 'px"><div class="calDays">' + daysHtml + '</div><div class="calBarLayer">' + barsHtml + '</div></div>';
+    h += '<div class="calWeek"><div class="calDays">' + daysHtml + '</div></div>';
   }
   $('calgrid').innerHTML = h;
+  renderCalTimeline(list, y, m, n, monthStart, monthEnd);
+  renderCalDayDetails(list);
+  var timelineMode = view.calMode === 'timeline';
+  $('calgrid').hidden = timelineMode;
+  $('calTimeline').hidden = !timelineMode;
+  $('calMonthBtn').classList.toggle('on', !timelineMode);
+  $('calTimelineBtn').classList.toggle('on', timelineMode);
+  $('calMonthBtn').setAttribute('aria-pressed', String(!timelineMode));
+  $('calTimelineBtn').setAttribute('aria-pressed', String(timelineMode));
+  $('mainColumns').classList.toggle('timelineMode', timelineMode);
+}
+function renderCalTimeline(list, y, m, n, monthStart, monthEnd) {
+  var days = Array.from({ length: n }, function (_, i) { var iso = y + '-' + pad(m + 1) + '-' + pad(i + 1); return '<span>' + (i + 1) + '<small>' + ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][new Date(iso + 'T00:00:00Z').getUTCDay()] + '</small></span>'; }).join('');
+  var trackWidth = n * 31;
+  var header = '<div class="timelineHeader" style="--days:' + n + ';--track-width:' + trackWidth + 'px"><b class="timelineCarHead">รถ / ผู้เช่า</b><div class="timelineAxis">' + days + '</div></div>';
+  var records = list.filter(function (r) { return (r._p || r._r) && (r._r || r._p) && (r._r || r._p) >= monthStart && (r._p || r._r) <= monthEnd; }).sort(function (a, b) { return String(a.car || '').localeCompare(String(b.car || ''), 'th') || String(a._p || a._r).localeCompare(String(b._p || b._r)); });
+  var entries = records.map(function (r) {
+    var start = r._p || r._r, end = r._r || r._p;
+    if (end < start) end = start;
+    var firstDay = Math.max(1, Number((start < monthStart ? monthStart : start).slice(8, 10))), lastDay = Math.min(n, Number((end > monthEnd ? monthEnd : end).slice(8, 10)));
+    var periodLabel = (r._p ? 'ส่ง ' + Number(r._p.slice(8, 10)) : 'ก่อนเดือนนี้') + ' → ' + (r._r ? 'คืน ' + Number(r._r.slice(8, 10)) : 'ไม่ระบุวันคืน');
+    var title = (r.car || 'ไม่ระบุรถ') + ' · ' + (r.customer_name || r.company || 'ไม่ระบุผู้เช่า') + ' · ' + periodLabel;
+    return '<div class="timelineEntry" style="--days:' + n + ';--track-width:' + trackWidth + 'px"><div class="timelineVehicle"><b>' + esc(r.car || 'ไม่ระบุรถ') + '</b><small>' + esc(r.customer_name || r.company || 'ไม่ระบุผู้เช่า') + '</small></div><div class="timelineTrack" style="--days:' + n + ';--track-width:' + trackWidth + 'px"><div class="timelineCells" aria-hidden="true">' + Array.from({ length: n }, function (_, i) { var dow = new Date(Date.UTC(y, m, i + 1)).getUTCDay(); return '<i' + (dow === 0 || dow === 6 ? ' class="weekend"' : '') + '></i>'; }).join('') + '</div><div class="timelineRangeLayer"><button class="timelineRange' + (r._r ? '' : ' return') + '" type="button" data-d="' + esc(start < monthStart ? monthStart : start) + '" style="grid-column:' + firstDay + '/' + (lastDay + 1) + '" title="' + esc(title) + '">' + esc(periodLabel) + '</button></div></div></div>';
+  }).join('');
+  $('calTimeline').innerHTML = '<div class="timelineScroller">' + header + (entries || '<div class="empty">ไม่มีรายการรถเช่าในเดือนนี้</div>') + '</div>';
+}
+function renderCalDayDetails(list) {
+  var box = $('calDayDetails');
+  box.hidden = !view.day;
+  if (!view.day) { box.innerHTML = ''; return; }
+  var selected = list.filter(function (r) { return (r._p && r._r && r._p <= view.day && view.day <= r._r) || r._p === view.day || r._r === view.day; });
+  var rentals = selected.map(function (r) {
+    var pickup = r._p ? 'ส่งรถ ' + thaiDate(r._p, { day: 'numeric', month: 'short' }) + (r._pt ? ' ' + r._pt : '') : 'ไม่ระบุวันส่งรถ';
+    var returning = r._r ? 'คืนรถ ' + thaiDate(r._r, { day: 'numeric', month: 'short' }) + (r._rt ? ' ' + r._rt : '') : 'ไม่ระบุวันคืนรถ';
+    return '<div class="calDayRental"><b>' + esc(r.car || 'ไม่ระบุรถ') + ' · ' + esc(r.customer_name || r.company || 'ไม่ระบุผู้เช่า') + '</b><small>' + esc(pickup + ' → ' + returning) + '</small></div>';
+  }).join('');
+  box.innerHTML = '<div class="calDayDetailsHead"><h3>' + esc(thaiDate(view.day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })) + ' · ' + selected.length + ' รายการ</h3><button type="button" id="clearCalDay" aria-label="ล้างวันที่เลือก">×</button></div>' + (rentals || '<div class="muted">ไม่มีรถเช่าในวันที่เลือก</div>');
+  $('clearCalDay').onclick = function () { view.day = ''; refreshAll(); };
 }
 function refreshAll() { render(); if (!$('calendar').hidden) renderCal(); }
 
@@ -1045,11 +1163,13 @@ $('editForm').addEventListener('submit', async function (e) {
     $('editErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
   } finally { $('editSave').disabled = false; }
 });
-$('calgrid').addEventListener('click', function (e) {
-  var c = e.target.closest('[data-d]'); if (!c) return;
-  view.day = view.day === c.dataset.d ? '' : c.dataset.d;
-  LIMIT = 150; refreshAll(); $('list').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
+$('calgrid').addEventListener('click', function (e) { selectCalendarDate(e); });
+$('calTimeline').addEventListener('click', function (e) { selectCalendarDate(e); });
+function selectCalendarDate(event) {
+  var target = event.target.closest('[data-d]'); if (!target) return;
+  view.day = view.day === target.dataset.d ? '' : target.dataset.d;
+  LIMIT = 150; refreshAll();
+}
 $('dayChip').onclick = function () { view.day = ''; refreshAll(); };
 $('onlyDup').onchange = function () { LIMIT = 150; refreshAll(); };
 $('hideDup').onchange = function () { LIMIT = 150; refreshAll(); };
@@ -1067,6 +1187,9 @@ $('calbtn').onclick = function () {
   $('calbtn').setAttribute('aria-expanded', String(!h)); $('calbtn').classList.toggle('on', !h);
   if (!h) renderCal();
 };
+function setCalendarMode(mode) { view.calMode = mode; if (!$('calendar').hidden) renderCal(); }
+$('calMonthBtn').onclick = function () { setCalendarMode('month'); };
+$('calTimelineBtn').onclick = function () { setCalendarMode('timeline'); };
 function moveCal(n) { view.cal.m += n; if (view.cal.m < 0) { view.cal.m = 11; view.cal.y--; } if (view.cal.m > 11) { view.cal.m = 0; view.cal.y++; } renderCal(); }
 $('cPrev').onclick = function () { moveCal(-1); };
 $('cNext').onclick = function () { moveCal(1); };

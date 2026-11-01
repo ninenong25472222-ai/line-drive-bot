@@ -79,29 +79,34 @@ test("Dashboard improves Thai readability, mobile calendar density, quick filter
   assert.match(source, /\.mainColumns\{display:grid;grid-template-columns:minmax\(0,1fr\) 360px/);
 });
 
-test("Dashboard calendar draws a continuous rental bar from delivery through return day", () => {
+test("Dashboard calendar summarizes booked cars and draws a continuous rental timeline", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   const start = source.indexOf("function renderCal() {");
   const end = source.indexOf("function refreshAll()", start);
-  const elements = { calTitle: {}, calgrid: {} };
+  const makeElement = () => ({ innerHTML: "", hidden: false, classList: { toggle() {} }, setAttribute() {} });
+  const elements = Object.fromEntries(["calTitle", "calgrid", "calTimeline", "calDayDetails", "calMonthBtn", "calTimelineBtn", "mainColumns"].map((id) => [id, makeElement()]));
   const context = {
     Date,
-    view: { cal: { y: 2026, m: 9 }, day: "" },
+    Array,
+    Set,
+    view: { cal: { y: 2026, m: 9 }, day: "", calMode: "month" },
     todayISO: () => "2026-10-31",
     pad: (value) => String(value).padStart(2, "0"),
+    addDays: (iso, amount) => { const date = new Date(`${iso}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); },
+    thaiDate: (iso) => iso,
     $(id) { return elements[id]; },
-    base: () => [{ _p: "2026-10-05", _r: "2026-10-12", customer_name: "ลูกค้า A" }],
+    base: () => [{ _p: "2026-10-05", _r: "2026-10-12", car: "Toyota Yaris", customer_name: "ลูกค้า A", _pt: "08:00", _rt: "08:00" }],
     esc: (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]),
   };
   vm.runInNewContext(`${source.slice(start, end)}; renderCal();`, context);
-  const html = elements.calgrid.innerHTML;
-  assert.match(html, /class="calBar isStart" style="grid-column:2\/8/);
-  assert.match(html, /class="calBar isEnd" style="grid-column:1\/3/);
-  assert.match(html, /ส่งรถ · ลูกค้า A/);
-  assert.match(html, /ลูกค้า A · คืนรถ/);
-  assert.match(html, /data-d="2026-10-05"/);
-  assert.match(source, /เฉพาะส่งรถ/);
-  assert.doesNotMatch(source, /▲ รับรถ/);
+  assert.match(elements.calgrid.innerHTML, /1 คัน/);
+  assert.match(elements.calgrid.innerHTML, /data-d="2026-10-05"/);
+  assert.match(elements.calTimeline.innerHTML, /class="timelineScroller"/);
+  assert.match(elements.calTimeline.innerHTML, /Toyota Yaris/);
+  assert.match(elements.calTimeline.innerHTML, /grid-column:5\/13/);
+  assert.match(elements.calTimeline.innerHTML, /ส่ง 5 → คืน 12/);
+  assert.match(source, /ภาพรวมเดือน/);
+  assert.match(source, /เส้นเวลารถเช่า/);
 });
 
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
