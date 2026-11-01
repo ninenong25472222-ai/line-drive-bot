@@ -83,12 +83,11 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
 
     const url = String(supabaseUrl).replace(/\/$/, "");
     const duplicateArchive = await archiveDuplicateBookings({ url, key: serviceRoleKey, now });
-    if (!pendingFolderId) return { skipped: true, reason: "missing review-folder configuration", duplicateArchive };
     const bookings = await fetchBookings(url, serviceRoleKey,
         "select=id,return_on,status,drive_file_id,deletion_status,original_drive_parent_ids,duplicate_of&limit=1000");
 
     const cutoffDate = isoDaysAgo(2, now);
-    const summary = { scanned: 0, queued: 0, restored: 0, deleted: 0, skipped: 0, failed: 0, cutoffDate, duplicateArchive };
+    const summary = { scanned: 0, queued: 0, restored: 0, deleted: 0, skipped: 0, failed: 0, cutoffDate, duplicateArchive, missingReviewFolder: !pendingFolderId };
 
     for (const booking of bookings || []) {
         summary.scanned += 1;
@@ -130,6 +129,13 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
                 await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
                 summary.deleted += 1;
             } catch (error) {
+                // Deleting an already-removed Drive file is an idempotent
+                // success from the booking system's point of view.
+                if (Number(error?.code || error?.response?.status) === 404) {
+                    await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                    summary.deleted += 1;
+                    continue;
+                }
                 summary.failed += 1;
                 console.error("PENDING_DELETION_DELETE_ERROR:", booking.id, error?.message || error);
             }
@@ -162,6 +168,13 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
         }
 
         if (!shouldQueueForDeletion(booking, cutoffDate)) {
+            summary.skipped += 1;
+            continue;
+        }
+
+        // Permanent deletion and restoration can proceed without a review
+        // folder. Only reversible moves into that folder require this setting.
+        if (!pendingFolderId) {
             summary.skipped += 1;
             continue;
         }

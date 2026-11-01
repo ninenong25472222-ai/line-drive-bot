@@ -10,7 +10,7 @@ const cors = {
 const carStatuses = new Set(["ว่าง", "จองแล้ว", "กำลังใช้งาน", "ซ่อม", "งดใช้งาน"]);
 const bookingStatuses = new Set(["รอตรวจสอบ", "ยืนยันแล้ว", "ผิดพลาด", "ยกเลิก"]);
 const bookingOptionTypes = new Set(["channel", "location"]);
-const lifecycleActions = new Set(["queue_trash", "restore", "confirm_delete"]);
+const lifecycleActions = new Set(["queue_trash", "restore", "confirm_delete", "delete_now"]);
 const imageExtensions: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const text = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 const money = (value: unknown) => { const number = Number(value); return Number.isFinite(number) && number >= 0 ? number : null; };
@@ -75,7 +75,18 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
   const hasFile = Boolean(text(current.drive_file_id));
   const isDuplicate = Boolean(text(current.duplicate_of));
   let patch: Record<string, unknown>;
-  if (action === "queue_trash") {
+  if (action === "delete_now") {
+    if (!["ยกเลิก", "ผิดพลาด"].includes(text(current.status))) return response({ error: "ลบถาวรได้เฉพาะรายการที่ยกเลิกหรือผิดพลาดแล้ว" }, 409);
+    if (!["active", "restored"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในถังขยะหรือถูกลบแล้ว" }, 409);
+    patch = {
+      previous_status: text(current.status),
+      deletion_status: hasFile && !isDuplicate ? "pending_permanent_delete" : "deleted",
+      pending_deletion_at: now,
+      trashed_at: null,
+      deleted_at: hasFile && !isDuplicate ? null : now,
+      trash_reason: text(input.trash_reason, 500) || "ผู้ดูแลยืนยันลบถาวรจากหน้าเว็บ",
+    };
+  } else if (action === "queue_trash") {
     if (["pending_move", "pending_confirmation", "pending_permanent_delete", "deleted"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในขั้นตอนถังขยะแล้ว" }, 409);
     patch = {
       previous_status: text(current.status) || "รอตรวจสอบ",

@@ -102,3 +102,43 @@ test("permanent confirmation on a duplicate never deletes the canonical booking 
         global.fetch = originalFetch;
     }
 });
+
+test("permanent deletion runs without a configured review folder", async () => {
+    const originalFetch = global.fetch;
+    const updates = [];
+    let deletes = 0;
+    global.fetch = async (url, init = {}) => {
+        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); return { ok: true }; }
+        if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
+        return { ok: true, json: async () => [{ id: "cancelled-1", status: "ยกเลิก", drive_file_id: "drive-cancelled", deletion_status: "pending_permanent_delete" }] };
+    };
+    const drive = { files: { delete: async ({ fileId }) => { assert.equal(fileId, "drive-cancelled"); deletes += 1; } } };
+    try {
+        const result = await queueExpiredBookings({ drive, supabaseUrl: "https://example.supabase.co", serviceRoleKey: "service", pendingFolderId: "", now: new Date("2026-11-01T00:00:00Z") });
+        assert.equal(result.deleted, 1);
+        assert.equal(result.missingReviewFolder, true);
+        assert.equal(deletes, 1);
+        assert.equal(updates[0].deletion_status, "deleted");
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test("permanent deletion treats a missing Drive file as already deleted", async () => {
+    const originalFetch = global.fetch;
+    const updates = [];
+    global.fetch = async (url, init = {}) => {
+        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); return { ok: true }; }
+        if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
+        return { ok: true, json: async () => [{ id: "cancelled-2", status: "ผิดพลาด", drive_file_id: "already-gone", deletion_status: "pending_permanent_delete" }] };
+    };
+    const drive = { files: { delete: async () => { const error = new Error("not found"); error.code = 404; throw error; } } };
+    try {
+        const result = await queueExpiredBookings({ drive, supabaseUrl: "https://example.supabase.co", serviceRoleKey: "service", pendingFolderId: "", now: new Date("2026-11-01T00:00:00Z") });
+        assert.equal(result.deleted, 1);
+        assert.equal(result.failed, 0);
+        assert.equal(updates[0].deletion_status, "deleted");
+    } finally {
+        global.fetch = originalFetch;
+    }
+});

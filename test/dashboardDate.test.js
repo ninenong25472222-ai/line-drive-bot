@@ -131,6 +131,15 @@ test("Dashboard exposes a reversible booking trash action", () => {
   assert.match(source, /id="editTrash"/);
   assert.match(source, /ย้ายเข้าถังขยะ/);
   assert.match(source, /runLifecycleAction/);
+  assert.match(source, /data-delete-now=/);
+  assert.match(source, /ลบไฟล์ใบจองจาก Google Drive ถาวร/);
+});
+
+test("administrator API allows direct permanent deletion only for cancelled or incorrect bookings", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
+  assert.match(source, /"delete_now"/);
+  assert.match(source, /\["ยกเลิก", "ผิดพลาด"\]\.includes\(text\(current\.status\)\)/);
+  assert.match(source, /hasFile && !isDuplicate \? "pending_permanent_delete" : "deleted"/);
 });
 
 test("Dashboard clearly opens the real Google Drive attachment through its own file route", () => {

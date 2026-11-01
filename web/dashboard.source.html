@@ -518,6 +518,8 @@ function card(e) {
   if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
+  var directDelete = !r._inTrash && ['ยกเลิก', 'ผิดพลาด'].indexOf(String(r.status || '')) >= 0
+    ? '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบถาวร</button>' : '';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
@@ -539,7 +541,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + directDelete + '</div>' : '') +
     '</div></article>';
 }
 
@@ -684,27 +686,32 @@ function openTrash(id) {
 }
 async function runLifecycleAction(id, action) {
   var targetRow = rows.find(function (row) { return String(row.id) === String(id); });
-  var wording = action === 'confirm_delete' && targetRow && targetRow._duplicate
+  var wording = action === 'delete_now' && targetRow && targetRow._duplicate
+    ? 'ยืนยันลบรายการนี้ถาวรหรือไม่? ระบบจะเก็บยอดจองไว้ในสรุปรายเดือน และจะไม่ลบไฟล์ Google Drive ที่รายการหลักใช้อยู่'
+    : action === 'delete_now'
+      ? 'ยืนยันลบไฟล์ใบจองจาก Google Drive ถาวรหรือไม่? ยอดจองจะยังเก็บไว้ในสรุปรายเดือน และจะกู้ไฟล์คืนจากระบบไม่ได้'
+      : action === 'confirm_delete' && targetRow && targetRow._duplicate
     ? 'ยืนยันนำรายการสำเนานี้ออกจากหน้าทำงานหรือไม่? ข้อมูลยอดจองจะยังเก็บไว้ และไฟล์ Google Drive ที่ใช้ร่วมกับรายการหลักจะไม่ถูกลบ'
     : ({ queue_trash: 'ย้ายรายการนี้เข้าถังขยะหรือไม่? ยอดจองจะยังอยู่ในรายงานรายเดือน', restore: 'กู้คืนรายการและไฟล์กลับมาใช้งานหรือไม่?', confirm_delete: 'ยืนยันลบไฟล์ถาวรหรือไม่? รายการและยอดจองจะยังเก็บไว้ แต่ไฟล์จะลบไม่ได้' }[action] || 'ยืนยันการทำรายการหรือไม่?');
   if (!window.confirm(wording)) return;
   var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่อยืนยัน');
   if (!token) return;
-  var reason = action === 'queue_trash' ? window.prompt('เหตุผล (ไม่บังคับ)', '') || '' : '';
+  var reason = '';
+  if (action === 'queue_trash') { reason = window.prompt('เหตุผล (ไม่บังคับ)', ''); if (reason === null) return; }
   try {
     var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': token },
       body: JSON.stringify({ lifecycle_action: action, trash_reason: reason })
     });
-    if (!response.ok) throw httpErr(response.status);
-    var updated = await response.json();
+    var updated = await response.json().catch(function () { return {}; });
+    if (!response.ok) { var failure = httpErr(response.status); failure.message = updated.error || failure.message; throw failure; }
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     refreshAll();
-    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว ระบบจะย้ายไฟล์เมื่อบอตทำงาน') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : 'ส่งคำสั่งลบไฟล์ถาวรแล้ว');
+    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว บอตจะย้ายไฟล์ให้อัตโนมัติ') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : action === 'delete_now' ? (updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที โดยยังเก็บยอดจองไว้') : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที');
   } catch (error) {
-    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
+    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : error.message || 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
   }
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
@@ -1123,6 +1130,8 @@ $('list').addEventListener('click', function (e) {
   if (restore) { runLifecycleAction(restore.dataset.restore, 'restore'); return; }
   var remove = e.target.closest('[data-delete]');
   if (remove) { runLifecycleAction(remove.dataset.delete, 'confirm_delete'); return; }
+  var deleteNow = e.target.closest('[data-delete-now]');
+  if (deleteNow) { runLifecycleAction(deleteNow.dataset.deleteNow, 'delete_now'); return; }
   var bill = e.target.closest('[data-bill]');
   if (bill) { openBilling(bill.dataset.bill); return; }
   var file = e.target.closest('[data-booking-file]');

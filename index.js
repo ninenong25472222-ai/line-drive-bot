@@ -1523,7 +1523,7 @@ if (cleanText(process.env.RENTALPRO_SUPABASE_URL || "") && cleanText(process.env
     setTimeout(() => void runPendingDeletionQueue(), 30000);
     setInterval(
         () => void runPendingDeletionQueue(),
-        Math.max(3600000, Number(process.env.PENDING_DELETION_INTERVAL_MS || 86400000))
+        Math.max(60000, Number(process.env.PENDING_DELETION_INTERVAL_MS || 60000))
     );
 }
 
