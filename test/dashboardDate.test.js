@@ -143,6 +143,8 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /class="billDel"[^>]*>ลบรายการ<\/button>/);
   assert.ok(pdfLibrary.size > 500_000, "the PDF library is self-hosted so export does not depend on a third-party CDN");
   assert.match(source, /script\.src = '\/vendor\/html2pdf\.bundle\.min\.js'/);
+  assert.match(source, /function billPdfFactory\(\)/);
+  assert.match(source, /typeof candidate\.default === 'function'/);
   assert.match(source, /function billFitPaperToA4/);
   assert.match(source, /height = '297mm'/);
   assert.match(source, /format: 'a4', orientation: 'portrait'/);

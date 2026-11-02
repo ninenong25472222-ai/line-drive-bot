@@ -1170,13 +1170,21 @@ function billLoadHistory(id) {
   var profile = Object.assign({}, billProfile, entry.profile || {}); billApplyProfile(profile);
   $('billItems').innerHTML = ''; (entry.items || []).forEach(billAddItem); if (!$('billItems').children.length) billAddItem(); billSwitchTab('editor'); billSyncDocument(); billCalculate(); $('billStatus').textContent = 'เปิดเอกสารจากประวัติแล้ว';
 }
+function billPdfFactory() {
+  var candidate = window.html2pdf;
+  if (typeof candidate === 'function') return candidate;
+  if (candidate && typeof candidate.default === 'function') return candidate.default;
+  if (candidate && typeof candidate.html2pdf === 'function') return candidate.html2pdf;
+  return null;
+}
 function loadHtml2Pdf() {
-  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  var factory = billPdfFactory();
+  if (factory) return Promise.resolve(factory);
   if (html2pdfLoader) return html2pdfLoader;
   html2pdfLoader = new Promise(function (resolve, reject) {
     var script = document.createElement('script');
     script.src = '/vendor/html2pdf.bundle.min.js'; script.async = true;
-    script.onload = function () { if (window.html2pdf) resolve(window.html2pdf); else { html2pdfLoader = null; reject(new Error('โหลดตัวสร้าง PDF ไม่สำเร็จ')); } };
+    script.onload = function () { var loaded = billPdfFactory(); if (loaded) resolve(loaded); else { html2pdfLoader = null; reject(new Error('โหลดไฟล์สร้าง PDF ได้ แต่เริ่มใช้งานไม่ได้')); } };
     script.onerror = function () { html2pdfLoader = null; reject(new Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาลองใหม่เมื่อต่ออินเทอร์เน็ต')); };
     document.head.appendChild(script);
   });
