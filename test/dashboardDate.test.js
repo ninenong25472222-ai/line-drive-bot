@@ -84,13 +84,19 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
   const start = source.indexOf("function renderCal() {");
   const end = source.indexOf("function refreshAll()", start);
   const makeElement = () => ({ innerHTML: "", hidden: false, classList: { toggle() {} }, setAttribute() {} });
-  const elements = Object.fromEntries(["calTitle", "calgrid", "calTimeline", "calDayDetails", "calMonthBtn", "calTimelineBtn", "mainColumns"].map((id) => [id, makeElement()]));
+  const elements = Object.fromEntries(["calTitle", "calgrid", "calTimeline", "calDayDetails", "calMonthBtn", "calTimelineBtn", "timelineTools", "timelineCarFilter", "timelineAvailability", "mainColumns"].map((id) => [id, makeElement()]));
   const context = {
     Date,
     Array,
     Set,
-    view: { cal: { y: 2026, m: 9 }, day: "", calMode: "month" },
-    todayISO: () => "2026-10-31",
+    window: { innerWidth: 1200 },
+    calendarFleet: [
+      { id: "car-1", car_ref: "YARIS", model: "Toyota Yaris", license_plate: "กข 1234", status: "ว่าง", active: true },
+      { id: "car-2", car_ref: "XPANDER", model: "Mitsubishi Xpander", license_plate: "กง 5678", status: "ว่าง", active: true },
+      { id: "car-3", car_ref: "CITY", model: "Honda City", license_plate: "กจ 9999", status: "ว่าง", active: false },
+    ],
+    view: { cal: { y: 2026, m: 9 }, day: "", calMode: "month", calCar: "", calSelectedId: "" },
+    todayISO: () => "2026-10-08",
     pad: (value) => String(value).padStart(2, "0"),
     addDays: (iso, amount) => { const date = new Date(`${iso}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); },
     thaiDate: (iso) => iso,
@@ -103,10 +109,17 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
   assert.match(elements.calgrid.innerHTML, /data-d="2026-10-05"/);
   assert.match(elements.calTimeline.innerHTML, /class="timelineScroller"/);
   assert.match(elements.calTimeline.innerHTML, /Toyota Yaris/);
+  assert.match(elements.calTimeline.innerHTML, /Mitsubishi Xpander/);
+  assert.match(elements.calTimeline.innerHTML, /Honda City/);
+  assert.match(elements.calTimeline.innerHTML, /--lanes:1/);
   assert.match(elements.calTimeline.innerHTML, /grid-column:5\/13/);
   assert.match(elements.calTimeline.innerHTML, /ส่ง 5 → คืน 12/);
+  assert.match(elements.timelineAvailability.innerHTML, /ว่าง 1 คัน · มีคิว 1 คัน/);
+  assert.match(elements.timelineAvailability.innerHTML, /ซ่อม\/งดใช้งาน 1 คัน/);
   assert.match(source, /ภาพรวมเดือน/);
-  assert.match(source, /เส้นเวลารถเช่า/);
+  assert.match(source, /คิวรถแต่ละคัน/);
+  assert.match(source, /timelineCarFilter/);
+  assert.match(source, /loadCalendarFleet/);
 });
 
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
