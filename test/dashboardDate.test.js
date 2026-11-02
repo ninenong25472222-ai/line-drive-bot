@@ -130,7 +130,7 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
 
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
-  const pdfLibrary = fs.statSync(path.join(__dirname, "..", "web", "vendor", "html2pdf.bundle.min.js"));
+  const pdfLibrary = fs.statSync(path.join(__dirname, "..", "web", "assets", "html2pdf.bundle.min.js"));
   assert.match(source, /id="billingBtn"[^>]*>ออกบิล \/ ภาษี/);
   assert.match(source, /id="billFileName"/);
   assert.match(source, /ชื่อไฟล์ย่อสำหรับ LINE OA/);
@@ -142,7 +142,7 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /id="billSignature"/);
   assert.match(source, /class="billDel"[^>]*>ลบรายการ<\/button>/);
   assert.ok(pdfLibrary.size > 500_000, "the PDF library is self-hosted so export does not depend on a third-party CDN");
-  assert.match(source, /script\.src = '\/vendor\/html2pdf\.bundle\.min\.js'/);
+  assert.match(source, /script\.src = '\/assets\/html2pdf\.bundle\.min\.js'/);
   assert.match(source, /function billPdfFactory\(\)/);
   assert.match(source, /typeof candidate\.default === 'function'/);
   assert.match(source, /function billFitPaperToA4/);
