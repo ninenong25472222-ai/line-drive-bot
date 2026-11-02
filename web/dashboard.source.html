@@ -89,6 +89,10 @@ h1{font-size:26px;line-height:1.2;margin:0}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .billRight input{width:174px}
 .billingTabs{display:flex;gap:8px;padding:0 18px 12px;border-bottom:1px solid var(--line)}.billingTabs .on{background:#e3f1fa;border-color:#7abce4;color:#075e99}.billPanel{padding:18px;background:#f8fbfd}.billPanel h3{margin:0 0 4px}.billSettingsGrid{display:grid;grid-template-columns:1.2fr .9fr;gap:18px;margin-top:14px}.billSettingsGrid label{display:grid;gap:5px;color:var(--mut);font-size:13px;margin-bottom:11px}.billSettingsGrid textarea{resize:vertical}.billSettingsGrid .save{width:100%;margin-top:7px}.billUploadHint{font-size:12px;color:var(--mut);margin:-6px 0 12px}.billCompanyHeader{display:flex;gap:11px;align-items:flex-start}.billCompanyInfo{min-width:0;flex:1}.billLogoBox{width:56px;height:56px;flex:0 0 56px;border:1px solid #c8d5df;border-radius:5px;display:grid;place-items:center;overflow:hidden;color:#6a7c8a;font-size:10px;font-weight:700;background:#f8fbfd}.billLogoBox img{width:100%;height:100%;object-fit:contain}.billSignatureLine{position:relative;display:flex;justify-content:center;align-items:flex-end}.billSignatureLine img{max-width:140px;max-height:42px;object-fit:contain;position:absolute;bottom:2px}.billSignatureLine:has(img[hidden]){height:46px}.billDelInline{display:none}@media(max-width:700px){.billSettingsGrid{grid-template-columns:1fr}.billingTabs{padding-left:12px;padding-right:12px}.billingTabs .btn{padding:8px 10px;font-size:13px}.billCompanyHeader{gap:8px}.billLogoBox{width:45px;height:45px;flex-basis:45px}.billDelInline{display:inline-block;margin-top:5px}.billTable th:nth-child(6),.billTable td:nth-child(6){display:none}}@media print{.billingTabs,.billPanel{display:none!important}.billLogoBox{border:0!important}.billSignatureLine img{display:block!important}}
+/* ใบออกบิล: พื้นที่เนื้อหาที่ปรับสเกลได้เพื่อให้อยู่ใน A4 หน้าเดียว */
+.billPageContent{transform-origin:top left}
+@page{size:A4 portrait;margin:0}
+@media print{html,body{width:210mm!important;height:297mm!important;margin:0!important}body>*{display:none!important;visibility:hidden!important}#billingModal{display:block!important;visibility:visible!important;position:fixed!important;inset:0!important;width:210mm!important;height:297mm!important;padding:0!important;background:#fff!important}.modalBg:has(#billPaper),.modalBg:has(#billPaper) *{visibility:visible!important}.billingModal{display:block!important;width:210mm!important;height:297mm!important;max-height:297mm!important;overflow:hidden!important;box-shadow:none!important}.billingHead,.billingTools,.billingActions,.billProfile,.billStatus,.billHistory{display:none!important}.billScroll{padding:0!important;overflow:visible!important;background:#fff!important;max-height:none!important}.billPaper{box-shadow:none!important;width:210mm!important;height:297mm!important;min-height:297mm!important;max-height:297mm!important;padding:10mm 11mm!important;overflow:hidden!important}}
 /* อ่านง่ายขึ้นสำหรับอักษรไทย และแยกสีแบรนด์ออกจากสีสถานะ */
 :root{--mut:#536579;--brand:#0d5f96}
 .app{max-width:1440px}
@@ -378,6 +382,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
     </div>
     <div class="billScroll">
       <article class="billPaper" id="billPaper">
+        <div class="billPageContent" id="billPageContent">
         <header class="billTop">
           <div class="billCompany">
             <div class="billCompanyHeader"><div class="billLogoBox"><img id="billLogo" alt="โลโก้กิจการ" hidden><span id="billLogoPlaceholder">LOGO</span></div><div class="billCompanyInfo"><span class="billLabel">ผู้ออกเอกสาร</span>
@@ -401,6 +406,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
           <div class="billTotals"><div class="billTotalRow"><span>รวมเงิน</span><b id="billSubtotal">0.00</b></div><div class="billTotalRow" id="billVatRow"><span>ภาษีมูลค่าเพิ่ม 7%</span><b id="billVatAmount">0.00</b></div><div class="billTotalRow" id="billWhtRow" hidden><span>หัก ณ ที่จ่าย 5%</span><b id="billWhtAmount">-0.00</b></div><div class="billTotalRow billGrand"><span>ยอดสุทธิ</span><b id="billGrand">0.00</b></div></div>
         </section>
         <section class="billSign"><div><div class="line"></div><b>ผู้รับเงิน / ผู้รับบริการ</b></div><div><div class="line billSignatureLine"><img id="billSignature" alt="ลายเซ็นกิจการ" hidden></div><b>ในนาม <span id="billSignatureCompany">กิจการ</span></b></div></section>
+        </div>
       </article>
     </div>
     </div>
@@ -1166,16 +1172,53 @@ function billLoadHistory(id) {
 }
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
-  return Promise.reject(new Error('ใช้หน้าพิมพ์ของเบราว์เซอร์เพื่อบันทึก PDF'));
+  if (html2pdfLoader) return html2pdfLoader;
+  html2pdfLoader = new Promise(function (resolve, reject) {
+    var script = document.createElement('script');
+    script.src = '/vendor/html2pdf.bundle.min.js'; script.async = true;
+    script.onload = function () { if (window.html2pdf) resolve(window.html2pdf); else { html2pdfLoader = null; reject(new Error('โหลดตัวสร้าง PDF ไม่สำเร็จ')); } };
+    script.onerror = function () { html2pdfLoader = null; reject(new Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาลองใหม่เมื่อต่ออินเทอร์เน็ต')); };
+    document.head.appendChild(script);
+  });
+}
+function billFitPaperToA4(paper) {
+  var content = paper.querySelector('.billPageContent');
+  if (!content) throw new Error('ไม่พบส่วนเนื้อหาใบออกบิล');
+  var oldPaperStyle = paper.getAttribute('style'), oldContentStyle = content.getAttribute('style'), hidden = [];
+  Array.prototype.forEach.call(paper.querySelectorAll('.no-print'), function (node) { hidden.push([node, node.style.display]); node.style.display = 'none'; });
+  paper.style.boxSizing = 'border-box'; paper.style.width = '210mm'; paper.style.height = '297mm'; paper.style.minHeight = '297mm'; paper.style.maxHeight = '297mm'; paper.style.padding = '10mm 11mm'; paper.style.margin = '0'; paper.style.overflow = 'hidden'; paper.style.boxShadow = 'none';
+  var computed = window.getComputedStyle(paper), available = paper.clientHeight - parseFloat(computed.paddingTop) - parseFloat(computed.paddingBottom), scale = 1;
+  for (var i = 0; i < 6; i++) {
+    content.style.width = (100 / scale) + '%'; content.style.transform = 'scale(' + scale + ')';
+    var naturalHeight = content.scrollHeight || content.getBoundingClientRect().height;
+    var next = naturalHeight > available ? available / naturalHeight : 1;
+    if (Math.abs(next - scale) < 0.003) { scale = next; break; }
+    scale = next;
+  }
+  content.style.width = (100 / scale) + '%'; content.style.transform = 'scale(' + scale + ')';
+  return function () {
+    if (oldPaperStyle == null) paper.removeAttribute('style'); else paper.setAttribute('style', oldPaperStyle);
+    if (oldContentStyle == null) content.removeAttribute('style'); else content.setAttribute('style', oldContentStyle);
+    hidden.forEach(function (entry) { entry[0].style.display = entry[1]; });
+  };
 }
 async function billDownloadPdf() {
   var button = $('billDownload'), paper = $('billPaper'), filename = billShortName($('billFileName').value) + '.pdf';
   billSyncDocument(); billCalculate(); button.disabled = true; $('billStatus').textContent = 'กำลังสร้าง PDF…';
   Array.prototype.forEach.call(paper.querySelectorAll('input'), function (input) { input.setAttribute('value', input.value); });
   Array.prototype.forEach.call(paper.querySelectorAll('textarea'), function (textarea) { textarea.textContent = textarea.value; });
-  try { var makePdf = await loadHtml2Pdf(); await makePdf().set({ margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(paper).save(); $('billStatus').textContent = 'ดาวน์โหลด “' + filename + '” แล้ว พร้อมส่งใน LINE OA'; }
-  catch (error) { window.print(); $('billStatus').textContent = 'เปิดหน้าพิมพ์แล้ว เลือก “Save as PDF” เพื่อบันทึกไฟล์'; }
-  finally { button.disabled = false; }
+  var restore = null;
+  try {
+    var makePdf = await loadHtml2Pdf();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    restore = billFitPaperToA4(paper);
+    await new Promise(function (resolve) { requestAnimationFrame(function () { requestAnimationFrame(resolve); }); });
+    var worker = makePdf().set({ margin: 0, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: [] } }).from(paper).toPdf();
+    var pdf = await worker.get('pdf'), pages = pdf.getNumberOfPages();
+    if (pages !== 1) throw new Error('PDF มี ' + pages + ' หน้า ระบบหยุดดาวน์โหลดเพื่อป้องกันเอกสารเกิน A4');
+    await worker.save(); $('billStatus').textContent = 'ดาวน์โหลด “' + filename + '” แล้ว · A4 จำนวน 1 หน้า';
+  } catch (error) { $('billStatus').textContent = 'ส่งออก PDF ไม่สำเร็จ: ' + (error.message || 'เกิดข้อผิดพลาด') + ' · ลองกด “พิมพ์” แล้วเลือก Save as PDF'; }
+  finally { if (restore) restore(); button.disabled = false; }
 }
 
 /* ====== เหตุการณ์ ====== */
@@ -1313,7 +1356,7 @@ $('billSignatureInput').addEventListener('change', function (event) { billReadIm
 $('billSaveHistory').onclick = billSaveHistory;
 $('billHistoryList').addEventListener('click', function (e) { var button = e.target.closest('[data-bill-history]'); if (button) billLoadHistory(button.dataset.billHistory); });
 $('billDownload').onclick = billDownloadPdf;
-$('billPrint').onclick = function () { billSyncDocument(); billCalculate(); window.print(); };
+$('billPrint').onclick = function () { billSyncDocument(); billCalculate(); var restore = billFitPaperToA4($('billPaper')); window.addEventListener('afterprint', function () { restore(); }, { once: true }); window.print(); };
 document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); });
 setInterval(function () { if (!document.hidden && Date.now() - lastLoad > 300000) load(true); }, 60000);
 

@@ -130,6 +130,7 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
 
 test("Dashboard provides invoice PDF export with an editable short LINE OA filename", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const pdfLibrary = fs.statSync(path.join(__dirname, "..", "web", "vendor", "html2pdf.bundle.min.js"));
   assert.match(source, /id="billingBtn"[^>]*>ออกบิล \/ ภาษี/);
   assert.match(source, /id="billFileName"/);
   assert.match(source, /ชื่อไฟล์ย่อสำหรับ LINE OA/);
@@ -140,6 +141,13 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /id="billSignatureInput"[^>]*type="file"/);
   assert.match(source, /id="billSignature"/);
   assert.match(source, /class="billDel"[^>]*>ลบรายการ<\/button>/);
+  assert.ok(pdfLibrary.size > 500_000, "the PDF library is self-hosted so export does not depend on a third-party CDN");
+  assert.match(source, /script\.src = '\/vendor\/html2pdf\.bundle\.min\.js'/);
+  assert.match(source, /function billFitPaperToA4/);
+  assert.match(source, /height = '297mm'/);
+  assert.match(source, /format: 'a4', orientation: 'portrait'/);
+  assert.match(source, /pages !== 1/);
+  assert.match(source, /@page\{size:A4 portrait;margin:0\}/);
 });
 
 test("Dashboard exposes a reversible booking trash action", () => {
