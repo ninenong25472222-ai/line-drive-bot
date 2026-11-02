@@ -14,23 +14,25 @@ function extract() {
     const wrapper = fs.readFileSync(wrapperPath, "utf8");
     const match = wrapper.match(/atob\('([^']+)'\)/);
 
-    if (!match) {
-        return fail("Dashboard wrapper does not contain a Base64 payload.");
+    if (match) {
+        fs.writeFileSync(
+            sourcePath,
+            Buffer.from(match[1], "base64").toString("utf8"),
+            "utf8"
+        );
+        return;
     }
 
-    fs.writeFileSync(
-        sourcePath,
-        Buffer.from(match[1], "base64").toString("utf8"),
-        "utf8"
-    );
+    if (/<!doctype html/i.test(wrapper) && /<html[\s>]/i.test(wrapper)) {
+        fs.writeFileSync(sourcePath, wrapper, "utf8");
+        return;
+    }
+
+    return fail("Dashboard entry does not contain HTML or a supported Base64 payload.");
 }
 
 function build() {
-    const source = fs.readFileSync(sourcePath, "utf8");
-    const payload = Buffer.from(source, "utf8").toString("base64");
-    const wrapper = "<!doctype html><meta charset=\"utf-8\"><script>document.open();document.write(new TextDecoder().decode(Uint8Array.from(atob('" + payload + "'),c=>c.charCodeAt(0))));document.close();</script>\n";
-
-    fs.writeFileSync(wrapperPath, wrapper, "utf8");
+    fs.copyFileSync(sourcePath, wrapperPath);
 }
 
 if (process.argv[2] === "extract") {

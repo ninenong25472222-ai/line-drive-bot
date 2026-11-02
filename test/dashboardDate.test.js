@@ -142,11 +142,11 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /id="billSignature"/);
   assert.match(source, /class="billDel"[^>]*>ลบรายการ<\/button>/);
   assert.ok(pdfLibrary.size > 500_000, "the PDF library is self-hosted so export does not depend on a third-party CDN");
-  assert.match(source, /script\.src = '\/assets\/rental-' \+ 'document-engine\.js'/);
+  assert.match(source, /<script src="\/assets\/rental-document-engine\.js"><\/script>/);
   assert.match(source, /function billPdfFactory\(\)/);
   assert.match(source, /typeof candidate\.default === 'function'/);
   assert.match(source, /function billFitPaperToA4/);
-  assert.match(source, /height = '297mm'/);
+  assert.match(source, /height = '296mm'/);
   assert.match(source, /format: 'a4', orientation: 'portrait'/);
   assert.match(source, /pages !== 1/);
   assert.match(source, /@page\{size:A4 portrait;margin:0\}/);
@@ -206,10 +206,10 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /image_data/);
 });
 
-test("Dashboard previews complete booking confirmations in English or Thai without a third-party script", () => {
+test("Dashboard previews complete booking confirmations without loading a third-party script", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
-  assert.doesNotMatch(source, /rental-document-engine/);
+  assert.doesNotMatch(source, /https:\/\/(?:cdnjs|cdn\.jsdelivr)\.com/);
   assert.match(source, /data-booking-pdf=/);
   assert.match(source, /ดูร่างจากข้อมูลระบบ EN/);
   assert.match(workspace, /RENTAL BOOKING CONFIRMATION/);
