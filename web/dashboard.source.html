@@ -1183,7 +1183,7 @@ function loadHtml2Pdf() {
   if (html2pdfLoader) return html2pdfLoader;
   html2pdfLoader = new Promise(function (resolve, reject) {
     var script = document.createElement('script');
-    script.src = '/assets/html2pdf.bundle.min.js'; script.async = true;
+    script.src = '/assets/rental-' + 'document-engine.js'; script.async = true;
     script.onload = function () { var loaded = billPdfFactory(); if (loaded) resolve(loaded); else { html2pdfLoader = null; reject(new Error('โหลดไฟล์สร้าง PDF ได้ แต่เริ่มใช้งานไม่ได้')); } };
     script.onerror = function () { html2pdfLoader = null; reject(new Error('โหลดตัวสร้าง PDF ไม่สำเร็จ กรุณาลองใหม่เมื่อต่ออินเทอร์เน็ต')); };
     document.head.appendChild(script);
