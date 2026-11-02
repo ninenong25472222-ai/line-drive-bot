@@ -213,6 +213,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 .timelineTools select{max-width:300px}
 .timelineAvailability{font-size:13px;font-weight:700;color:var(--brand);text-align:right}
 .timelineAvailability small{display:block;font-size:12px;font-weight:500;color:var(--mut)}
+.timelineAvailability small.unmatched{color:var(--warn);font-weight:700}
 .timelineEntry{min-height:54px;--lanes:1}
 .timelineTrack{min-height:calc(var(--lanes) * 34px + 12px)}
 .timelineRangeLayer{inset:6px 0;grid-auto-rows:30px;gap:4px 0}
@@ -647,14 +648,16 @@ function renderCalTimeline(list, y, m, n, monthStart, monthEnd) {
   var days = Array.from({ length: n }, function (_, i) { var iso = y + '-' + pad(m + 1) + '-' + pad(i + 1); return '<span>' + (i + 1) + '<small>' + ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'][new Date(iso + 'T00:00:00Z').getUTCDay()] + '</small></span>'; }).join('');
   var trackWidth = n * 34, carWidth = window.innerWidth <= 700 ? 132 : 190;
   var today = todayISO(), focusDate = view.day || (today.slice(0, 7) === monthStart.slice(0, 7) ? today : monthStart);
+  var missingDateBookings = list.filter(function (r) { return !r._p && !r._r && !r._inTrash && !r._duplicate && !/ยกเลิก|ผิดพลาด|cancel|error/i.test(String(r.status || '')); }).length;
   var records = list.filter(function (r) { return (r._p || r._r) && (r._r || r._p) && (r._r || r._p) >= monthStart && (r._p || r._r) <= monthEnd && !r._inTrash && !r._duplicate && !/ยกเลิก|ผิดพลาด|cancel|error/i.test(String(r.status || '')); });
   var nameKey = function (value) { return String(value || '').toLowerCase().replace(/[·•]/g, ' ').replace(/\s+/g, ' ').trim(); };
   var carLabel = function (car) { return [car.model, car.car_ref, car.license_plate].filter(Boolean).join(' · ') || car.car_ref || car.model || 'ไม่ระบุรถ'; };
   var fleet = (calendarFleet || []).map(function (car) { return { key: 'car:' + car.id, id: String(car.id), model: String(car.model || ''), car_ref: String(car.car_ref || ''), license_plate: String(car.license_plate || ''), name: carLabel(car), status: car.active === false ? 'งดใช้งาน' : String(car.status || 'ว่าง'), bookings: [] }; });
+  var registeredFleet = fleet.slice(), unmatchedBookings = 0;
   records.forEach(function (row) {
     var label = String(row.car || '').trim() || 'ไม่ระบุรถ', target = row.car_id ? fleet.find(function (car) { return car.id === String(row.car_id); }) : null;
     if (!target && label !== 'ไม่ระบุรถ') target = fleet.find(function (car) { return [car.name, car.model, car.car_ref, car.license_plate].some(function (value) { return value && nameKey(value) === nameKey(label); }); });
-    if (!target) { var key = 'legacy:' + nameKey(label); target = fleet.find(function (car) { return car.key === key; }); if (!target) { target = { key: key, id: '', name: label, status: '', bookings: [] }; fleet.push(target); } }
+    if (!target) { unmatchedBookings++; var key = 'legacy:' + nameKey(label); target = fleet.find(function (car) { return car.key === key; }); if (!target) { target = { key: key, id: '', name: label, status: '', bookings: [] }; fleet.push(target); } }
     target.bookings.push(row);
   });
   fleet.sort(function (a, b) { return a.name.localeCompare(b.name, 'th'); });
@@ -662,11 +665,11 @@ function renderCalTimeline(list, y, m, n, monthStart, monthEnd) {
   selector.innerHTML = '<option value="">รถทุกคัน (' + fleet.length + ')</option>' + fleet.map(function (car) { return '<option value="' + esc(car.key) + '">' + esc(car.name) + (car.status ? ' · ' + esc(car.status) : '') + '</option>'; }).join('');
   if (fleet.some(function (car) { return car.key === oldValue; })) selector.value = oldValue; else { selector.value = ''; view.calCar = ''; }
   var visibleFleet = view.calCar ? fleet.filter(function (car) { return car.key === view.calCar; }) : fleet;
-  var unavailable = fleet.filter(function (car) { return ['ซ่อม', 'งดใช้งาน'].includes(car.status); }).length;
-  var operating = fleet.filter(function (car) { return !['ซ่อม', 'งดใช้งาน'].includes(car.status); });
+  var unavailable = registeredFleet.filter(function (car) { return ['ซ่อม', 'งดใช้งาน'].includes(car.status); }).length;
+  var operating = registeredFleet.filter(function (car) { return !['ซ่อม', 'งดใช้งาน'].includes(car.status); });
   var busy = operating.filter(function (car) { return car.bookings.some(function (row) { return (row._p || row._r) <= focusDate && focusDate <= (row._r || row._p); }) || (focusDate === today && ['จองแล้ว', 'กำลังใช้งาน'].includes(car.status)); }).length;
   var available = Math.max(0, operating.length - busy);
-  $('timelineAvailability').innerHTML = esc(thaiDate(focusDate, { day: 'numeric', month: 'short' })) + ' · ว่าง ' + available + ' คัน · มีคิว ' + busy + ' คัน' + (unavailable ? '<small>ซ่อม/งดใช้งาน ' + unavailable + ' คัน</small>' : '<small>วันที่คืนรถนับว่ามีคิวในวันนั้น เพื่อเผื่อเวลาส่งมอบรถ</small>');
+  $('timelineAvailability').innerHTML = esc(thaiDate(focusDate, { day: 'numeric', month: 'short' })) + ' · รถในทะเบียน: ว่าง ' + available + ' คัน · มีคิว ' + busy + ' คัน' + (unavailable ? '<small>ซ่อม/งดใช้งาน ' + unavailable + ' คัน</small>' : '') + '<small>วันที่คืนรถนับว่ามีคิว เพื่อเผื่อเวลาส่งมอบรถ</small>' + (unmatchedBookings || missingDateBookings ? '<small class="unmatched">' + (unmatchedBookings ? 'จับคู่ทะเบียนรถไม่ได้ ' + unmatchedBookings + ' รายการ' : '') + (unmatchedBookings && missingDateBookings ? ' · ' : '') + (missingDateBookings ? 'ข้อมูลวันที่ไม่ครบ ' + missingDateBookings + ' รายการ' : '') + ' — ยอดรถว่างนับเฉพาะรถในทะเบียน</small>' : '');
   var header = '<div class="timelineHeader" style="--days:' + n + ';--track-width:' + trackWidth + 'px;--car-col:' + carWidth + 'px"><b class="timelineCarHead">รถ / รายการจอง</b><div class="timelineAxis">' + days + '</div></div>';
   var entries = visibleFleet.map(function (car) {
     var bookings = car.bookings.filter(function (row) { return (row._r || row._p) >= monthStart && (row._p || row._r) <= monthEnd; }).sort(function (a, b) { return String(a._p || a._r).localeCompare(String(b._p || b._r)) || String(a._r || a._p).localeCompare(String(b._r || b._p)); });

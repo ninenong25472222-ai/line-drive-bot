@@ -101,7 +101,11 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
     addDays: (iso, amount) => { const date = new Date(`${iso}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + amount); return date.toISOString().slice(0, 10); },
     thaiDate: (iso) => iso,
     $(id) { return elements[id]; },
-    base: () => [{ _p: "2026-10-05", _r: "2026-10-12", car: "Toyota Yaris", customer_name: "ลูกค้า A", _pt: "08:00", _rt: "08:00" }],
+    base: () => [
+      { _p: "2026-10-05", _r: "2026-10-12", car: "Toyota Yaris", customer_name: "ลูกค้า A", _pt: "08:00", _rt: "08:00" },
+      { _p: "2026-10-08", _r: "2026-10-10", car: "รถเก่าที่ยังไม่ลงทะเบียน", customer_name: "ลูกค้า B" },
+      { car: "รถที่ไม่มีวันที่", customer_name: "ลูกค้า C" },
+    ],
     esc: (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]),
   };
   vm.runInNewContext(`${source.slice(start, end)}; renderCal();`, context);
@@ -116,6 +120,8 @@ test("Dashboard calendar summarizes booked cars and draws a continuous rental ti
   assert.match(elements.calTimeline.innerHTML, /ส่ง 5 → คืน 12/);
   assert.match(elements.timelineAvailability.innerHTML, /ว่าง 1 คัน · มีคิว 1 คัน/);
   assert.match(elements.timelineAvailability.innerHTML, /ซ่อม\/งดใช้งาน 1 คัน/);
+  assert.match(elements.timelineAvailability.innerHTML, /จับคู่ทะเบียนรถไม่ได้ 1 รายการ/);
+  assert.match(elements.timelineAvailability.innerHTML, /ข้อมูลวันที่ไม่ครบ 1 รายการ/);
   assert.match(source, /ภาพรวมเดือน/);
   assert.match(source, /คิวรถแต่ละคัน/);
   assert.match(source, /timelineCarFilter/);
