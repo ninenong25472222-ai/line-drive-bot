@@ -91,6 +91,9 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .billingTabs{display:flex;gap:8px;padding:0 18px 12px;border-bottom:1px solid var(--line)}.billingTabs .on{background:#e3f1fa;border-color:#7abce4;color:#075e99}.billPanel{padding:18px;background:#f8fbfd}.billPanel h3{margin:0 0 4px}.billSettingsGrid{display:grid;grid-template-columns:1.2fr .9fr;gap:18px;margin-top:14px}.billSettingsGrid label{display:grid;gap:5px;color:var(--mut);font-size:13px;margin-bottom:11px}.billSettingsGrid textarea{resize:vertical}.billSettingsGrid .save{width:100%;margin-top:7px}.billUploadHint{font-size:12px;color:var(--mut);margin:-6px 0 12px}.billCompanyHeader{display:flex;gap:11px;align-items:flex-start}.billCompanyInfo{min-width:0;flex:1}.billLogoBox{width:56px;height:56px;flex:0 0 56px;border:1px solid #c8d5df;border-radius:5px;display:grid;place-items:center;overflow:hidden;color:#6a7c8a;font-size:10px;font-weight:700;background:#f8fbfd}.billLogoBox img{width:100%;height:100%;object-fit:contain}.billSignatureLine{position:relative;display:flex;justify-content:center;align-items:flex-end}.billSignatureLine img{max-width:140px;max-height:42px;object-fit:contain;position:absolute;bottom:2px}.billSignatureLine:has(img[hidden]){height:46px}.billDelInline{display:none}@media(max-width:700px){.billSettingsGrid{grid-template-columns:1fr}.billingTabs{padding-left:12px;padding-right:12px}.billingTabs .btn{padding:8px 10px;font-size:13px}.billCompanyHeader{gap:8px}.billLogoBox{width:45px;height:45px;flex-basis:45px}.billDelInline{display:inline-block;margin-top:5px}.billTable th:nth-child(6),.billTable td:nth-child(6){display:none}}@media print{.billingTabs,.billPanel{display:none!important}.billLogoBox{border:0!important}.billSignatureLine img{display:block!important}}
 /* ใบออกบิล: พื้นที่เนื้อหาที่ปรับสเกลได้เพื่อให้อยู่ใน A4 หน้าเดียว */
 .billPageContent{transform-origin:top left}
+.billTable .billDesc{display:block;box-sizing:border-box;min-height:25px;height:25px;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.45}
+.billDescPrint{display:none;min-height:25px;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;line-height:1.45}
+.billPdfExporting .billDesc{display:none!important}.billPdfExporting .billDescPrint{display:block}
 @page{size:A4 portrait;margin:0}
 @media print{html,body{width:210mm!important;height:296mm!important;margin:0!important}body>*{display:none!important;visibility:hidden!important}#billingModal{display:block!important;visibility:visible!important;position:fixed!important;inset:0!important;width:210mm!important;height:296mm!important;padding:0!important;background:#fff!important}.modalBg:has(#billPaper),.modalBg:has(#billPaper) *{visibility:visible!important}.billingModal{display:block!important;width:210mm!important;height:296mm!important;max-height:296mm!important;overflow:hidden!important;box-shadow:none!important}.billingHead,.billingTools,.billingActions,.billProfile,.billStatus,.billHistory{display:none!important}.billScroll{padding:0!important;overflow:visible!important;background:#fff!important;max-height:none!important}.billPaper{box-shadow:none!important;width:210mm!important;height:296mm!important;min-height:296mm!important;max-height:296mm!important;padding:10mm 11mm!important;overflow:hidden!important}}
 /* อ่านง่ายขึ้นสำหรับอักษรไทย และแยกสีแบรนด์ออกจากสีสถานะ */
@@ -1112,11 +1115,17 @@ function billSyncDocument() {
   $('billDatePrint').value = billThaiDate($('billDate').value) || '-';
 }
 function billReindex() { Array.prototype.forEach.call($('billItems').children, function (row, index) { row.querySelector('.billIndex').textContent = index + 1; }); }
+function billResizeDescription(field) {
+  if (!field) return;
+  field.style.height = 'auto';
+  field.style.height = Math.max(25, field.scrollHeight) + 'px';
+}
+function billResizeDescriptions() { Array.prototype.forEach.call($('billItems').querySelectorAll('.billDesc'), billResizeDescription); }
 function billAddItem(item) {
   item = item || { desc: '', qty: 1, price: 0 };
   var row = document.createElement('tr');
-  row.innerHTML = '<td class="billIndex"></td><td><textarea class="billDesc" rows="1" aria-label="รายการ">' + esc(item.desc || '') + '</textarea><button class="billDel billDelInline no-print" type="button">ลบรายการ</button></td><td><input class="billQty" type="number" min="0" step="any" value="' + esc(item.qty == null ? 1 : item.qty) + '" aria-label="จำนวน"></td><td><input class="billPrice" type="number" min="0" step="0.01" value="' + esc(item.price == null ? 0 : item.price) + '" aria-label="ราคาต่อหน่วย"></td><td class="billLineTotal">0.00</td><td class="no-print"><button class="billDel" type="button" aria-label="ลบรายการ">ลบรายการ</button></td>';
-  $('billItems').appendChild(row); billReindex(); billCalculate();
+  row.innerHTML = '<td class="billIndex"></td><td><textarea class="billDesc" rows="1" aria-label="รายการ">' + esc(item.desc || '') + '</textarea><div class="billDescPrint"></div><button class="billDel billDelInline no-print" type="button">ลบรายการ</button></td><td><input class="billQty" type="number" min="0" step="any" value="' + esc(item.qty == null ? 1 : item.qty) + '" aria-label="จำนวน"></td><td><input class="billPrice" type="number" min="0" step="0.01" value="' + esc(item.price == null ? 0 : item.price) + '" aria-label="ราคาต่อหน่วย"></td><td class="billLineTotal">0.00</td><td class="no-print"><button class="billDel" type="button" aria-label="ลบรายการ">ลบรายการ</button></td>';
+  $('billItems').appendChild(row); billReindex(); billResizeDescription(row.querySelector('.billDesc')); billCalculate();
 }
 function billItemsValue() {
   return Array.prototype.map.call($('billItems').children, function (row) { return { desc: row.querySelector('.billDesc').value.trim(), qty: row.querySelector('.billQty').value, price: row.querySelector('.billPrice').value }; });
@@ -1186,7 +1195,9 @@ function loadHtml2Pdf() {
 function billFitPaperToA4(paper) {
   var content = paper.querySelector('.billPageContent');
   if (!content) throw new Error('ไม่พบส่วนเนื้อหาใบออกบิล');
-  var oldPaperStyle = paper.getAttribute('style'), oldContentStyle = content.getAttribute('style'), hidden = [];
+  var oldPaperStyle = paper.getAttribute('style'), oldPaperClass = paper.className, oldContentStyle = content.getAttribute('style'), hidden = [];
+  Array.prototype.forEach.call(paper.querySelectorAll('.billDesc'), function (field) { var print = field.parentNode.querySelector('.billDescPrint'); if (print) print.textContent = field.value; });
+  paper.classList.add('billPdfExporting');
   Array.prototype.forEach.call(paper.querySelectorAll('.no-print'), function (node) { hidden.push([node, node.style.display]); node.style.display = 'none'; });
   paper.style.boxSizing = 'border-box'; paper.style.width = '210mm'; paper.style.height = '296mm'; paper.style.minHeight = '296mm'; paper.style.maxHeight = '296mm'; paper.style.padding = '10mm 11mm'; paper.style.margin = '0'; paper.style.overflow = 'hidden'; paper.style.boxShadow = 'none';
   var computed = window.getComputedStyle(paper), available = paper.clientHeight - parseFloat(computed.paddingTop) - parseFloat(computed.paddingBottom), scale = 1;
@@ -1199,6 +1210,7 @@ function billFitPaperToA4(paper) {
   }
   content.style.width = (100 / scale) + '%'; content.style.transform = 'scale(' + scale + ')';
   return function () {
+    paper.className = oldPaperClass;
     if (oldPaperStyle == null) paper.removeAttribute('style'); else paper.setAttribute('style', oldPaperStyle);
     if (oldContentStyle == null) content.removeAttribute('style'); else content.setAttribute('style', oldContentStyle);
     hidden.forEach(function (entry) { entry[0].style.display = entry[1]; });
@@ -1206,7 +1218,7 @@ function billFitPaperToA4(paper) {
 }
 async function billDownloadPdf() {
   var button = $('billDownload'), paper = $('billPaper'), filename = billShortName($('billFileName').value) + '.pdf';
-  billSyncDocument(); billCalculate(); button.disabled = true; $('billStatus').textContent = 'กำลังสร้าง PDF…';
+  billSyncDocument(); billResizeDescriptions(); billCalculate(); button.disabled = true; $('billStatus').textContent = 'กำลังสร้าง PDF…';
   Array.prototype.forEach.call(paper.querySelectorAll('input'), function (input) { input.setAttribute('value', input.value); });
   Array.prototype.forEach.call(paper.querySelectorAll('textarea'), function (textarea) { textarea.textContent = textarea.value; });
   var restore = null;
@@ -1345,7 +1357,7 @@ $('billingBtn').onclick = function () { openBilling(); };
 $('billingClose').onclick = closeBilling;
 $('billingModal').addEventListener('click', function (e) { if (e.target === $('billingModal')) closeBilling(); });
 $('billAddItem').onclick = function () { billAddItem(); };
-$('billItems').addEventListener('input', billCalculate);
+$('billItems').addEventListener('input', function (event) { if (event.target.classList.contains('billDesc')) billResizeDescription(event.target); billCalculate(); });
 $('billItems').addEventListener('click', function (e) { var remove = e.target.closest('.billDel'); if (!remove) return; remove.closest('tr').remove(); if (!$('billItems').children.length) billAddItem(); billReindex(); billCalculate(); });
 ['billVat', 'billWht'].forEach(function (id) { $(id).addEventListener('change', billCalculate); });
 ['billType', 'billNumber', 'billDate'].forEach(function (id) { $(id).addEventListener('input', billSyncDocument); $(id).addEventListener('change', billSyncDocument); });
