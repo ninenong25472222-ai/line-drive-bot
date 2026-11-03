@@ -59,6 +59,7 @@ function bookingUpdatePayload(input: Record<string, unknown>) {
   for (const field of ["customer_name", "customer_phone", "booking_no", "car", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location"]) {
     if (field in input) row[field] = text(input[field], field.endsWith("_date") ? 10 : field.endsWith("_time") ? 5 : 500);
   }
+  if ("car_id" in input) row.car_id = text(input.car_id, 80) || null;
   if ("status" in input && bookingStatuses.has(text(input.status))) row.status = text(input.status);
   return row;
 }
@@ -170,6 +171,34 @@ async function updateBooking(req: Request, url: string, key: string, id: string)
   if (typeof input === "object" && input && "lifecycle_action" in input) return lifecycleBooking(input, url, key, id);
   const booking = bookingUpdatePayload(input);
   if (!Object.keys(booking).length) return response({ error: "ไม่มีข้อมูลที่แก้ไขได้" }, 400);
+  if ("car_id" in input) {
+    const current = await bookingById(url, key, id);
+    if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
+    const carId = text(input.car_id, 80);
+    if (!carId) {
+      booking.car_id = null;
+      if ("car" in input) booking.car = text(input.car);
+    } else {
+      const merged = { ...current, ...booking };
+      const pickupDate = text(merged.pickup_date), pickupTime = text(merged.pickup_time);
+      const returnDate = text(merged.return_date), returnTime = text(merged.return_time);
+      if (!dateOk(pickupDate) || !timeOk(pickupTime) || !dateOk(returnDate) || !timeOk(returnTime)) return response({ error: "กรอกวันและเวลาให้ครบก่อนจับคู่รถ" }, 400);
+      const start = slot(pickupDate, pickupTime), end = slot(returnDate, returnTime);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
+      const found = await rest(url, key, `rental_cars?id=eq.${encodeURIComponent(carId)}&select=id,car_ref,model,status,active&limit=1`);
+      const car = Array.isArray(found) ? found[0] : null;
+      if (!car || !car.active || ["ซ่อม", "งดใช้งาน"].includes(text(car.status))) return response({ error: "รถคันนี้ไม่พร้อมรับงาน" }, 409);
+      const assignmentChanged = String(current.car_id || "") !== String(car.id);
+      const intervalChanged = ["pickup_date", "pickup_time", "return_date", "return_time"].some((field) => text(current[field]) !== text(merged[field]));
+      if (assignmentChanged || intervalChanged) {
+        const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&id=neq.${encodeURIComponent(id)}&duplicate_of=is.null&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_on=lte.${encodeURIComponent(returnDate)}&return_on=gte.${encodeURIComponent(pickupDate)}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
+        const conflict = (candidates || []).find((row: Record<string, unknown>) => dateOk(text(row.pickup_date)) && timeOk(text(row.pickup_time)) && dateOk(text(row.return_date)) && timeOk(text(row.return_time)) && overlaps(merged, row));
+        if (conflict) return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก", conflict }, 409);
+      }
+      booking.car_id = car.id;
+      booking.car = `${car.model}${car.car_ref ? ` · ${car.car_ref}` : ""}`;
+    }
+  }
   booking.updated_at = new Date().toISOString();
   const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(booking) });
   const row = Array.isArray(saved) ? saved[0] : saved;

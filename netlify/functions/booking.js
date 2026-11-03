@@ -3,6 +3,7 @@ const EDITABLE_FIELDS = new Set([
   "customer_phone",
   "booking_no",
   "car",
+  "car_id",
   "pickup_date",
   "pickup_time",
   "pickup_location",
