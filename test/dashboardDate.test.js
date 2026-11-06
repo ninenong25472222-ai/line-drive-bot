@@ -200,7 +200,8 @@ test("Dashboard loads the car workspace and AppSheet-style booking form", () => 
   assert.match(workspace, /ตั้งค่าข้อมูล/);
   assert.match(workspace, /สนามบินสุราษฎร์ธานี/);
   assert.match(workspace, /ระยะเวลาเช่า/);
-  assert.match(workspace, /คิดค่าเช่า/);
+  assert.match(workspace, /totals\.days \+ ' วัน ' \+ totals\.hours \+ ' ชั่วโมง ' \+ totals\.minutes \+ ' นาที'/);
+  assert.doesNotMatch(workspace.slice(workspace.indexOf("duration: 'ระยะเวลาเช่า'"), workspace.indexOf("function documentBookingData")), /คิดค่าเช่า/);
   assert.match(workspace, /booking-options/);
   assert.match(workspace, /carImageFile/);
   assert.match(workspace, /image_data/);
@@ -212,7 +213,7 @@ test("Dashboard previews complete booking confirmations without loading a third-
   assert.doesNotMatch(source, /https:\/\/(?:cdnjs|cdn\.jsdelivr)\.com/);
   assert.match(source, /data-booking-pdf=/);
   assert.match(source, /ดูร่างจากข้อมูลระบบ EN/);
-  assert.match(workspace, /RENTAL BOOKING CONFIRMATION/);
+  assert.match(workspace, /CAR RENTAL BOOKING/);
   assert.match(workspace, /ภาษาใบจอง/);
   assert.match(workspace, /function previewBookingPdf/);
   assert.match(workspace, /function canvasPdfBlob/);
