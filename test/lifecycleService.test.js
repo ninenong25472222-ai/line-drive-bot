@@ -26,7 +26,8 @@ test("lifecycle moves an expired Drive file to review before requesting confirma
     global.fetch = async (url, init = {}) => {
         if (init.method === "PATCH") {
             updates.push(JSON.parse(init.body));
-            return { ok: true };
+            assert.match(String(url), /deletion_status=eq\.active/);
+            return { ok: true, json: async () => [{ id: "booking-1" }] };
         }
         return {
             ok: true,
@@ -46,6 +47,34 @@ test("lifecycle moves an expired Drive file to review before requesting confirma
         assert.equal(driveUpdates[0].addParents, "review-folder");
         assert.equal(updates[0].deletion_status, "pending_confirmation");
         assert.equal(updates[0].original_drive_parent_ids, '["original-folder"]');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
+test("a concurrent direct delete is not overwritten by an expired-booking trash job", async () => {
+    const originalFetch = global.fetch;
+    const patchUrls = [], driveUpdates = [];
+    global.fetch = async (url, init = {}) => {
+        if (init.method === "PATCH") {
+            patchUrls.push(String(url));
+            // The administrator changed active -> pending_permanent_delete while
+            // the scheduler was moving the Drive file. CAS must leave that state intact.
+            return { ok: true, json: async () => [] };
+        }
+        if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
+        return { ok: true, json: async () => [{ id: "booking-race", return_on: "2026-10-20", status: "ยืนยันแล้ว", drive_file_id: "drive-race", deletion_status: "active" }] };
+    };
+    const drive = { files: {
+        get: async () => ({ data: { id: "drive-race", parents: ["original"], trashed: false } }),
+        update: async input => driveUpdates.push(input)
+    } };
+    try {
+        const result = await queueExpiredBookings({ drive, supabaseUrl: "https://example.supabase.co", serviceRoleKey: "service", pendingFolderId: "review", now: new Date("2026-10-27T00:00:00Z") });
+        assert.equal(result.queued, 0);
+        assert.equal(result.skipped, 1);
+        assert.equal(driveUpdates.length, 1);
+        assert.match(patchUrls[0], /deletion_status=eq\.active/);
     } finally {
         global.fetch = originalFetch;
     }
@@ -73,7 +102,8 @@ test("automatically archives a duplicate row without moving or deleting its shar
     global.fetch = async (url, init = {}) => {
         if (init.method === "PATCH") {
             updates.push(JSON.parse(init.body));
-            return { ok: true };
+            assert.match(String(url), /deletion_status=eq\.active/);
+            return { ok: true, json: async () => [{ id: "duplicate-1" }] };
         }
         if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [duplicate] };
         if (String(url).includes("id=in.")) return { ok: true, json: async () => [primary] };
@@ -105,7 +135,8 @@ test("permanent confirmation on a duplicate never deletes the canonical booking 
     global.fetch = async (url, init = {}) => {
         if (init.method === "PATCH") {
             updates.push(JSON.parse(init.body));
-            return { ok: true };
+            assert.match(String(url), /deletion_status=eq\.pending_permanent_delete/);
+            return { ok: true, json: async () => [{ id: "duplicate-1" }] };
         }
         if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
         return { ok: true, json: async () => [{ id: "duplicate-1", duplicate_of: "primary-1", return_on: "2026-10-20", status: "ยืนยันแล้ว", drive_file_id: "shared-drive-file", deletion_status: "pending_permanent_delete" }] };
@@ -126,7 +157,7 @@ test("permanent deletion runs without a configured review folder", async () => {
     const updates = [];
     let deletes = 0;
     global.fetch = async (url, init = {}) => {
-        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); return { ok: true }; }
+        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); assert.match(String(url), /deletion_status=eq\.pending_permanent_delete/); return { ok: true, json: async () => [{ id: "cancelled-1" }] }; }
         if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
         return { ok: true, json: async () => [{ id: "cancelled-1", status: "ยกเลิก", drive_file_id: "drive-cancelled", deletion_status: "pending_permanent_delete" }] };
     };
@@ -146,7 +177,7 @@ test("permanent deletion treats a missing Drive file as already deleted", async 
     const originalFetch = global.fetch;
     const updates = [];
     global.fetch = async (url, init = {}) => {
-        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); return { ok: true }; }
+        if (init.method === "PATCH") { updates.push(JSON.parse(init.body)); assert.match(String(url), /deletion_status=eq\.pending_permanent_delete/); return { ok: true, json: async () => [{ id: "cancelled-2" }] }; }
         if (String(url).includes("duplicate_of=not.is.null")) return { ok: true, json: async () => [] };
         return { ok: true, json: async () => [{ id: "cancelled-2", status: "ผิดพลาด", drive_file_id: "already-gone", deletion_status: "pending_permanent_delete" }] };
     };

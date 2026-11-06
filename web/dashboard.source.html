@@ -251,9 +251,13 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
   .timelineAvailability{text-align:left}
   .timelineEntry{grid-template-columns:132px minmax(var(--track-width),1fr)}
 }
+.lifecycleCodeLabel{display:grid;gap:6px;color:var(--mut);font-size:13px}.lifecycleCodeLabel .ctl{min-height:46px}
+#lifecycleToast{position:fixed;z-index:30;left:50%;bottom:20px;transform:translateX(-50%);width:min(560px,calc(100% - 24px));padding:13px 16px;border-radius:12px;background:#123650;color:#fff;box-shadow:0 8px 28px #14293d33;font-weight:600}
+#lifecycleToast.error{background:#8c251d}
 </style>
 </head>
 <body>
+<div id="lifecycleToast" role="status" aria-live="polite" hidden></div>
 <main class="app">
 <header class="top">
   <div><h1>Rental Desk</h1><div class="muted" id="upd">กำลังโหลด…</div></div>
@@ -354,6 +358,16 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
     </div>
     <div class="muted" id="editErr" role="alert"></div>
     <div class="modalFoot"><button class="btn danger" id="editTrash" type="button">ย้ายเข้าถังขยะ</button><button class="btn" id="editCancel" type="button">ยกเลิก</button><button class="btn save" id="editSave" type="submit">บันทึกข้อมูล</button></div>
+  </form>
+</div>
+
+<div class="modalBg" id="lifecycleModal" hidden>
+  <form class="modal" id="lifecycleConfirmForm" role="dialog" aria-modal="true" aria-labelledby="lifecycleConfirmTitle">
+    <div class="modalHead"><h2 id="lifecycleConfirmTitle">ยืนยันการลบรายการ</h2><button class="btn" id="lifecycleConfirmClose" type="button">ปิด</button></div>
+    <p class="muted" id="lifecycleConfirmMessage"></p>
+    <label class="lifecycleCodeLabel">รหัสผู้ดูแล<input class="ctl" id="lifecycleConfirmCode" type="password" autocomplete="current-password" required></label>
+    <div class="muted" id="lifecycleConfirmError" role="alert"></div>
+    <div class="modalFoot"><button class="btn" id="lifecycleConfirmCancel" type="button">ยกเลิก</button><button class="btn danger" id="lifecycleConfirmSubmit" type="submit">ยืนยันลบรายการ</button></div>
   </form>
 </div>
 
@@ -544,15 +558,13 @@ function card(e) {
   var hasActualFileName = r.file_name && !/^AppSheet-[^.]+\.row$/i.test(r.file_name);
   var map = place ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place) : '';
   var when = function (d, t) { return d ? thaiDate(d, { day: 'numeric', month: 'short', year: 'numeric' }) + (t ? ' · ' + t : '') : 'ไม่ระบุวัน'; };
-  var trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ย้ายเข้าถังขยะ</button>';
-  if (r.deletion_status === 'pending_move') trashAction = '<button type="button" disabled>รอย้ายไฟล์เข้าถังขยะ</button>';
-  if (r.deletion_status === 'pending_confirmation') trashAction = '<button class="edit" type="button" data-restore="' + esc(r.id) + '">กู้คืน</button><button class="trash" type="button" data-delete="' + esc(r.id) + '">' + (r._duplicate ? 'ยืนยันลบรายการสำเนา' : 'ยืนยันลบไฟล์') + '</button>';
+  var trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
+  if (r.deletion_status === 'pending_move') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
+  if (r.deletion_status === 'pending_confirmation') trashAction = '<button class="edit" type="button" data-restore="' + esc(r.id) + '">กู้คืน</button><button class="trash" type="button" data-delete="' + esc(r.id) + '">' + (r._duplicate ? 'ลบรายการสำเนา' : 'ลบรายการจอง') + '</button>';
   if (r.deletion_status === 'restore_requested') trashAction = '<button type="button" disabled>รอกู้คืนไฟล์</button>';
   if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
-  if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-trash="' + esc(r.id) + '">ลองย้ายเข้าถังขยะอีกครั้ง</button>';
-  var directDelete = ['ยกเลิก', 'ผิดพลาด'].indexOf(String(r.status || '')) >= 0 && ['active', 'restored', 'pending_move', 'move_failed'].indexOf(String(r.deletion_status || 'active')) >= 0
-    ? '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบถาวร</button>' : '';
+  if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
@@ -574,7 +586,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + directDelete + '</div>' : '') +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
     '</div></article>';
 }
 
@@ -837,20 +849,41 @@ async function openEdit(id) {
 function openTrash(id) {
   runLifecycleAction(id, 'queue_trash');
 }
+function showLifecycleToast(message, isError) {
+  var toast = $('lifecycleToast'); toast.textContent = message; toast.classList.toggle('error', !!isError); toast.hidden = false;
+  clearTimeout(showLifecycleToast.timer); showLifecycleToast.timer = setTimeout(function () { toast.hidden = true; }, 5000);
+}
+function confirmLifecycleInPage(action, targetRow) {
+  return new Promise(function (resolve) {
+    var modal = $('lifecycleModal'), form = $('lifecycleConfirmForm'), code = $('lifecycleConfirmCode'), error = $('lifecycleConfirmError');
+    var duplicate = targetRow && targetRow._duplicate;
+    $('lifecycleConfirmTitle').textContent = action === 'delete_now' || action === 'confirm_delete' ? 'ยืนยันลบรายการจอง' : action === 'restore' ? 'ยืนยันกู้คืนรายการ' : 'ย้ายรายการเข้าถังขยะ';
+    $('lifecycleConfirmMessage').textContent = action === 'delete_now'
+      ? (duplicate ? 'รายการนี้เป็นสำเนา ระบบจะนำเฉพาะรายการสำเนาออกจากงานและเก็บยอดไว้ โดยไม่ลบไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'รายการจะออกจากรายการจองที่ใช้งานและเก็บยอดไว้ในสรุป ระบบจะลบไฟล์ Google Drive ถาวรเมื่อยืนยัน')
+      : action === 'confirm_delete'
+        ? (duplicate ? 'ยืนยันนำรายการสำเนานี้ออกจากงาน ระบบจะเก็บยอดไว้และไม่ลบไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ยืนยันลบไฟล์ใบจองถาวร รายการและยอดสรุปจะยังเก็บไว้')
+        : action === 'restore' ? 'นำรายการกลับมาใช้งานอีกครั้งหรือไม่?' : 'ย้ายรายการไปถังขยะหรือไม่? ยอดจองยังเก็บไว้ในสรุปรายเดือน';
+    code.value = editToken(); error.textContent = ''; modal.hidden = false;
+    var finished = false;
+    function finish(value) {
+      if (finished) return; finished = true; modal.hidden = true;
+      form.removeEventListener('submit', submit); $('lifecycleConfirmCancel').removeEventListener('click', cancel); $('lifecycleConfirmClose').removeEventListener('click', cancel); modal.removeEventListener('click', outside); document.removeEventListener('keydown', escape);
+      resolve(value);
+    }
+    function cancel() { finish(null); }
+    function submit(event) { event.preventDefault(); var token = code.value.trim(); if (!token) { error.textContent = 'กรอกรหัสผู้ดูแลก่อนยืนยัน'; code.focus(); return; } finish({ token: token }); }
+    function outside(event) { if (event.target === modal) cancel(); }
+    function escape(event) { if (event.key === 'Escape') cancel(); }
+    form.addEventListener('submit', submit); $('lifecycleConfirmCancel').addEventListener('click', cancel); $('lifecycleConfirmClose').addEventListener('click', cancel); modal.addEventListener('click', outside); document.addEventListener('keydown', escape);
+    setTimeout(function () { (code.value ? $('lifecycleConfirmSubmit') : code).focus(); }, 0);
+  });
+}
 async function runLifecycleAction(id, action) {
   var targetRow = rows.find(function (row) { return String(row.id) === String(id); });
-  var wording = action === 'delete_now' && targetRow && targetRow._duplicate
-    ? 'ยืนยันลบรายการนี้ถาวรหรือไม่? ระบบจะเก็บยอดจองไว้ในสรุปรายเดือน และจะไม่ลบไฟล์ Google Drive ที่รายการหลักใช้อยู่'
-    : action === 'delete_now'
-      ? 'ยืนยันลบไฟล์ใบจองจาก Google Drive ถาวรหรือไม่? ยอดจองจะยังเก็บไว้ในสรุปรายเดือน และจะกู้ไฟล์คืนจากระบบไม่ได้'
-      : action === 'confirm_delete' && targetRow && targetRow._duplicate
-    ? 'ยืนยันนำรายการสำเนานี้ออกจากหน้าทำงานหรือไม่? ข้อมูลยอดจองจะยังเก็บไว้ และไฟล์ Google Drive ที่ใช้ร่วมกับรายการหลักจะไม่ถูกลบ'
-    : ({ queue_trash: 'ย้ายรายการนี้เข้าถังขยะหรือไม่? ยอดจองจะยังอยู่ในรายงานรายเดือน', restore: 'กู้คืนรายการและไฟล์กลับมาใช้งานหรือไม่?', confirm_delete: 'ยืนยันลบไฟล์ถาวรหรือไม่? รายการและยอดจองจะยังเก็บไว้ แต่ไฟล์จะลบไม่ได้' }[action] || 'ยืนยันการทำรายการหรือไม่?');
-  if (!window.confirm(wording)) return;
-  var token = editToken() || window.prompt('กรอกรหัสผู้ดูแลเพื่อยืนยัน');
-  if (!token) return;
-  var reason = '';
-  if (action === 'queue_trash') { reason = window.prompt('เหตุผล (ไม่บังคับ)', ''); if (reason === null) return; }
+  var confirmation = await confirmLifecycleInPage(action, targetRow);
+  if (!confirmation) return;
+  var token = confirmation.token;
+  var reason = action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'สำเนารายการ — ใช้ไฟล์ Google Drive เดียวกับรายการหลัก' : 'ย้ายจากหน้ารายการจอง') : '';
   try {
     var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id), {
       method: 'PATCH',
@@ -862,9 +895,10 @@ async function runLifecycleAction(id, action) {
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     refreshAll();
-    window.alert(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว บอตจะย้ายไฟล์ให้อัตโนมัติ') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : action === 'delete_now' ? (targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ยอดจองยังอยู่ และไฟล์หลักไม่ถูกลบ' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที โดยยังเก็บยอดจองไว้') : targetRow && targetRow._duplicate ? 'นำรายการสำเนาออกจากหน้าทำงานแล้ว ระบบยังเก็บยอดไว้และไม่ลบไฟล์หลัก' : updated.deletion_status === 'deleted' ? 'ลบรายการแล้ว โดยยังเก็บยอดจองในสรุปรายเดือนไว้' : 'รับคำสั่งลบถาวรแล้ว บอตจะลบไฟล์จาก Google Drive ภายในประมาณ 1 นาที');
+    showLifecycleToast(action === 'queue_trash' ? (targetRow && targetRow._duplicate ? 'ย้ายรายการสำเนาเข้าถังขยะแล้ว โดยไม่ย้ายไฟล์ Google Drive ที่รายการหลักใช้อยู่' : 'ส่งเข้าคิวถังขยะแล้ว บอตจะย้ายไฟล์ให้อัตโนมัติ') : action === 'restore' ? 'ส่งคำขอกู้คืนแล้ว' : action === 'delete_now' ? (targetRow && targetRow._duplicate ? 'ลบรายการสำเนาออกจากงานแล้ว ยอดยังเก็บไว้และไฟล์หลักไม่ถูกลบ' : updated.deletion_status === 'deleted' ? 'ลบรายการออกจากงานแล้ว โดยยังเก็บยอดจองไว้' : 'ลบรายการออกจากงานแล้ว ระบบกำลังลบไฟล์จาก Google Drive โดยเก็บยอดสรุปไว้') : targetRow && targetRow._duplicate ? 'ลบรายการสำเนาออกจากงานแล้ว โดยไม่ลบไฟล์หลัก' : updated.deletion_status === 'deleted' ? 'ลบรายการออกจากงานแล้ว โดยยังเก็บยอดจองไว้' : 'รับคำสั่งลบถาวรแล้ว ระบบจะลบไฟล์จาก Google Drive โดยเก็บยอดสรุปไว้');
   } catch (error) {
-    window.alert(error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : error.message || 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง');
+    if (error.status === 403) { try { sessionStorage.removeItem('rd_edit_token'); } catch (e) {} showLifecycleToast('รหัสผู้ดูแลไม่ถูกต้อง กดลบอีกครั้งแล้วกรอกรหัสใหม่', true); }
+    else showLifecycleToast(error.message || 'ดำเนินการไม่สำเร็จ ลองใหม่อีกครั้ง', true);
   }
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }

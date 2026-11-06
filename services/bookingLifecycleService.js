@@ -24,21 +24,25 @@ function supabaseApiKeyHeaders(key) {
     return headers;
 }
 
-async function updateBooking(url, key, id, patch) {
+async function updateBooking(url, key, id, patch, expectedStatus) {
+    const stateFilter = expectedStatus ? `&deletion_status=eq.${encodeURIComponent(expectedStatus)}` : "";
     const response = await fetch(
-        `${url}/rest/v1/rental_bookings?id=eq.${encodeURIComponent(id)}`,
+        `${url}/rest/v1/rental_bookings?id=eq.${encodeURIComponent(id)}${stateFilter}`,
         {
             method: "PATCH",
             headers: {
                 ...supabaseApiKeyHeaders(key),
                 "Content-Type": "application/json",
-                Prefer: "return=minimal"
+                Prefer: expectedStatus ? "return=representation" : "return=minimal"
             },
             body: JSON.stringify(patch)
         }
     );
 
     if (!response.ok) throw new Error(`BOOKING_LIFECYCLE_UPDATE_FAILED_${response.status}`);
+    if (!expectedStatus) return true;
+    const updated = await response.json();
+    return Array.isArray(updated) ? updated.length > 0 : Boolean(updated);
 }
 
 async function fetchBookings(url, key, query) {
@@ -70,13 +74,14 @@ async function archiveDuplicateBookings({ url, key, now }) {
             continue;
         }
         try {
-            await updateBooking(url, key, duplicate.id, {
+            const archived = await updateBooking(url, key, duplicate.id, {
                 deletion_status: "pending_confirmation",
                 pending_deletion_at: now.toISOString(),
                 trashed_at: now.toISOString(),
                 trash_reason: "สำเนารายการอัตโนมัติ — อ้างอิงไฟล์ Google Drive เดียวกับรายการหลัก"
-            });
-            summary.archived += 1;
+            }, "active");
+            if (archived) summary.archived += 1;
+            else summary.skipped += 1;
         } catch (error) {
             summary.failed += 1;
             console.error("DUPLICATE_BOOKING_ARCHIVE_ERROR:", duplicate.id, error?.message || error);
@@ -109,13 +114,14 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
                     const file = await drive.files.get({ fileId: booking.drive_file_id, fields: "id,parents" });
                     await drive.files.update({ fileId: booking.drive_file_id, addParents: originalParents.join(","), removeParents: (file.data.parents || []).join(","), fields: "id,parents" });
                 }
-                await updateBooking(url, serviceRoleKey, booking.id, {
+                const archived = await updateBooking(url, serviceRoleKey, booking.id, {
                     deletion_status: "pending_confirmation",
                     trashed_at: now.toISOString(),
                     pending_deletion_at: now.toISOString(),
                     trash_reason: "สำเนารายการอัตโนมัติ — อ้างอิงไฟล์ Google Drive เดียวกับรายการหลัก"
-                });
-                summary.duplicateArchive.archived += 1;
+                }, "pending_move");
+                if (archived) summary.duplicateArchive.archived += 1;
+                else summary.duplicateArchive.skipped += 1;
             } catch (error) {
                 summary.duplicateArchive.failed += 1;
                 console.error("DUPLICATE_BOOKING_RESTORE_SHARED_FILE_ERROR:", booking.id, error?.message || error);
@@ -124,24 +130,24 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
         }
         if (booking.deletion_status === "pending_permanent_delete") {
             if (booking.duplicate_of) {
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() }, "pending_permanent_delete");
                 summary.deleted += 1;
                 continue;
             }
             if (!booking.drive_file_id) {
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() }, "pending_permanent_delete");
                 summary.deleted += 1;
                 continue;
             }
             try {
                 await drive.files.delete({ fileId: booking.drive_file_id });
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() }, "pending_permanent_delete");
                 summary.deleted += 1;
             } catch (error) {
                 // Deleting an already-removed Drive file is an idempotent
                 // success from the booking system's point of view.
                 if (Number(error?.code || error?.response?.status) === 404) {
-                    await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() });
+                    await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "deleted", deleted_at: now.toISOString() }, "pending_permanent_delete");
                     summary.deleted += 1;
                     continue;
                 }
@@ -153,12 +159,12 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
 
         if (booking.deletion_status === "restore_requested") {
             if (booking.duplicate_of) {
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null }, "restore_requested");
                 summary.restored += 1;
                 continue;
             }
             if (!booking.drive_file_id) {
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null }, "restore_requested");
                 summary.restored += 1;
                 continue;
             }
@@ -167,7 +173,7 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
                 if (!Array.isArray(originalParents) || !originalParents.length) throw new Error("ORIGINAL_PARENT_MISSING");
                 const file = await drive.files.get({ fileId: booking.drive_file_id, fields: "id,parents" });
                 await drive.files.update({ fileId: booking.drive_file_id, addParents: originalParents.join(","), removeParents: (file.data.parents || []).join(","), fields: "id,parents" });
-                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null });
+                await updateBooking(url, serviceRoleKey, booking.id, { deletion_status: "restored", restored_at: now.toISOString(), pending_deletion_at: null }, "restore_requested");
                 summary.restored += 1;
             } catch (error) {
                 summary.failed += 1;
@@ -191,12 +197,13 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
         // Some manual bookings have no uploaded PDF. They still enter the
         // review bin as a record, while no Drive operation is attempted.
         if (!booking.drive_file_id) {
-            await updateBooking(url, serviceRoleKey, booking.id, {
+            const archived = await updateBooking(url, serviceRoleKey, booking.id, {
                 deletion_status: "pending_confirmation",
                 pending_deletion_at: now.toISOString(),
                 trashed_at: now.toISOString()
-            });
-            summary.queued += 1;
+            }, booking.deletion_status || "active");
+            if (archived) summary.queued += 1;
+            else summary.skipped += 1;
             continue;
         }
 
@@ -206,12 +213,13 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
                 fields: "id,parents,trashed"
             });
             if (file.data.trashed) {
-                await updateBooking(url, serviceRoleKey, booking.id, {
+                const archived = await updateBooking(url, serviceRoleKey, booking.id, {
                     deletion_status: "pending_confirmation",
                     pending_deletion_at: now.toISOString(),
                     trashed_at: now.toISOString()
-                });
-                summary.queued += 1;
+                }, booking.deletion_status || "active");
+                if (archived) summary.queued += 1;
+                else summary.skipped += 1;
                 continue;
             }
 
@@ -222,13 +230,14 @@ async function queueExpiredBookings({ drive, supabaseUrl, serviceRoleKey, pendin
                 removeParents: parents.join(","),
                 fields: "id,parents"
             });
-            await updateBooking(url, serviceRoleKey, booking.id, {
+            const archived = await updateBooking(url, serviceRoleKey, booking.id, {
                 deletion_status: "pending_confirmation",
                 pending_deletion_at: now.toISOString(),
                 trashed_at: now.toISOString(),
                 original_drive_parent_ids: JSON.stringify(parents)
-            });
-            summary.queued += 1;
+            }, booking.deletion_status || "active");
+            if (archived) summary.queued += 1;
+            else summary.skipped += 1;
         } catch (error) {
             summary.failed += 1;
             console.error("PENDING_DELETION_QUEUE_ERROR:", booking.id, error?.message || error);

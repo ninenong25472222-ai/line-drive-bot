@@ -77,8 +77,7 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
   const isDuplicate = Boolean(text(current.duplicate_of));
   let patch: Record<string, unknown>;
   if (action === "delete_now") {
-    if (!["ยกเลิก", "ผิดพลาด"].includes(text(current.status))) return response({ error: "ลบถาวรได้เฉพาะรายการที่ยกเลิกหรือผิดพลาดแล้ว" }, 409);
-    if (!["active", "restored", "pending_move", "move_failed"].includes(text(current.deletion_status))) return response({ error: "รายการนี้อยู่ในขั้นตอนยืนยันลบหรือถูกลบแล้ว" }, 409);
+    if (!["active", "restored", "pending_move", "move_failed"].includes(text(current.deletion_status || "active"))) return response({ error: "รายการนี้กำลังลบอยู่หรือถูกลบแล้ว" }, 409);
     patch = {
       previous_status: text(current.status),
       deletion_status: hasFile && !isDuplicate ? "pending_permanent_delete" : "deleted",
@@ -111,8 +110,11 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
       : { deletion_status: "deleted", deleted_at: now };
   }
   patch.updated_at = now;
-  const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
-  return response(Array.isArray(saved) ? saved[0] : saved);
+  const expectedStatus = text(current.deletion_status) || "active";
+  const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&deletion_status=eq.${encodeURIComponent(expectedStatus)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
+  const updated = Array.isArray(saved) ? saved[0] : saved;
+  if (!updated) return response({ error: "สถานะรายการเปลี่ยนระหว่างทำงาน โปรดรีเฟรชแล้วลองอีกครั้ง" }, 409);
+  return response(updated);
 }
 function overlaps(candidate: Record<string, unknown>, existing: Record<string, unknown>) {
   return slot(String(candidate.pickup_date), String(candidate.pickup_time)) < slot(String(existing.return_date), String(existing.return_time)) && slot(String(candidate.return_date), String(candidate.return_time)) > slot(String(existing.pickup_date), String(existing.pickup_time));

@@ -152,24 +152,28 @@ test("Dashboard provides invoice PDF export with an editable short LINE OA filen
   assert.match(source, /@page\{size:A4 portrait;margin:0\}/);
 });
 
-test("Dashboard exposes a reversible booking trash action", () => {
+test("Dashboard exposes direct delete, trash and restore actions without browser prompt dialogs", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
-  assert.match(source, /data-trash=/);
+  assert.match(source, /closest\('\[data-trash\]'\)/);
   assert.match(source, /data-restore=/);
   assert.match(source, /data-delete=/);
   assert.match(source, /id="editTrash"/);
+  assert.match(source, /id="lifecycleModal"/);
+  assert.match(source, /ลบรายการจอง/);
   assert.match(source, /ย้ายเข้าถังขยะ/);
   assert.match(source, /runLifecycleAction/);
   assert.match(source, /data-delete-now=/);
-  assert.match(source, /ลบไฟล์ใบจองจาก Google Drive ถาวร/);
+  assert.doesNotMatch(source, /window\.(?:confirm|prompt)\(/);
+  assert.match(source, /showLifecycleToast/);
 });
 
-test("administrator API allows direct permanent deletion only for cancelled or incorrect bookings", () => {
+test("administrator API allows direct deletion of active bookings while retaining their stored summaries", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
   assert.match(source, /"delete_now"/);
-  assert.match(source, /\["ยกเลิก", "ผิดพลาด"\]\.includes\(text\(current\.status\)\)/);
-  assert.match(source, /"pending_move", "move_failed"/);
+  assert.doesNotMatch(source, /ลบถาวรได้เฉพาะรายการที่ยกเลิกหรือผิดพลาด/);
+  assert.match(source, /"active", "restored", "pending_move", "move_failed"/);
   assert.match(source, /hasFile && !isDuplicate \? "pending_permanent_delete" : "deleted"/);
+  assert.match(source, /deletion_status=eq\.\$\{encodeURIComponent\(expectedStatus\)\}/);
 });
 
 test("Dashboard clearly opens the real Google Drive attachment through its own file route", () => {
