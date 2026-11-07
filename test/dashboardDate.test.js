@@ -186,6 +186,25 @@ test("booking rates are entered per reservation and can be adjusted from the boo
   assert.doesNotThrow(() => new Function(workspace));
 });
 
+test("Dashboard exposes a monthly booking summary with archive breakdown and CSV export", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const summary = fs.readFileSync(path.join(__dirname, "..", "web", "assets", "monthly-summary.js"), "utf8");
+  assert.match(source, /id="summaryBtn"[^>]*>สรุปยอดรายเดือน/);
+  assert.match(source, /id="monthlySummaryModal"/);
+  assert.match(source, /id="summaryMonth" type="month"/);
+  assert.match(source, /id="summaryExport"[^>]*>ดาวน์โหลด CSV/);
+  assert.match(source, /function renderMonthlySummary/);
+  assert.match(source, /ค่าบริการรายการใช้งาน/);
+  assert.match(source, /ยอดคาดว่าจะชำระวันรับรถ/);
+  assert.match(source, /function monthlySummaryCsv/);
+  assert.match(summary, /row\.duplicate_of \|\| row\._duplicate/);
+  assert.match(summary, /cancelledService/);
+  assert.match(summary, /archivedService/);
+  const inlineScripts = Array.from(source.matchAll(/<script\s*>([\s\S]*?)<\/script>/gi));
+  inlineScripts.forEach((script) => assert.doesNotThrow(() => new Function(script[1])));
+  assert.doesNotThrow(() => new Function(summary));
+});
+
 test("administrator API allows direct deletion of active bookings while retaining their stored summaries", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
   assert.match(source, /"delete_now"/);
