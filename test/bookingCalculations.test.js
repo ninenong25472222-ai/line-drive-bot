@@ -30,6 +30,17 @@ test("VAT and 5% withholding use service subtotal and exclude the refundable dep
   assert.equal(result.amountDue, 4254);
 });
 
+test("legacy bookings without a daily rate keep their stored service total even when they have a delivery fee", () => {
+  const result = bookingMath.calculate({ ...sample, daily_rate: 0, delivery_fee: 100, service_total: 1900 });
+  assert.equal(result.serviceTotal, 1900);
+  assert.equal(result.rentalTotal, 1900);
+});
+
+test("delivery fee remains the service total when no rate or stored subtotal exists", () => {
+  const result = bookingMath.calculate({ ...sample, daily_rate: 0, delivery_fee: 100, service_total: 0 });
+  assert.equal(result.serviceTotal, 100);
+});
+
 test("invalid or reversed rental times are not billed as a valid duration", () => {
   assert.equal(bookingMath.calculate({ ...sample, pickup_time: "25:00" }).validDuration, false);
   assert.equal(bookingMath.calculate({ ...sample, return_date: "2026-11-05" }).validDuration, false);

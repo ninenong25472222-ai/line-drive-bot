@@ -64,3 +64,8 @@ test("Thai and English booking PDFs render as a single A4 page", async () => {
     assert.deepEqual(page.view, [0, 0, 595, 842]);
   }
 });
+
+test("legacy bookings without a recorded daily rate print one consistent service subtotal", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
+  assert.match(source, /var payments = dailyRate > 0[\s\S]*?\[\[isThai \? 'รวมค่าบริการ' : 'Service subtotal', serviceTotal\]\]/);
+});

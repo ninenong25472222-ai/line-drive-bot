@@ -32,9 +32,9 @@
     var dailyRate = cents(data.daily_rate);
     var deliveryFee = cents(data.delivery_fee);
     var storedServiceTotal = cents(data.service_total);
-    var serviceTotal = dailyRate > 0 || deliveryFee > 0
+    var serviceTotal = dailyRate > 0
       ? dailyRate * billableDays + deliveryFee
-      : storedServiceTotal;
+      : storedServiceTotal > 0 ? storedServiceTotal : deliveryFee;
     var vat = data.wants_tax_invoice ? Math.round(serviceTotal * 7 / 100) : 0;
     // Withholding is calculated on service charges before VAT. Refundable deposits
     // and booking advances are payment balances, not part of the calculation base.

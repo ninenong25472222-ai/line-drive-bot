@@ -81,11 +81,9 @@
     var pickupLocation = isThai ? data.pickup_location : englishBookingLocation(data.pickup_location), returnLocation = isThai ? data.return_location : englishBookingLocation(data.return_location);
     var tripY = 466, tripH = 288; box(x, tripY, w, tripH, 2); line(mid, tripY, mid, tripY + tripH); text(isThai ? 'PICK UP / รับรถ' : 'PICK UP', x + 20, tripY + 18, 23, true, '#0b4981'); text(isThai ? 'RETURN / คืนรถ' : 'RETURN', mid + 20, tripY + 18, 23, true, '#0b4981'); text(isThai ? 'วันที่' : 'Date', x + 20, tripY + 67, 18, true, '#425566'); text(data.pickup_date ? new Date(data.pickup_date + 'T12:00:00+07:00').toLocaleDateString(locale, { timeZone: 'Asia/Bangkok' }) : '-', x + 20, tripY + 94, 25, true, '#b51e1e'); text(isThai ? 'เวลา' : 'Time', x + 20, tripY + 133, 18, true, '#425566'); text(data.pickup_time || '-', x + 20, tripY + 159, 25, true, '#b51e1e'); text(isThai ? 'สถานที่รับรถ' : 'Pickup location', x + 20, tripY + 198, 18, true, '#425566'); wrap(pickupLocation, x + 20, tripY + 223, mid - x - 40, 18, true, '#b51e1e', 22, 2); text(isThai ? 'วันที่' : 'Date', mid + 20, tripY + 67, 18, true, '#425566'); text(data.return_date ? new Date(data.return_date + 'T12:00:00+07:00').toLocaleDateString(locale, { timeZone: 'Asia/Bangkok' }) : '-', mid + 20, tripY + 94, 25, true, '#b51e1e'); text(isThai ? 'เวลา' : 'Time', mid + 20, tripY + 133, 18, true, '#425566'); text(data.return_time || '-', mid + 20, tripY + 159, 25, true, '#b51e1e'); text(isThai ? 'สถานที่คืนรถ' : 'Return location', mid + 20, tripY + 198, 18, true, '#425566'); wrap(returnLocation, mid + 20, tripY + 223, right - mid - 40, 18, true, '#b51e1e', 22, 2);
     var detailY = 766, detailH = 328; box(x, detailY, w, detailH, 2); line(mid, detailY, mid, detailY + detailH); text(isThai ? 'รายละเอียดการชำระเงิน' : 'Payment details', x + 18, detailY + 16, 21, true, '#0b4981');
-    var payments = [
-      [isThai ? 'ค่าเช่า (' + chargedDays + ' วัน)' : 'Rental (' + chargedDays + ' days)', dailyRate * chargedDays],
-      [isThai ? 'ค่ารับ-ส่ง' : 'Delivery fee', deliveryFee],
-      [isThai ? 'รวมค่าบริการ' : 'Service subtotal', serviceTotal]
-    ];
+    var payments = dailyRate > 0
+      ? [[isThai ? 'ค่าเช่า (' + chargedDays + ' วัน)' : 'Rental (' + chargedDays + ' days)', dailyRate * chargedDays], [isThai ? 'ค่ารับ-ส่ง' : 'Delivery fee', deliveryFee], [isThai ? 'รวมค่าบริการ' : 'Service subtotal', serviceTotal]]
+      : [[isThai ? 'รวมค่าบริการ' : 'Service subtotal', serviceTotal]];
     if (showVat) payments.push([isThai ? 'ภาษีมูลค่าเพิ่ม 7%' : 'VAT 7%', vat]);
     if (showWht) payments.push([isThai ? 'หัก ณ ที่จ่าย 5%' : 'Withholding tax 5%', -wht]);
     payments.push([isThai ? 'เงินมัดจำ (คืนได้)' : 'Refundable deposit', security]);
