@@ -58,6 +58,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .modal{width:min(680px,100%);margin:5vh auto;background:#fff;border-radius:16px;padding:18px;box-shadow:0 20px 60px rgba(20,41,61,.25)}
 .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.modalHead h2{margin:0;font-size:20px}
 .editGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.editGrid label{display:grid;gap:4px;color:var(--mut);font-size:13px}.editGrid label.wide{grid-column:1/-1}
+.editMoneySection{display:grid;gap:2px;padding-top:12px;border-top:1px solid var(--line)}.editMoneySection b{font-size:15px}.editMoneySummary{border-radius:10px;background:#eff7fc;padding:10px 12px;font-size:13px;font-weight:600}
 .editCarSearch{margin-top:4px}.editCarPicker{min-height:44px}.editCarMeta{display:block;line-height:1.5}
 .modalFoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.save{background:var(--p);border-color:var(--p);color:#fff}
 .reparseModal{width:min(760px,100%)}.reparseList{display:grid;gap:8px;margin-top:14px;max-height:48vh;overflow:auto;padding-right:2px}.reparseItem{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fbfdff}.reparseItem b{display:block;font-size:14px}.reparseItem small{display:block;color:var(--mut);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reparseState{font-size:12px;font-weight:600;border-radius:99px;padding:3px 9px;background:#eef1f5;color:#4b5b6b;white-space:nowrap}.reparseState.work{background:#e3f1fa;color:#0f5f93}.reparseState.ok{background:#dff3ec;color:#0b6b52}.reparseState.fail{background:#fdecea;color:var(--err)}
@@ -353,6 +354,15 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
       <label>วันคืนรถ<input class="ctl" name="return_date" type="date"></label>
       <label>เวลาคืนรถ<input class="ctl" name="return_time" type="time"></label>
       <label class="wide">สถานที่คืนรถ<input class="ctl" name="return_location"></label>
+      <div class="wide editMoneySection"><b>ราคาและยอดชำระของรายการนี้</b><span class="muted">ปรับได้ตามราคาที่ตกลงจริง ระบบจะคำนวณยอดบริการ VAT และหัก ณ ที่จ่ายจากข้อมูลนี้</span></div>
+      <label>ราคาต่อวัน (บาท)<input class="ctl" name="daily_rate" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label>ค่ารับ-ส่ง (บาท)<input class="ctl" name="delivery_fee" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label>ยอดโอนจอง (บาท)<input class="ctl" name="booking_deposit" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label>เงินมัดจำคืนได้ (บาท)<input class="ctl" name="security_deposit" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label class="wide"><input name="wants_tax_invoice" type="checkbox"> ออกใบกำกับภาษี VAT 7%</label>
+      <label class="wide" id="editTaxCompanyRow" hidden>ชื่อบริษัทสำหรับใบกำกับภาษี<input class="ctl" name="tax_company_name" maxlength="500"></label>
+      <label class="wide"><input name="withhold_tax_5" type="checkbox"> หักภาษี ณ ที่จ่าย 5%</label>
+      <div class="wide editMoneySummary" id="editMoneySummary" aria-live="polite"></div>
       <label>สถานะ<select class="ctl" name="status"><option value="รอตรวจสอบ">รอตรวจสอบ</option><option value="ยืนยันแล้ว">ยืนยันแล้ว</option><option value="ผิดพลาด">ผิดพลาด — รอย้ายเข้าคิวลบ</option><option value="ยกเลิก">ยกเลิก — รอย้ายเข้าคิวลบ</option></select></label>
       <label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>
     </div>
@@ -828,6 +838,24 @@ function searchEditCars() {
   var row = rows.find(function (item) { return String(item.id) === String(view.editingId); });
   if (row) renderEditCarPicker(row, $('editCarPicker').value);
 }
+function editMoneyPreview(row) {
+  var form = $('editForm'), formData = {
+    pickup_date: form.elements.pickup_date.value,
+    pickup_time: form.elements.pickup_time.value,
+    return_date: form.elements.return_date.value,
+    return_time: form.elements.return_time.value,
+    daily_rate: form.elements.daily_rate.value,
+    delivery_fee: form.elements.delivery_fee.value,
+    service_total: row.service_total,
+    security_deposit: form.elements.security_deposit.value,
+    booking_deposit: form.elements.booking_deposit.value,
+    wants_tax_invoice: form.elements.wants_tax_invoice.checked,
+    withhold_tax_5: form.elements.withhold_tax_5.checked
+  };
+  $('editTaxCompanyRow').hidden = !formData.wants_tax_invoice;
+  var totals = window.RentalBookingMath.calculate(formData), summary = $('editMoneySummary');
+  summary.textContent = (totals.validDuration ? totals.days + ' วัน ' + totals.hours + ' ชั่วโมง ' + totals.minutes + ' นาที' : 'ตรวจวันและเวลาเช่า') + ' · ค่าบริการ ' + totals.serviceTotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท' + (formData.wants_tax_invoice ? ' · VAT 7% ' + totals.vat.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '') + (formData.withhold_tax_5 ? ' · หัก ณ ที่จ่าย 5% ' + totals.withholding.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '') + ' · ชำระวันรับรถ ' + Math.max(0, totals.amountDue).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' บาท';
+}
 async function openEdit(id) {
   var row = rows.find(function (r) { return String(r.id) === String(id); });
   if (!row) return;
@@ -841,7 +869,13 @@ async function openEdit(id) {
   $('editForm').elements.return_date.value = row._r || '';
   $('editForm').elements.pickup_time.value = row._pt || '';
   $('editForm').elements.return_time.value = row._rt || '';
+  ['daily_rate', 'delivery_fee', 'booking_deposit', 'security_deposit'].forEach(function (name) { $('editForm').elements[name].value = row[name] == null ? '' : row[name]; });
+  $('editForm').elements.wants_tax_invoice.checked = Boolean(row.wants_tax_invoice);
+  $('editForm').elements.withhold_tax_5.checked = Boolean(row.withhold_tax_5);
+  $('editForm').elements.tax_company_name.value = row.tax_company_name || '';
+  $('editForm').dataset.moneyChanges = '';
   renderEditCarPicker(row);
+  editMoneyPreview(row);
   $('editForm').elements.edit_token.value = editToken();
   $('editErr').textContent = '';
   $('editModal').hidden = false;
@@ -1391,12 +1425,22 @@ $('editModal').addEventListener('click', function (e) { if (e.target === $('edit
     if (row) renderEditCarPicker(row, $('editCarPicker').value);
   }); });
 });
+['daily_rate', 'delivery_fee', 'booking_deposit', 'security_deposit', 'wants_tax_invoice', 'withhold_tax_5', 'tax_company_name'].forEach(function (name) {
+  ['input', 'change'].forEach(function (eventName) { $('editForm').elements[name].addEventListener(eventName, function () {
+    var changes = new Set(($('editForm').dataset.moneyChanges || '').split(',').filter(Boolean)); changes.add(name); $('editForm').dataset.moneyChanges = Array.from(changes).join(',');
+    var row = rows.find(function (item) { return String(item.id) === String(view.editingId); }); if (row) editMoneyPreview(row);
+  }); });
+});
+['pickup_date', 'pickup_time', 'return_date', 'return_time'].forEach(function (name) { ['input', 'change'].forEach(function (eventName) { $('editForm').elements[name].addEventListener(eventName, function () { var row = rows.find(function (item) { return String(item.id) === String(view.editingId); }); if (row) editMoneyPreview(row); }); }); });
 $('editForm').addEventListener('submit', async function (e) {
   e.preventDefault();
   var token = String($('editForm').elements.edit_token.value || '').trim();
   if (!view.editingId || !token) { $('editErr').textContent = 'กรอกรหัสผู้ดูแลก่อนบันทึก'; return; }
-  var form = new FormData($('editForm')), payload = {};
-  form.forEach(function (value, key) { if (key !== 'edit_token') payload[key] = String(value).trim(); });
+  var form = new FormData($('editForm')), payload = {}, moneyChanges = new Set(($('editForm').dataset.moneyChanges || '').split(',').filter(Boolean));
+  form.forEach(function (value, key) { if (key !== 'edit_token' && !['daily_rate', 'delivery_fee', 'booking_deposit', 'security_deposit', 'wants_tax_invoice', 'withhold_tax_5', 'tax_company_name'].includes(key)) payload[key] = String(value).trim(); });
+  moneyChanges.forEach(function (key) { if (key === 'wants_tax_invoice' || key === 'withhold_tax_5') payload[key] = $('editForm').elements[key].checked; else payload[key] = String($('editForm').elements[key].value || '').trim(); });
+  if ((moneyChanges.has('daily_rate') || moneyChanges.has('delivery_fee')) && Number($('editForm').elements.daily_rate.value) <= 0) { $('editErr').textContent = 'กรอกราคาต่อวันมากกว่า 0 บาทก่อนบันทึกการปรับค่าเช่า'; $('editForm').elements.daily_rate.focus(); return; }
+  if ($('editForm').elements.wants_tax_invoice.checked && !$('editForm').elements.tax_company_name.value.trim() && moneyChanges.size) { $('editErr').textContent = 'กรอกชื่อบริษัทสำหรับใบกำกับภาษีก่อนบันทึก'; $('editForm').elements.tax_company_name.focus(); return; }
   $('editSave').disabled = true;
   $('editErr').textContent = '';
   try {
@@ -1405,13 +1449,13 @@ $('editForm').addEventListener('submit', async function (e) {
       headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': token },
       body: JSON.stringify(payload)
     });
-    if (!response.ok) throw httpErr(response.status);
+    if (!response.ok) { var detail = await response.json().catch(function () { return {}; }); throw Object.assign(new Error(detail.error || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง'), { status: response.status }); }
     var updated = await response.json();
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
     closeEdit(); fillSources(); refreshAll(); updateReparseAction();
   } catch (error) {
-    $('editErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : error.status === 409 ? 'รถคันนี้ไม่พร้อมหรือมีคิวจองซ้อน กรุณาเลือกรถหรือช่วงเวลาใหม่' : error.status === 400 ? 'กรอกวันและเวลาให้ครบและตรวจว่าคืนรถหลังเวลาส่งรถ' : 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
+    $('editErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : error.message || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง';
   } finally { $('editSave').disabled = false; }
 });
 $('calgrid').addEventListener('click', function (e) { selectCalendarDate(e); });
@@ -1494,6 +1538,6 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/booking-workspace.js?v=20261106-layout-math-v1" defer></script>
+<script src="/booking-workspace.js?v=20261107-manual-rates-v1" defer></script>
 </body>
 </html>

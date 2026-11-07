@@ -167,6 +167,25 @@ test("Dashboard exposes direct delete, trash and restore actions without browser
   assert.match(source, /showLifecycleToast/);
 });
 
+test("booking rates are entered per reservation and can be adjusted from the booking editor", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const workspace = fs.readFileSync(path.join(__dirname, "..", "web", "booking-workspace.js"), "utf8");
+  const admin = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
+  assert.match(workspace, /กำหนดราคาแยกตามใบจอง/);
+  assert.doesNotMatch(workspace, /form\.elements\.daily_rate\.value\s*=\s*car\.default_daily_rate/);
+  assert.match(source, /name="daily_rate" type="number"/);
+  assert.match(source, /name="delivery_fee" type="number"/);
+  assert.match(source, /name="booking_deposit" type="number"/);
+  assert.match(source, /editMoneyPreview/);
+  assert.match(source, /dataset\.moneyChanges/);
+  assert.match(admin, /const intervalChanged = scheduleChanged && scheduleFields\.some/);
+  assert.match(admin, /&duplicate_of=is\.null/);
+  const inlineScripts = Array.from(source.matchAll(/<script\s*>([\s\S]*?)<\/script>/gi));
+  assert.ok(inlineScripts.length > 0);
+  inlineScripts.forEach((script) => assert.doesNotThrow(() => new Function(script[1])));
+  assert.doesNotThrow(() => new Function(workspace));
+});
+
 test("administrator API allows direct deletion of active bookings while retaining their stored summaries", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
   assert.match(source, /"delete_now"/);
