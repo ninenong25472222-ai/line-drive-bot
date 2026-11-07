@@ -21,10 +21,19 @@ export async function onRequest(context) {
     order: "pickup_date.asc.nullslast,pickup_time.asc.nullslast,created_at.desc",
     limit: "500",
   });
-  const response = await fetch(`${url}/rest/v1/rental_bookings?${query}`, { headers: headers(anonKey) });
-  if (!response.ok) {
-    const detail = (await response.text()).replace(/[\r\n]+/g, " ").slice(0, 240);
-    return json({ error: "โหลดรายการจองไม่สำเร็จ", upstream_status: response.status, detail }, 502);
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = new URLSearchParams(query);
+    page.set("offset", String(offset));
+    const response = await fetch(`${url}/rest/v1/rental_bookings?${page}`, { headers: headers(anonKey) });
+    if (!response.ok) {
+      const detail = (await response.text()).replace(/[\r\n]+/g, " ").slice(0, 240);
+      return json({ error: "โหลดรายการจองไม่สำเร็จ", upstream_status: response.status, detail }, 502);
+    }
+    const batch = await response.json();
+    if (!Array.isArray(batch)) return json({ error: "ข้อมูลรายการจองจากระบบไม่ถูกต้อง" }, 502);
+    rows.push(...batch);
+    if (batch.length < 500) break;
   }
-  return forward(response);
+  return json(rows);
 }
