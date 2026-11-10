@@ -82,6 +82,53 @@ async function bookingById(url: string, key: string, id: string) {
   const rows = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&select=*`);
   return Array.isArray(rows) ? rows[0] : null;
 }
+async function listBookings(url: string, key: string) {
+  const query = new URLSearchParams({
+    select: "id,source,source_label,status,rental_status,rental_status_history,delivered_at,returned_at,cancelled_at,cancellation_reason,status_before_cancel,deletion_status,pending_deletion_at,trashed_at,restored_at,deleted_at,trash_reason,duplicate_of,duplicate_reason,company,booking_no,customer_name,customer_phone,customer_email,booking_channel,car_id,pickup_date,pickup_on,pickup_time,pickup_location,return_date,return_on,return_time,return_location,car,daily_rate,booking_deposit,security_deposit,delivery_fee,service_total,booking_note,wants_tax_invoice,tax_company_name,withhold_tax_5,file_name,drive_url,created_at",
+    order: "pickup_date.asc.nullslast,pickup_time.asc.nullslast,created_at.desc",
+    limit: "500",
+  });
+  const rows: Record<string, unknown>[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = new URLSearchParams(query); page.set("offset", String(offset));
+    const batch = await rest(url, key, `rental_bookings?${page}`);
+    if (!Array.isArray(batch)) return response({ error: "ข้อมูลรายการจองจากระบบไม่ถูกต้อง" }, 502);
+    rows.push(...batch);
+    if (batch.length < 500) break;
+  }
+  return response(rows);
+}
+async function bookingFile(url: string, key: string, id: string, download: boolean) {
+  const rows = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&select=drive_url,file_name,booking_no&limit=1`);
+  const booking = Array.isArray(rows) ? rows[0] : null;
+  if (!booking) return response({ error: "ไม่พบรายการจอง" }, 404);
+  const driveUrl = text(booking.drive_url, 2000);
+  let parsed: URL;
+  try { parsed = new URL(driveUrl); } catch { return response({ error: "รายการนี้ไม่มีไฟล์ใบจองที่เปิดได้" }, 422); }
+  if (parsed.protocol !== "https:" || !["drive.google.com", "docs.google.com"].includes(parsed.hostname.toLowerCase())) return response({ error: "ลิงก์ไฟล์ไม่ใช่ Google Drive" }, 422);
+  const driveId = parsed.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/)?.[1] || parsed.searchParams.get("id") || "";
+  if (download && !driveId) return response({ error: "แปลงลิงก์ดาวน์โหลดไม่สำเร็จ" }, 422);
+  return response({ url: download ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}` : driveUrl, file_name: text(booking.file_name), booking_no: text(booking.booking_no) });
+}
+async function reparseBooking(input: Record<string, unknown>, url: string, key: string, id: string) {
+  const current = await bookingById(url, key, id);
+  if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
+  const fields = ["pickup_date", "pickup_time", "return_date", "return_time"];
+  if (fields.every((field) => text(current[field]))) return response({ error: "วันและเวลาครบแล้ว ไม่ต้องอ่านซ้ำ" }, 409);
+  const patch: Record<string, unknown> = {};
+  for (const field of fields) {
+    const value = text(input[field], 20);
+    if (text(current[field]) || !value) continue;
+    if (field.endsWith("_date") ? dateOk(value) : timeOk(value)) patch[field] = value;
+  }
+  if (!Object.keys(patch).length) return response({ error: "ไม่พบข้อมูลวันที่หรือเวลาที่เติมได้" }, 422);
+  const merged = { ...current, ...patch };
+  if (fields.every((field) => text(merged[field])) && slot(text(merged.return_date), text(merged.return_time)) <= slot(text(merged.pickup_date), text(merged.pickup_time))) return response({ error: "เวลาในไฟล์ไม่ถูกต้อง วันคืนรถต้องหลังวันส่งรถ" }, 422);
+  patch.updated_at = new Date().toISOString();
+  const updatedRows = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
+  const booking = Array.isArray(updatedRows) ? updatedRows[0] : null;
+  return booking ? response({ booking, updatedFields: Object.keys(patch).filter((field) => field !== "updated_at") }) : response({ error: "บันทึกข้อมูลที่อ่านได้ไม่สำเร็จ" }, 502);
+}
 async function lifecycleBooking(input: Record<string, unknown>, url: string, key: string, id: string) {
   const action = text(input.lifecycle_action, 40);
   if (!lifecycleActions.has(action)) return response({ error: "คำสั่งถังขยะไม่ถูกต้อง" }, 400);
@@ -227,6 +274,7 @@ async function saveBooking(req: Request, url: string, key: string) {
 async function updateBooking(req: Request, url: string, key: string, id: string) {
   const input = await req.json();
   if (typeof input === "object" && input && input.status === "ยกเลิก") return response({ error: "กรุณาใช้ปุ่มยกเลิกการจองและระบุเหตุผล" }, 400);
+  if (typeof input === "object" && input && input.reparse_only === true) return reparseBooking(input, url, key, id);
   if (typeof input === "object" && input && "rental_status_action" in input) return changeRentalStatus(input, url, key, id);
   if (typeof input === "object" && input && "lifecycle_action" in input) return lifecycleBooking(input, url, key, id);
   const booking = bookingUpdatePayload(input);
@@ -305,6 +353,9 @@ Deno.serve(async (req) => {
   if (!await authorized(req)) return response({ error: "รหัสผู้ดูแลไม่ถูกต้อง" }, 403);
   try {
     const path = new URL(req.url).pathname.replace(/\/$/, "");
+    if (req.method === "GET" && path.endsWith("/bookings")) return listBookings(url, key);
+    const fileId = path.match(/\/bookings\/([0-9a-f-]{36})\/file$/i)?.[1];
+    if (req.method === "GET" && fileId) return bookingFile(url, key, fileId, new URL(req.url).searchParams.get("download") === "1");
     if (req.method === "POST" && path.endsWith("/cars")) return saveCar(req, url, key);
     const carId = path.match(/\/cars\/([0-9a-f-]{36})$/i)?.[1];
     if (req.method === "PATCH" && carId) return saveCar(req, url, key, carId);

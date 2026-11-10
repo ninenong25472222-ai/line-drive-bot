@@ -258,6 +258,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
   .timelineEntry{grid-template-columns:132px minmax(var(--track-width),1fr)}
 }
 .lifecycleCodeLabel{display:grid;gap:6px;color:var(--mut);font-size:13px}.lifecycleCodeLabel .ctl{min-height:46px}
+.dataUnlockModal{width:min(420px,100%);margin:12vh auto}.dataUnlockModal .modalFoot{justify-content:stretch}.dataUnlockModal .modalFoot button{width:100%;min-height:48px}
 #lifecycleToast{position:fixed;z-index:30;left:50%;bottom:20px;transform:translateX(-50%);width:min(560px,calc(100% - 24px));padding:13px 16px;border-radius:12px;background:#123650;color:#fff;box-shadow:0 8px 28px #14293d33;font-weight:600}
 #lifecycleToast.error{background:#8c251d}
 </style>
@@ -278,6 +279,16 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 </header>
 
 <div class="err" id="err" role="alert" hidden><span id="errMsg"></span><button class="btn" id="retry">ลองใหม่</button></div>
+
+<div class="modalBg" id="dataUnlockModal" hidden>
+  <form class="modal dataUnlockModal" id="dataUnlockForm" role="dialog" aria-modal="true" aria-labelledby="dataUnlockTitle">
+    <div class="modalHead"><h2 id="dataUnlockTitle">ยืนยันรหัสผู้ดูแล</h2></div>
+    <p class="muted" id="dataUnlockMessage">กรอกรหัสผู้ดูแลเพื่อเปิดดูข้อมูลลูกค้า ระบบจะจำรหัสไว้เฉพาะ session ของแท็บนี้</p>
+    <label class="lifecycleCodeLabel">รหัสผู้ดูแล<input class="ctl" id="dataUnlockCode" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+    <div class="muted" id="dataUnlockError" role="alert"></div>
+    <div class="modalFoot"><button class="btn save" id="dataUnlockSubmit" type="submit">เปิดดูข้อมูล</button></div>
+  </form>
+</div>
 
 <form class="panel login" id="login" hidden>
   <h2>เข้าสู่ระบบ</h2>
@@ -485,7 +496,6 @@ var CONFIG = {
   REQUIRE_LOGIN: false,      // เปิดดู Dashboard ได้ทันที
   EDIT_API_URL: '/api/bookings', // กดแก้ไขแล้วจะขอรหัสผู้ดูแลเฉพาะครั้ง
   // อ่าน PDF ในเบราว์เซอร์ แล้วบันทึกเฉพาะวันที่ที่ว่างผ่านฟังก์ชันภายในของ Supabase
-  REPARSE_API_URL: 'https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking',
   LOOKBACK_DAYS: 90          // ดึงเฉพาะรายการที่คืนรถไม่เกินกี่วันก่อน (0 = ดึงทั้งหมด)
 };
 /* ฟิลด์ที่หน้านี้ใช้: customer_name, company, customer_phone, booking_no, car,
@@ -1002,6 +1012,26 @@ async function submitRentalStatus(event) {
     else $('rentalStatusError').textContent = error.message || 'บันทึกไม่สำเร็จ ลองอีกครั้ง';
   } finally { button.disabled = false; }
 }
+async function openBookingFile(id, download) {
+  var popup = download ? null : window.open('about:blank', '_blank');
+  if (popup) popup.opener = null;
+  try {
+    var suffix = download ? '?download=1' : '';
+    var response = await fetch('/api/bookings/' + encodeURIComponent(id) + '/file' + suffix, { headers: { 'X-Booking-Edit-Token': editToken() } });
+    var result = await response.json().catch(function () { return {}; });
+    if (!response.ok) { var failure = httpErr(response.status); failure.message = result.error || failure.message; throw failure; }
+    if (!result.url) throw new Error('ไม่พบลิงก์ไฟล์');
+    if (download) window.location.assign(result.url);
+    else if (popup) popup.location.replace(result.url);
+    else window.location.assign(result.url);
+  } catch (error) {
+    if (popup) popup.close();
+    if (error.status === 403) {
+      try { sessionStorage.removeItem('rd_edit_token'); } catch (e) {}
+      rows = []; $('list').innerHTML = ''; showDataUnlock('รหัสผู้ดูแลหมดอายุหรือไม่ถูกต้อง กรุณายืนยันรหัสอีกครั้ง');
+    } else showLifecycleToast(error.message || 'เปิดไฟล์ไม่สำเร็จ', true);
+  }
+}
 function sbFetch(path, opt) {
   opt = opt || {};
   opt.headers = Object.assign({ apikey: CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, opt.headers || {});
@@ -1019,7 +1049,9 @@ async function getToken() {
 async function fetchRows(signal) {
   var tk = null;
   if (CONFIG.REQUIRE_LOGIN) { tk = await getToken(); if (!tk) throw httpErr(401); }
-  var r0 = await fetch(CONFIG.API_URL, { signal: signal, credentials: 'same-origin', headers: tk ? { Authorization: 'Bearer ' + tk } : {} });
+  var headers = { 'X-Booking-Edit-Token': editToken() };
+  if (tk) headers.Authorization = 'Bearer ' + tk;
+  var r0 = await fetch(CONFIG.API_URL, { signal: signal, credentials: 'same-origin', headers: headers });
   if (!r0.ok) throw httpErr(r0.status);
   var j0 = await r0.json();
   if (!Array.isArray(j0)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็น array)');
@@ -1190,10 +1222,10 @@ async function requestReparse(id) {
   var row = rows.find(function (item) { return String(item.id) === String(id); });
   if (!row) throw new Error('ไม่พบรายการจอง');
   var details = await readBookingDetails(row);
-  var response = await fetch(CONFIG.REPARSE_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.assign({ reparse_only: true, id: id }, details))
+  var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': editToken() },
+    body: JSON.stringify(Object.assign({ reparse_only: true }, details))
   });
   var result = await response.json().catch(function () { return {}; });
   if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error });
@@ -1254,9 +1286,25 @@ function fillSources() {
   if (set[cur]) sel.value = cur;
 }
 function showLogin(show) { $('login').hidden = !show; $('main').hidden = show; }
+function showDataUnlock(message) {
+  $('main').hidden = true; $('dataUnlockModal').hidden = false;
+  if (message) $('dataUnlockError').textContent = message;
+  setTimeout(function () { $('dataUnlockCode').focus(); }, 0);
+}
+async function unlockData(event) {
+  event.preventDefault();
+  var code = $('dataUnlockCode').value.trim();
+  if (!code) { $('dataUnlockError').textContent = 'กรอกรหัสผู้ดูแลก่อน'; return; }
+  try { sessionStorage.setItem('rd_edit_token', code); } catch (e) { $('dataUnlockError').textContent = 'เบราว์เซอร์นี้ไม่สามารถเก็บ session ได้'; return; }
+  $('dataUnlockError').textContent = 'กำลังตรวจสอบรหัส…'; $('dataUnlockSubmit').disabled = true;
+  await load();
+  if (!$('dataUnlockModal').hidden && $('dataUnlockError').textContent === 'กำลังตรวจสอบรหัส…') $('dataUnlockError').textContent = $('errMsg').textContent || 'ตรวจสอบรหัสไม่สำเร็จ ลองใหม่อีกครั้ง';
+  $('dataUnlockSubmit').disabled = false;
+}
 
 async function load(silent) {
   if (loading) return;
+  if (!editToken()) { showDataUnlock(); return; }
   loading = true;
   var ctrl = new AbortController(), to = setTimeout(function () { ctrl.abort(); }, 25000);
   $('rf').disabled = true;
@@ -1264,11 +1312,17 @@ async function load(silent) {
   try {
     rows = (await fetchRows(ctrl.signal)).map(prep);
     lastLoad = Date.now();
+    $('dataUnlockModal').hidden = true; $('dataUnlockCode').value = ''; $('main').hidden = false;
     $('err').hidden = true; showLogin(false);
     $('upd').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
     fillSources(); refreshAll(); updateReparseAction(); if (!$('monthlySummaryModal').hidden) renderMonthlySummary();
   } catch (e) {
     if (SB && CONFIG.REQUIRE_LOGIN && e.status === 401) { setAuth(null); showLogin(true); $('err').hidden = true; $('upd').textContent = 'กรุณาเข้าสู่ระบบ'; }
+    else if (e.status === 403) {
+      try { sessionStorage.removeItem('rd_edit_token'); } catch (storageError) {}
+      rows = []; $('list').innerHTML = ''; $('err').hidden = true; $('upd').textContent = 'ต้องยืนยันรหัสผู้ดูแล';
+      showDataUnlock('รหัสไม่ถูกต้อง หรือไม่มีสิทธิ์ดูข้อมูล ลองกรอกรหัสใหม่');
+    }
     else {
       $('errMsg').textContent = errText(e); $('err').hidden = false; $('upd').textContent = 'โหลดไม่สำเร็จ';
       if (!rows.length) $('list').innerHTML = '';
@@ -1502,6 +1556,7 @@ $('login').addEventListener('submit', async function (ev) {
     setAuth(await r.json()); $('pw').value = ''; load();
   } catch (e) { $('loginErr').textContent = 'เชื่อมต่อไม่ได้ ลองใหม่อีกครั้ง'; }
 });
+$('dataUnlockForm').addEventListener('submit', unlockData);
 $('list').addEventListener('click', function (e) {
   var b = e.target.closest('.sum');
   if (b) { var o = b.closest('.card').classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
@@ -1521,8 +1576,7 @@ $('list').addEventListener('click', function (e) {
   if (bill) { openBilling(bill.dataset.bill); return; }
   var file = e.target.closest('[data-booking-file]');
   if (file) {
-    var bookingId = file.dataset.bookingFile, mode = file.dataset.fileMode === 'download' ? '?download=1' : '';
-    window.open('/api/bookings/' + encodeURIComponent(bookingId) + '/file' + mode, mode ? '_self' : '_blank', 'noopener');
+    openBookingFile(file.dataset.bookingFile, file.dataset.fileMode === 'download');
     return;
   }
   if (e.target.closest('[data-more]')) { LIMIT += 150; render(); }

@@ -12,9 +12,9 @@ function loadBookingsHandler(fetchMock) {
         URLSearchParams,
         Response,
         fetch: fetchMock,
-        adminToken: () => "",
-        forward: (response) => response,
-        headers: () => ({}),
+        adminToken: (request) => request.headers.get("x-booking-edit-token") || "",
+        forward: async (response) => new Response(await response.text(), { status: response.status, headers: { "content-type": response.headers.get("content-type") || "application/json" } }),
+        headers: (_anonKey, extra = {}) => extra,
         json: (body, status = 200) => Response.json(body, { status }),
         options: () => new Response(null, { status: 204 }),
         settings: () => ({ url: "https://example.supabase.co", anonKey: "public-test-key" }),
@@ -23,32 +23,41 @@ function loadBookingsHandler(fetchMock) {
     return context.onRequest;
 }
 
-test("Cloudflare bookings endpoint loads every page beyond the first 500 rows", async () => {
+test("Cloudflare bookings endpoint proxies private data through the PIN-protected administrator function", async () => {
     const requests = [];
-    const handler = loadBookingsHandler(async (url) => {
-        requests.push(new URL(url));
-        const offset = Number(new URL(url).searchParams.get("offset"));
-        const rows = offset === 0
-            ? Array.from({ length: 500 }, (_, index) => ({ id: index }))
-            : [{ id: 500 }];
-        return Response.json(rows);
+    const handler = loadBookingsHandler(async (url, init) => {
+        requests.push({ url: new URL(url), init });
+        return Response.json([{ id: "booking-1", customer_name: "Private customer" }]);
     });
 
-    const response = await handler({ request: new Request("https://app.example/api/bookings") });
+    const response = await handler({ request: new Request("https://app.example/api/bookings", { headers: { "x-booking-edit-token": "test-pin" } }) });
     const rows = await response.json();
 
     assert.equal(response.status, 200);
-    assert.equal(rows.length, 501);
-    assert.deepEqual(requests.map((url) => url.searchParams.get("offset")), ["0", "500"]);
+    assert.equal(rows.length, 1);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url.pathname, "/functions/v1/rental-admin/bookings");
+    assert.equal(requests[0].init.headers["x-booking-edit-token"], "test-pin");
 });
 
-test("Cloudflare bookings endpoint reports an upstream error without returning partial rows", async () => {
-    const handler = loadBookingsHandler(async () => new Response("database unavailable", { status: 503 }));
+test("Cloudflare bookings endpoint rejects unauthenticated reads without calling Supabase", async () => {
+    let called = false;
+    const handler = loadBookingsHandler(async () => { called = true; return Response.json([]); });
 
     const response = await handler({ request: new Request("https://app.example/api/bookings") });
     const body = await response.json();
 
-    assert.equal(response.status, 502);
-    assert.equal(body.error, "โหลดรายการจองไม่สำเร็จ");
-    assert.equal(body.upstream_status, 503);
+    assert.equal(response.status, 403);
+    assert.equal(body.error, "กรอกรหัสผู้ดูแลเพื่อดูข้อมูล");
+    assert.equal(called, false);
+});
+
+test("Cloudflare bookings endpoint forwards administrator authorization failures", async () => {
+    const handler = loadBookingsHandler(async () => Response.json({ error: "รหัสผู้ดูแลไม่ถูกต้อง" }, { status: 403 }));
+
+    const response = await handler({ request: new Request("https://app.example/api/bookings", { headers: { "x-booking-edit-token": "wrong-pin" } }) });
+    const body = await response.json();
+
+    assert.equal(response.status, 403);
+    assert.equal(body.error, "รหัสผู้ดูแลไม่ถูกต้อง");
 });

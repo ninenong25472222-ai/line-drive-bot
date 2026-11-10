@@ -12,7 +12,7 @@ function loadAdminHandler(fetchMock) {
   source = source.replace("if (!await authorized(req)) return response({ error: \"รหัสผู้ดูแลไม่ถูกต้อง\" }, 403);", "if (false && !await authorized(req)) return response({ error: \"รหัสผู้ดูแลไม่ถูกต้อง\" }, 403);");
   let handler;
   const Deno = { serve(fn) { handler = fn; }, env: { get(name) { return ({ SUPABASE_URL: "https://db.example", SUPABASE_SERVICE_ROLE_KEY: "test-key" })[name] || ""; } } };
-  vm.runInNewContext(source, { Deno, fetch: fetchMock, crypto, TextEncoder, Uint8Array, Response, URL, Request, atob, console });
+  vm.runInNewContext(source, { Deno, fetch: fetchMock, crypto, TextEncoder, Uint8Array, Response, URL, URLSearchParams, Request, atob, console });
   return handler;
 }
 
@@ -78,6 +78,55 @@ test("invalid calendar dates are rejected by the rental administrator API", asyn
     body: JSON.stringify({ car_id: "car-1", customer_name: "Test", pickup_date: "2026-02-31", pickup_time: "09:00", return_date: "2026-03-01", return_time: "09:00", daily_rate: 100 })
   }));
   assert.equal(response.status, 400);
+});
+
+test("administrator booking list paginates past 500 rows after PIN authorization", async () => {
+  const requests = [];
+  const handler = loadAdminHandler(async (url) => {
+    const address = new URL(String(url));
+    requests.push(address);
+    const offset = Number(address.searchParams.get("offset"));
+    const rows = offset === 0
+      ? Array.from({ length: 500 }, (_, index) => ({ id: `booking-${index}` }))
+      : Array.from({ length: 3 }, (_, index) => ({ id: `booking-${500 + index}` }));
+    return mockResponse(rows);
+  });
+  const response = await handler(new Request("https://db.example/functions/v1/rental-admin/bookings", { method: "GET" }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.length, 503);
+  assert.deepEqual(requests.map((url) => url.searchParams.get("offset")), ["0", "500"]);
+  assert.ok(requests.every((url) => url.searchParams.get("select").includes("customer_phone")));
+});
+
+test("administrator reparse fills only valid missing dates and times", async () => {
+  let row = bookingRow({ pickup_date: "", pickup_time: "", return_date: "2026-11-09", return_time: "09:00" });
+  let patchBody;
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { patchBody = JSON.parse(init.body); row = { ...row, ...patchBody }; return mockResponse([row]); }
+    return mockResponse([row]);
+  });
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reparse_only: true, pickup_date: "2026-11-07", pickup_time: "08:30", return_date: "2026-11-10", return_time: "not-a-time" })
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.updatedFields, ["pickup_date", "pickup_time"]);
+  assert.deepEqual(Object.keys(patchBody).sort(), ["pickup_date", "pickup_time", "updated_at"]);
+  assert.equal(row.return_date, "2026-11-09");
+  assert.equal(row.return_time, "09:00");
+});
+
+test("administrator file-link route returns only a validated Drive link", async () => {
+  const row = bookingRow({ drive_url: "https://drive.google.com/file/d/drive-id-123/view", file_name: "booking.pdf" });
+  const handler = loadAdminHandler(async () => mockResponse([row]));
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}/file?download=1`, { method: "GET" }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(Object.keys(body).sort(), ["booking_no", "file_name", "url"]);
+  assert.equal(body.url, "https://drive.google.com/uc?export=download&id=drive-id-123");
+  assert.equal(body.file_name, "booking.pdf");
 });
 
 test("manual booking keeps the entered rate and calculates its stored total on the server", async () => {

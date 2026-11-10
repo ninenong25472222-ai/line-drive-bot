@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const { driveFileIdFromUrl, normalizedDate, reparsedPatch, missing } = require("../netlify/functions/booking");
 
@@ -26,4 +28,13 @@ test("re-reading eligibility treats blank dates as incomplete", () => {
   assert.equal(missing(""), true);
   assert.equal(missing("   "), true);
   assert.equal(missing("2026-10-23"), false);
+});
+
+test("public booking-ingestion function cannot be used to rewrite missing dates", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "store-rental-booking", "index.ts"), "utf8");
+  assert.match(source, /payload\?\.reparse_only === true\) return respond\(\{ error: "Date re-reading requires administrator authorization" \}, 403\)/);
+  assert.doesNotMatch(source, /async function reparseOnly/);
+  assert.match(source, /respond\(\{ ok: true, duplicate: true/);
+  assert.match(source, /respond\(\{ ok: true, duplicate: false \}\)/);
+  assert.doesNotMatch(source, /respond\(\{ booking[,}]/);
 });

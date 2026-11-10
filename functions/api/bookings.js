@@ -15,25 +15,11 @@ export async function onRequest(context) {
     return forward(response);
   }
   if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-
-  const query = new URLSearchParams({
-    select: "id,source,source_label,status,rental_status,rental_status_history,delivered_at,returned_at,cancelled_at,cancellation_reason,status_before_cancel,deletion_status,pending_deletion_at,trashed_at,restored_at,deleted_at,trash_reason,duplicate_of,duplicate_reason,company,booking_no,customer_name,customer_phone,customer_email,booking_channel,car_id,pickup_date,pickup_on,pickup_time,pickup_location,return_date,return_on,return_time,return_location,car,daily_rate,booking_deposit,security_deposit,delivery_fee,service_total,booking_note,wants_tax_invoice,tax_company_name,withhold_tax_5,file_name,drive_url,created_at",
-    order: "pickup_date.asc.nullslast,pickup_time.asc.nullslast,created_at.desc",
-    limit: "500",
+  const token = adminToken(request);
+  if (!token) return json({ error: "กรอกรหัสผู้ดูแลเพื่อดูข้อมูล" }, 403);
+  const response = await fetch(`${url}/functions/v1/rental-admin/bookings`, {
+    method: "GET",
+    headers: headers(anonKey, { "x-booking-edit-token": token }),
   });
-  const rows = [];
-  for (let offset = 0; ; offset += 500) {
-    const page = new URLSearchParams(query);
-    page.set("offset", String(offset));
-    const response = await fetch(`${url}/rest/v1/rental_bookings?${page}`, { headers: headers(anonKey) });
-    if (!response.ok) {
-      const detail = (await response.text()).replace(/[\r\n]+/g, " ").slice(0, 240);
-      return json({ error: "โหลดรายการจองไม่สำเร็จ", upstream_status: response.status, detail }, 502);
-    }
-    const batch = await response.json();
-    if (!Array.isArray(batch)) return json({ error: "ข้อมูลรายการจองจากระบบไม่ถูกต้อง" }, 502);
-    rows.push(...batch);
-    if (batch.length < 500) break;
-  }
-  return json(rows);
+  return forward(response);
 }

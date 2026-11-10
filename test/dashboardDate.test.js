@@ -74,6 +74,20 @@ test("booking status buttons are prominent on cards and legacy cancellations are
   assert.match(source, /b\.closest\('\.card'\)\.classList\.toggle\('open'\)/);
 });
 
+test("Dashboard gates customer data behind the administrator PIN for this tab session", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const endpoint = fs.readFileSync(path.join(__dirname, "..", "functions", "api", "bookings.js"), "utf8");
+  const admin = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "rental-admin", "index.ts"), "utf8");
+  assert.match(source, /id="dataUnlockModal"/);
+  assert.match(source, /sessionStorage\.setItem\('rd_edit_token', code\)/);
+  assert.match(source, /'X-Booking-Edit-Token': editToken\(\)/);
+  assert.match(source, /if \(!editToken\(\)\) \{ showDataUnlock\(\); return; \}/);
+  assert.match(endpoint, /if \(!token\) return json\(\{ error: "กรอกรหัสผู้ดูแลเพื่อดูข้อมูล" \}, 403\)/);
+  assert.match(endpoint, /functions\/v1\/rental-admin\/bookings/);
+  assert.match(admin, /if \(req\.method === "GET" && path\.endsWith\("\/bookings"\)\) return listBookings/);
+  assert.match(admin, /if \(!await authorized\(req\)\) return response\(\{ error: "รหัสผู้ดูแลไม่ถูกต้อง" \}, 403\)/);
+});
+
 test("Dashboard improves Thai readability, mobile calendar density, quick filters, and action hierarchy", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /--mut:#536579/);
@@ -232,6 +246,10 @@ test("Dashboard clearly opens the real Google Drive attachment through its own f
   assert.match(source, /ดูไฟล์จริง \(Google Drive\)/);
   assert.match(source, /ดาวน์โหลดไฟล์จริง/);
   assert.match(source, /\/file/);
+  assert.match(source, /async function openBookingFile/);
+  assert.match(source, /'X-Booking-Edit-Token': editToken\(\)/);
+  assert.match(source, /openBookingFile\(file\.dataset\.bookingFile/);
+  assert.match(source, /id="dataUnlockModal"/);
 });
 
 test("Dashboard loads the car workspace and AppSheet-style booking form", () => {
