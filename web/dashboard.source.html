@@ -36,7 +36,8 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .dh.td{background:var(--ink);color:#fff}.dh.td .muted{color:#c9d8e4}
 .dh.bad{background:var(--warnbg);color:var(--warn)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:8px;overflow:hidden}
-.sum{display:grid;grid-template-columns:5px 56px 1fr 20px;gap:10px;align-items:start;width:100%;text-align:left;border:0;background:none;padding:12px 12px 12px 0}
+.cardHead{display:flex;align-items:stretch;gap:8px}.sum{display:grid;grid-template-columns:5px 56px 1fr 20px;gap:10px;align-items:start;flex:1;min-width:0;text-align:left;border:0;background:none;padding:12px 4px 12px 0}
+.quickOps{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 0}.quickOps button{display:inline-flex;justify-content:center;align-items:center;min-width:118px;min-height:52px;padding:0 15px;border:0;border-radius:12px;font-size:15px;line-height:1.25;font-weight:700;white-space:nowrap}.quickOps .opDelivered{background:#dff3ec;color:#0b6b52}.quickOps .opReturned{background:#e5f0fb;color:#145b8d}.quickOps .opCancel{background:#fdecea;color:#a02c24;border:1px solid #f1b8b2}.quickOps .opRestore{background:#e5f0fb;color:#145b8d}
 .bar{background:var(--p);align-self:stretch;border-radius:0 4px 4px 0}.card.r .bar{background:var(--r)}.card.o .bar{background:var(--o)}
 .tm{font-size:19px;font-weight:700;line-height:1.3}
 .mn{display:block;min-width:0}
@@ -151,6 +152,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
   .cd b{font-size:14px}.cd small{display:none}.cd .calDots{display:flex;gap:2px;height:7px;align-items:center;justify-content:center}.cd .eventDot{width:5px;height:5px;border-radius:50%;display:inline-block}.cd .eventDot.cp{background:#1478b8}.cd .eventDot.cr{background:#0f8a6a}.cd .calCount{display:block;font-size:11px;line-height:1.1;color:var(--mut);white-space:nowrap}
   .calWeek{min-height:88px}.calDays .cd{height:88px;min-height:88px}.calBarLayer{top:32px;grid-auto-rows:11px;gap:2px 4px}.calBar{height:10px;padding:0;border:0;border-radius:5px}.calBar .barLabel{display:none}
   .dangerActions{margin-top:4px}
+  .cardHead{flex-wrap:wrap;gap:0}.sum{flex:1 1 100%;padding-right:12px}.quickOps{width:100%;padding:0 10px 10px 15px;gap:8px}.quickOps button{flex:1;min-width:0;min-height:48px;font-size:14px;padding:0 10px}
 }
 @media(max-width:360px){.topActions .btn{font-size:13px;padding:7px 8px}.stats span{font-size:12px}}
 /* Jiraporn Coastal Premium: สีแบรนด์และพื้นผิวแยกตามบทบาท */
@@ -604,8 +606,8 @@ function card(e) {
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
   var rentalStatusLabel = r.status === 'ผิดพลาด' ? 'ข้อมูลผิดพลาด' : ({ scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิกแล้ว' }[r._rentalStatus] || 'รอส่งรถ');
-  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิกการจอง</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : r._rentalStatus === 'cancelled' ? '<button class="opReturned" type="button" data-op-action="reopen_booking" data-op-id="' + esc(r.id) + '">กู้คืนเข้าคิวรถ</button>' : '');
-  return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '">' +
+  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิก</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : r._rentalStatus === 'cancelled' ? '<button class="opRestore" type="button" data-op-action="reopen_booking" data-op-id="' + esc(r.id) + '">กู้คืนเข้าคิว</button>' : '');
+  return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '"><div class="cardHead">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
@@ -615,7 +617,7 @@ function card(e) {
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
     '<span class="meta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11l2 2v5h-2v-2H5v2H3v-5l2-2zM6 11h12M7 14h.01M17 14h.01"/></svg> ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
-    '<span class="chev" aria-hidden="true">⌄</span></button>' +
+    '<span class="chev" aria-hidden="true">⌄</span></button><div class="quickOps">' + operationalActions + '</div></div>' +
     '<div class="det">' +
     '<div><label>เลขจอง</label><b>' + esc(r.booking_no || '-') + '</b></div>' +
     '<div><label>ลูกค้า / โทร</label><b>' + esc((r.customer_name || '-') + ' · ' + (r.customer_phone || '-')) + '</b></div>' +
@@ -629,7 +631,7 @@ function card(e) {
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? operationalActions + '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
+    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
     '</div></article>';
 }
 
@@ -1502,7 +1504,7 @@ $('login').addEventListener('submit', async function (ev) {
 });
 $('list').addEventListener('click', function (e) {
   var b = e.target.closest('.sum');
-  if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
+  if (b) { var o = b.closest('.card').classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
   var operation = e.target.closest('[data-op-action]');
   if (operation) { openRentalStatus(operation.dataset.opId, operation.dataset.opAction); return; }
   var edit = e.target.closest('[data-edit]');
