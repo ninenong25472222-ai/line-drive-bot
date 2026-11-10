@@ -21,7 +21,7 @@
       return pickup.slice(0, 7) === month;
     }).map(function (row) {
       var status = String(row.status || '').trim();
-      var cancelled = status === 'ยกเลิก' || status === 'ผิดพลาด';
+      var cancelled = status === 'ยกเลิก' || status === 'ผิดพลาด' || row.rental_status === 'cancelled';
       var archived = trashStates.has(row.deletion_status) || Boolean(row._inTrash);
       var amounts = typeof calculate === 'function' ? calculate(row) : {};
       var service = cents(amounts.serviceTotal == null ? row.service_total : amounts.serviceTotal);

@@ -54,6 +54,7 @@ h1{font-size:26px;line-height:1.2;margin:0}
 .acts a.drive{background:#fdebd8;color:#9a4a0b}
 .acts button{border:0;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;background:#e8f3fb;color:#0f5f93;font-weight:600}
 .acts button.edit{background:#e8f3fb;color:#0f5f93}.acts button.trash,.danger{background:#fdecea;color:var(--err);border:1px solid #f1b8b2}.acts button:disabled{opacity:.55;cursor:not-allowed}
+.acts button.opDelivered{background:#dff3ec;color:#0b6b52}.acts button.opReturned{background:#e5f0fb;color:#145b8d}.acts button.opCancel{background:#fdecea;color:#a02c24;border:1px solid #f1b8b2}.opBadge{display:inline-flex;align-items:center;border-radius:99px;padding:2px 9px;font-size:12px;font-weight:600;background:#eef2f5;color:#4b5b6b}.opBadge.delivered,.opBadge.returned{background:#dff3ec;color:#0b6b52}.opBadge.cancelled{background:#fdecea;color:#a02c24}
 .modalBg{position:fixed;inset:0;z-index:10;background:rgba(20,41,61,.42);padding:18px;display:flex;align-items:flex-start;justify-content:center;overflow:auto}
 .modal{width:min(680px,100%);margin:5vh auto;background:#fff;border-radius:16px;padding:18px;box-shadow:0 20px 60px rgba(20,41,61,.25)}
 .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.modalHead h2{margin:0;font-size:20px}
@@ -308,6 +309,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
       <option value="">Booking + Other</option><option value="booking">เฉพาะ Booking</option><option value="other">เฉพาะ Other</option>
     </select>
     <select class="ctl" id="lifecycle" aria-label="สถานะถังขยะ"><option value="active">ใช้งานอยู่</option><option value="">ทุกสถานะถังขยะ</option><option value="review">อยู่ในถังขยะ / รอยืนยัน</option><option value="deleted">ลบถาวรแล้ว</option></select>
+    <select class="ctl" id="rentalStatus" aria-label="สถานะการให้บริการ"><option value="">ทุกสถานะงาน</option><option value="scheduled">รอส่งรถ</option><option value="delivered">ส่งรถแล้ว</option><option value="returned">รับรถคืนแล้ว</option><option value="cancelled">ยกเลิก</option></select>
     <label class="chip"><input id="hideDup" type="checkbox" checked> ซ่อนสำเนาไฟล์ซ้ำ</label><label class="chip"><input id="onlyDup" type="checkbox"> แสดงเฉพาะสำเนาไฟล์ซ้ำ</label></div></details>
   </section>
 
@@ -366,7 +368,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
       <label class="wide" id="editTaxCompanyRow" hidden>ชื่อบริษัทสำหรับใบกำกับภาษี<input class="ctl" name="tax_company_name" maxlength="500"></label>
       <label class="wide"><input name="withhold_tax_5" type="checkbox"> หักภาษี ณ ที่จ่าย 5%</label>
       <div class="wide editMoneySummary" id="editMoneySummary" aria-live="polite"></div>
-      <label>สถานะ<select class="ctl" name="status"><option value="รอตรวจสอบ">รอตรวจสอบ</option><option value="ยืนยันแล้ว">ยืนยันแล้ว</option><option value="ผิดพลาด">ผิดพลาด — รอย้ายเข้าคิวลบ</option><option value="ยกเลิก">ยกเลิก — รอย้ายเข้าคิวลบ</option></select></label>
+      <label>สถานะตรวจสอบ<select class="ctl" name="status"><option value="รอตรวจสอบ">รอตรวจสอบ</option><option value="ยืนยันแล้ว">ยืนยันแล้ว</option><option value="ผิดพลาด">ผิดพลาด — รอย้ายเข้าคิวลบ</option></select></label>
       <label class="wide">รหัสผู้ดูแล<input class="ctl" name="edit_token" type="password" autocomplete="current-password" required></label>
     </div>
     <div class="muted" id="editErr" role="alert"></div>
@@ -381,6 +383,17 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
     <label class="lifecycleCodeLabel">รหัสผู้ดูแล<input class="ctl" id="lifecycleConfirmCode" type="password" autocomplete="current-password" required></label>
     <div class="muted" id="lifecycleConfirmError" role="alert"></div>
     <div class="modalFoot"><button class="btn" id="lifecycleConfirmCancel" type="button">ยกเลิก</button><button class="btn danger" id="lifecycleConfirmSubmit" type="submit">ยืนยันลบรายการ</button></div>
+  </form>
+</div>
+
+<div class="modalBg" id="rentalStatusModal" hidden>
+  <form class="modal" id="rentalStatusForm" role="dialog" aria-modal="true" aria-labelledby="rentalStatusTitle">
+    <div class="modalHead"><h2 id="rentalStatusTitle">เปลี่ยนสถานะรายการ</h2><button class="btn" id="rentalStatusClose" type="button">ปิด</button></div>
+    <p class="muted" id="rentalStatusMessage"></p>
+    <label class="lifecycleCodeLabel" id="cancelReasonLabel" hidden>เหตุผลที่ยกเลิก<textarea class="ctl" id="cancelReason" rows="3" maxlength="500" placeholder="เช่น ลูกค้ายกเลิก / เปลี่ยนวันเช่า"></textarea></label>
+    <label class="lifecycleCodeLabel">รหัสผู้ดูแล<input class="ctl" id="rentalStatusCode" type="password" autocomplete="current-password" required></label>
+    <div class="muted" id="rentalStatusError" role="alert"></div>
+    <div class="modalFoot"><button class="btn" id="rentalStatusCancel" type="button">กลับ</button><button class="btn save" id="rentalStatusSubmit" type="submit">บันทึกสถานะ</button></div>
   </form>
 </div>
 
@@ -458,7 +471,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 
 <script src="/assets/rental-document-engine.js"></script>
 <script src="/assets/booking-calculations.js?v=20261107-manual-rates-v2"></script>
-<script src="/assets/monthly-summary.js?v=20261107-v1"></script>
+<script src="/assets/monthly-summary.js?v=20261110-operation-status-v1"></script>
 <script>
 /* ====== ตั้งค่า ====== */
 var CONFIG = {
@@ -480,7 +493,7 @@ var CONFIG = {
 var $ = function (id) { return document.getElementById(id); };
 var SB = !!CONFIG.SUPABASE_URL;
 var rows = [], loading = false, LIMIT = 150, lastLoad = 0, batchReparse = null, reparsePlan = [], calendarFleet = [], calendarFleetLoaded = false, calendarFleetLoading = false;
-var view = { day: '', cal: null, calMode: 'month', calCar: '', calSelectedId: '', editingId: '', editingOriginalCar: '', quickFilter: '' };
+var view = { day: '', cal: null, calMode: 'month', calCar: '', calSelectedId: '', editingId: '', editingOriginalCar: '', quickFilter: '', rentalStatusId: '', rentalStatusAction: '' };
 
 /* ====== ตัวช่วย ====== */
 var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"'`]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]; }); };
@@ -524,6 +537,8 @@ function prep(r) {
   o._bad = !o._p || !o._r;
   o._pendingDelete = o.deletion_status === 'pending_confirmation';
   o._inTrash = ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'deleted', 'move_failed'].indexOf(o.deletion_status) >= 0;
+  o._rentalStatus = r.rental_status || (r.status === 'ยกเลิก' ? 'cancelled' : 'scheduled');
+  o._cancelled = o._rentalStatus === 'cancelled' || r.status === 'ยกเลิก';
   o._duplicate = !!o.duplicate_of;
   o._idx = [r.customer_name, r.company, r.booking_no, r.car, r.customer_phone, r.pickup_location, r.return_location, r.file_name].join(' ').toLowerCase();
   return o;
@@ -531,10 +546,10 @@ function prep(r) {
 
 /* ====== ตัวกรอง / รายการงาน ====== */
 function base(includeHiddenDuplicates) {
-  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, onlyDup = $('onlyDup').checked, quickFilter = view.quickFilter || '', hideDup = $('hideDup').checked && lifecycle !== 'review' && lifecycle !== 'deleted' && quickFilter !== 'duplicates';
+  var q = $('q').value.toLowerCase().trim(), s = $('source').value, k = $('kind').value, lifecycle = $('lifecycle').value, rentalStatus = $('rentalStatus').value, onlyDup = $('onlyDup').checked, quickFilter = view.quickFilter || '', hideDup = $('hideDup').checked && lifecycle !== 'review' && lifecycle !== 'deleted' && quickFilter !== 'duplicates';
   return rows.filter(function (r) {
     var lifecycleMatch = !lifecycle || (lifecycle === 'active' && !r._inTrash) || (lifecycle === 'review' && ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'move_failed'].indexOf(r.deletion_status) >= 0) || (lifecycle === 'deleted' && r.deletion_status === 'deleted');
-    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!onlyDup || r._duplicate) && (!quickFilter || (quickFilter === 'incomplete' && r._bad) || (quickFilter === 'duplicates' && r._duplicate)) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
+    return (!s || r._src === s) && (!k || (k === 'other') === r._oth) && lifecycleMatch && (!rentalStatus || r._rentalStatus === rentalStatus) && (!onlyDup || r._duplicate) && (!quickFilter || (quickFilter === 'incomplete' && r._bad) || (quickFilter === 'duplicates' && r._duplicate)) && (includeHiddenDuplicates || !hideDup || onlyDup || !r._duplicate) && (!q || r._idx.indexOf(q) >= 0);
   });
 }
 function events(list) {
@@ -550,6 +565,7 @@ function events(list) {
     return out;
   }
   list.forEach(function (r) {
+    if (r._cancelled) { if (r._p || r._r) out.push({ r: r, t: 'p', d: r._p || r._r, tm: r._pt || r._rt }); else out.push({ r: r, t: 'p', d: '', tm: '' }); return; }
     var e = [];
     if (m !== 'return') e.push({ r: r, t: 'p', d: r._p, tm: r._pt });
     if (m !== 'pickup') e.push({ r: r, t: 'r', d: r._r, tm: r._rt });
@@ -587,11 +603,14 @@ function card(e) {
   if (r.deletion_status === 'pending_permanent_delete') trashAction = '<button type="button" disabled>รอลบไฟล์ถาวร</button>';
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
+  var rentalStatusLabel = r.status === 'ผิดพลาด' ? 'ข้อมูลผิดพลาด' : ({ scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิกแล้ว' }[r._rentalStatus] || 'รอส่งรถ');
+  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิกการจอง</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : '');
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
     (r._oth ? '<span class="badge o">Other</span>' : (r._src ? '<span class="badge">' + esc(r._src) + '</span>' : '')) +
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
+    '<span class="opBadge ' + esc(r._rentalStatus) + '">' + rentalStatusLabel + '</span>' +
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
@@ -604,11 +623,13 @@ function card(e) {
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
     (r._duplicate ? '<div class="wide"><label>ข้อมูลรายการหลัก</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
     (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
+    (r._cancelled && r.cancellation_reason ? '<div class="wide"><label>เหตุผลที่ยกเลิก</label><b>' + esc(r.cancellation_reason) + '</b></div>' : '') +
+    (Array.isArray(r.rental_status_history) && r.rental_status_history.length ? '<div class="wide"><label>ประวัติการดำเนินงาน</label><b>' + r.rental_status_history.map(function (entry) { var state = { scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิก' }; var at = entry.at && !Number.isNaN(Date.parse(entry.at)) ? new Date(entry.at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : ''; return esc(state[entry.to] || entry.to || '') + (at ? ' · ' + esc(at) : '') + (entry.reason ? ' · ' + esc(entry.reason) : ''); }).join('<br>') + '</b></div>' : '') +
     (hasActualFileName ? '<div class="wide"><label>ไฟล์</label><b>' + esc(r.file_name) + '</b></div>' : '') +
     '<div class="wide acts">' + (tel ? '<a href="tel:' + esc(tel) + '">โทร</a>' : '') +
     (map ? '<a href="' + esc(map) + '" target="_blank" rel="noopener noreferrer">แผนที่</a>' : '') +
     (url && r.id ? '<button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="view">ดูไฟล์จริง (Google Drive)</button><button class="drive" type="button" data-booking-file="' + esc(r.id) + '" data-file-mode="download">ดาวน์โหลดไฟล์จริง</button>' : '<button type="button" disabled>ยังไม่มีไฟล์จริงใน Google Drive</button>') +
-    (r.id ? '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
+    (r.id ? operationalActions + '<button class="edit" type="button" data-edit="' + esc(r.id) + '">แก้ไขข้อมูล</button>' + (!url ? '<button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="en">ดูร่างจากข้อมูลระบบ EN</button><button type="button" data-booking-pdf="' + esc(r.id) + '" data-booking-language="th">ดูร่างจากข้อมูลระบบ ไทย</button>' : '') + '<button type="button" data-bill="' + esc(r.id) + '">ออกบิล</button>' : '') + '</div>' + (r.id ? '<div class="wide dangerActions">' + trashAction + '</div>' : '') +
     '</div></article>';
 }
 
@@ -654,7 +675,7 @@ function renderCal() {
   var first = new Date(Date.UTC(y, m, 1)).getUTCDay(), n = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   var monthStart = y + '-' + pad(m + 1) + '-01', monthEnd = y + '-' + pad(m + 1) + '-' + pad(n), weekCount = Math.ceil((first + n) / 7);
   $('calTitle').textContent = new Date(Date.UTC(y, m, 1)).toLocaleDateString('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  var days = {}, list = base();
+  var days = {}, list = base().filter(function (r) { return !r._cancelled; });
   list.forEach(function (r) {
     var start = r._p || r._r, end = r._r || r._p;
     if (!start || !end) return;
@@ -948,6 +969,37 @@ async function runLifecycleAction(id, action) {
   }
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
+function openRentalStatus(id, action) {
+  var labels = { mark_delivered: 'ยืนยันส่งรถเสร็จแล้ว', mark_returned: 'ยืนยันรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการจอง' };
+  var row = rows.find(function (item) { return String(item.id) === String(id); });
+  if (!row || !labels[action]) return;
+  view.rentalStatusId = id; view.rentalStatusAction = action;
+  $('rentalStatusTitle').textContent = labels[action];
+  $('rentalStatusMessage').textContent = (row.customer_name || row.booking_no || 'รายการนี้') + (action === 'cancel_booking' ? ' · รายการจะถูกนำออกจากคิวรถและเก็บประวัติไว้ในระบบ' : ' · ระบบจะบันทึกวันและเวลาที่ดำเนินการ');
+  $('cancelReasonLabel').hidden = action !== 'cancel_booking'; $('cancelReason').value = '';
+  $('rentalStatusError').textContent = ''; $('rentalStatusCode').value = editToken();
+  $('rentalStatusModal').hidden = false;
+  setTimeout(function () { (action === 'cancel_booking' ? $('cancelReason') : $('rentalStatusCode')).focus(); }, 0);
+}
+function closeRentalStatus() { $('rentalStatusModal').hidden = true; view.rentalStatusId = ''; view.rentalStatusAction = ''; }
+async function submitRentalStatus(event) {
+  event.preventDefault();
+  var id = view.rentalStatusId, action = view.rentalStatusAction, token = $('rentalStatusCode').value.trim(), reason = $('cancelReason').value.trim();
+  if (!token) { $('rentalStatusError').textContent = 'กรอกรหัสผู้ดูแลก่อนบันทึก'; return; }
+  if (action === 'cancel_booking' && !reason) { $('rentalStatusError').textContent = 'กรอกเหตุผลการยกเลิกก่อนบันทึก'; $('cancelReason').focus(); return; }
+  var button = $('rentalStatusSubmit'); button.disabled = true; $('rentalStatusError').textContent = 'กำลังบันทึก…';
+  try {
+    var response = await fetch(CONFIG.EDIT_API_URL + '/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': token }, body: JSON.stringify({ rental_status_action: action, cancellation_reason: reason }) });
+    var updated = await response.json().catch(function () { return {}; });
+    if (!response.ok) { var failure = httpErr(response.status); failure.message = updated.error || failure.message; throw failure; }
+    try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
+    rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
+    closeRentalStatus(); refreshAll(); showLifecycleToast({ mark_delivered: 'บันทึกว่าส่งรถแล้ว', mark_returned: 'บันทึกรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการและเก็บประวัติไว้แล้ว' }[action]);
+  } catch (error) {
+    if (error.status === 403) { try { sessionStorage.removeItem('rd_edit_token'); } catch (e) {} $('rentalStatusError').textContent = 'รหัสผู้ดูแลไม่ถูกต้อง'; }
+    else $('rentalStatusError').textContent = error.message || 'บันทึกไม่สำเร็จ ลองอีกครั้ง';
+  } finally { button.disabled = false; }
+}
 function sbFetch(path, opt) {
   opt = opt || {};
   opt.headers = Object.assign({ apikey: CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, opt.headers || {});
@@ -1451,6 +1503,8 @@ $('login').addEventListener('submit', async function (ev) {
 $('list').addEventListener('click', function (e) {
   var b = e.target.closest('.sum');
   if (b) { var o = b.parentNode.classList.toggle('open'); b.setAttribute('aria-expanded', o); return; }
+  var operation = e.target.closest('[data-op-action]');
+  if (operation) { openRentalStatus(operation.dataset.opId, operation.dataset.opAction); return; }
   var edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
   var trash = e.target.closest('[data-trash]');
@@ -1566,7 +1620,11 @@ $('cNext').onclick = function () { moveCal(1); };
 $('cToday').onclick = function () { view.cal = null; renderCal(); };
 var timer;
 $('q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { LIMIT = 150; refreshAll(); }, 150); });
-['period', 'mode', 'source', 'kind', 'lifecycle'].forEach(function (id) { $(id).addEventListener('change', function () { view.quickFilter = ''; if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
+['period', 'mode', 'source', 'kind', 'lifecycle', 'rentalStatus'].forEach(function (id) { $(id).addEventListener('change', function () { view.quickFilter = ''; if (id === 'period') view.day = ''; LIMIT = 150; refreshAll(); }); });
+$('rentalStatusClose').onclick = closeRentalStatus;
+$('rentalStatusCancel').onclick = closeRentalStatus;
+$('rentalStatusModal').addEventListener('click', function (e) { if (e.target === $('rentalStatusModal')) closeRentalStatus(); });
+$('rentalStatusForm').addEventListener('submit', submitRentalStatus);
 $('rf').onclick = function () { load(); };
 $('retry').onclick = function () { load(); };
 $('reparseAll').onclick = openReparseModal;

@@ -99,3 +99,50 @@ test("manual booking keeps the entered rate and calculates its stored total on t
   assert.equal(savedBooking.daily_rate, 1234.56);
   assert.equal(savedBooking.service_total, 2524.67);
 });
+
+test("operational status flow requires a cancellation reason, records history, and can restore the booking", async () => {
+  let row = bookingRow({ rental_status: "scheduled", rental_status_history: [] });
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { row = { ...row, ...JSON.parse(init.body) }; return mockResponse([row]); }
+    return mockResponse([row]);
+  });
+  const call = (payload) => handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload)
+  }));
+
+  const missingReason = await call({ rental_status_action: "cancel_booking" });
+  assert.equal(missingReason.status, 400);
+  assert.equal(row.rental_status, "scheduled");
+
+  const cancelledResponse = await call({ rental_status_action: "cancel_booking", cancellation_reason: "ลูกค้าขอยกเลิก" });
+  assert.equal(cancelledResponse.status, 200);
+  assert.equal(row.rental_status, "cancelled");
+  assert.equal(row.status, "ยกเลิก");
+  assert.equal(row.status_before_cancel, "ยืนยันแล้ว");
+  assert.equal(row.cancellation_reason, "ลูกค้าขอยกเลิก");
+  assert.equal(row.rental_status_history.at(-1).to, "cancelled");
+
+  const reopenedResponse = await call({ rental_status_action: "reopen_booking" });
+  assert.equal(reopenedResponse.status, 200);
+  assert.equal(row.rental_status, "scheduled");
+  assert.equal(row.status, "ยืนยันแล้ว");
+  assert.equal(row.rental_status_history.length, 2);
+});
+
+test("delivery and return status changes must happen in order", async () => {
+  let row = bookingRow({ rental_status: "scheduled", rental_status_history: [] });
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { row = { ...row, ...JSON.parse(init.body) }; return mockResponse([row]); }
+    return mockResponse([row]);
+  });
+  const call = (payload) => handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload)
+  }));
+  assert.equal((await call({ rental_status_action: "mark_returned" })).status, 409);
+  assert.equal((await call({ rental_status_action: "mark_delivered" })).status, 200);
+  assert.equal(row.rental_status, "delivered");
+  assert.ok(row.delivered_at);
+  assert.equal((await call({ rental_status_action: "mark_returned" })).status, 200);
+  assert.equal(row.rental_status, "returned");
+  assert.ok(row.returned_at);
+});

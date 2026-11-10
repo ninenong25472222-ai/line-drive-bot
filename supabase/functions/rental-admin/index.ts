@@ -11,6 +11,7 @@ const carStatuses = new Set(["ว่าง", "จองแล้ว", "กำล
 const bookingStatuses = new Set(["รอตรวจสอบ", "ยืนยันแล้ว", "ผิดพลาด", "ยกเลิก"]);
 const bookingOptionTypes = new Set(["channel", "location"]);
 const lifecycleActions = new Set(["queue_trash", "restore", "confirm_delete", "delete_now"]);
+const rentalStatusActions = new Set(["mark_delivered", "mark_returned", "cancel_booking", "reopen_booking"]);
 const imageExtensions: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const text = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 const money = (value: unknown) => { const number = Number(value); return Number.isFinite(number) && number >= 0 ? number : null; };
@@ -130,6 +131,39 @@ async function lifecycleBooking(input: Record<string, unknown>, url: string, key
   if (!updated) return response({ error: "สถานะรายการเปลี่ยนระหว่างทำงาน โปรดรีเฟรชแล้วลองอีกครั้ง" }, 409);
   return response(updated);
 }
+async function changeRentalStatus(input: Record<string, unknown>, url: string, key: string, id: string) {
+  const action = text(input.rental_status_action, 40);
+  if (!rentalStatusActions.has(action)) return response({ error: "คำสั่งเปลี่ยนสถานะไม่ถูกต้อง" }, 400);
+  const current = await bookingById(url, key, id);
+  if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
+  const from = text(current.rental_status, 30) || "scheduled";
+  const now = new Date().toISOString();
+  let to = "";
+  let reason = text(input.cancellation_reason, 500);
+  const patch: Record<string, unknown> = { updated_at: now };
+  if (action === "mark_delivered") {
+    if (from !== "scheduled" || ["ยกเลิก", "ผิดพลาด"].includes(text(current.status))) return response({ error: "ส่งรถแล้วได้เฉพาะรายการที่ยังไม่ยกเลิก" }, 409);
+    to = "delivered"; patch.delivered_at = now;
+  } else if (action === "mark_returned") {
+    if (from !== "delivered") return response({ error: "ยืนยันรับรถคืนได้หลังจากกดยืนยันส่งรถแล้ว" }, 409);
+    to = "returned"; patch.returned_at = now;
+  } else if (action === "cancel_booking") {
+    if (from !== "scheduled" || ["ยกเลิก", "ผิดพลาด"].includes(text(current.status))) return response({ error: "ยกเลิกได้เฉพาะรายการที่ยังไม่ส่งรถ" }, 409);
+    if (!reason) return response({ error: "กรอกเหตุผลการยกเลิกก่อนบันทึก" }, 400);
+    to = "cancelled"; patch.cancelled_at = now; patch.cancellation_reason = reason;
+    patch.status_before_cancel = text(current.status) || "รอตรวจสอบ"; patch.status = "ยกเลิก";
+  } else {
+    if (from !== "cancelled") return response({ error: "คืนสถานะได้เฉพาะรายการที่ยกเลิกแล้ว" }, 409);
+    to = "scheduled"; patch.status = text(current.status_before_cancel) || "ยืนยันแล้ว";
+  }
+  const history = Array.isArray(current.rental_status_history) ? current.rental_status_history : [];
+  patch.rental_status = to;
+  patch.rental_status_history = [...history, { from, to, at: now, reason: reason || null }];
+  const saved = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&rental_status=eq.${encodeURIComponent(from)}&status=eq.${encodeURIComponent(text(current.status))}`, { method: "PATCH", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify(patch) });
+  const updated = Array.isArray(saved) ? saved[0] : saved;
+  if (!updated) return response({ error: "รายการเปลี่ยนสถานะระหว่างทำงาน โปรดรีเฟรชแล้วลองอีกครั้ง" }, 409);
+  return response(updated);
+}
 function overlaps(candidate: Record<string, unknown>, existing: Record<string, unknown>) {
   return slot(String(candidate.pickup_date), String(candidate.pickup_time)) < slot(String(existing.return_date), String(existing.return_time)) && slot(String(candidate.return_date), String(candidate.return_time)) > slot(String(existing.pickup_date), String(existing.pickup_time));
 }
@@ -187,6 +221,8 @@ async function saveBooking(req: Request, url: string, key: string) {
 }
 async function updateBooking(req: Request, url: string, key: string, id: string) {
   const input = await req.json();
+  if (typeof input === "object" && input && input.status === "ยกเลิก") return response({ error: "กรุณาใช้ปุ่มยกเลิกการจองและระบุเหตุผล" }, 400);
+  if (typeof input === "object" && input && "rental_status_action" in input) return changeRentalStatus(input, url, key, id);
   if (typeof input === "object" && input && "lifecycle_action" in input) return lifecycleBooking(input, url, key, id);
   const booking = bookingUpdatePayload(input);
   if (!Object.keys(booking).length) return response({ error: "ไม่มีข้อมูลที่แก้ไขได้" }, 400);
