@@ -33,7 +33,7 @@ function mockResponse(value) {
 
 test("editing a booking saves its custom rate and recalculates service total from its own duration", async () => {
   let row = bookingRow();
-  const handler = loadAdminHandler(async (_url, init = {}) => {
+  const handler = loadAdminHandler(async (url, init = {}) => {
     if (init.method === "PATCH") { row = { ...row, ...JSON.parse(init.body) }; return mockResponse([row]); }
     return mockResponse([row]);
   });
@@ -102,8 +102,9 @@ test("manual booking keeps the entered rate and calculates its stored total on t
 
 test("operational status flow requires a cancellation reason, records history, and can restore the booking", async () => {
   let row = bookingRow({ rental_status: "scheduled", rental_status_history: [] });
-  const handler = loadAdminHandler(async (_url, init = {}) => {
+  const handler = loadAdminHandler(async (url, init = {}) => {
     if (init.method === "PATCH") { row = { ...row, ...JSON.parse(init.body) }; return mockResponse([row]); }
+    if (String(url).includes("car_id=eq.")) return mockResponse([]);
     return mockResponse([row]);
   });
   const call = (payload) => handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
@@ -145,4 +146,23 @@ test("delivery and return status changes must happen in order", async () => {
   assert.equal((await call({ rental_status_action: "mark_returned" })).status, 200);
   assert.equal(row.rental_status, "returned");
   assert.ok(row.returned_at);
+});
+
+test("cancelled booking cannot be restored into an overlapping vehicle reservation", async () => {
+  const row = bookingRow({ status: "ยกเลิก", rental_status: "cancelled", status_before_cancel: "ยืนยันแล้ว", pickup_on: "2026-11-07", return_on: "2026-11-09" });
+  const conflict = { id: "22222222-2222-4222-8222-222222222222", pickup_date: "2026-11-08", pickup_time: "09:00", return_date: "2026-11-10", return_time: "09:00", booking_no: "OTHER" };
+  let patchCount = 0;
+  const handler = loadAdminHandler(async (url, init = {}) => {
+    const address = String(url);
+    if (init.method === "PATCH") { patchCount++; return mockResponse([{ ...row, ...JSON.parse(init.body) }]); }
+    if (address.includes("car_id=eq.")) return mockResponse([conflict]);
+    return mockResponse([row]);
+  });
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ rental_status_action: "reopen_booking" })
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 409);
+  assert.match(body.error, /มีรายการจองซ้อน/);
+  assert.equal(patchCount, 0);
 });

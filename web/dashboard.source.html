@@ -604,7 +604,7 @@ function card(e) {
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
   var rentalStatusLabel = r.status === 'ผิดพลาด' ? 'ข้อมูลผิดพลาด' : ({ scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิกแล้ว' }[r._rentalStatus] || 'รอส่งรถ');
-  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิกการจอง</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : '');
+  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิกการจอง</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : r._rentalStatus === 'cancelled' ? '<button class="opReturned" type="button" data-op-action="reopen_booking" data-op-id="' + esc(r.id) + '">กู้คืนเข้าคิวรถ</button>' : '');
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
@@ -970,12 +970,12 @@ async function runLifecycleAction(id, action) {
 }
 function httpErr(status) { var e = new Error('HTTP ' + status); e.status = status; return e; }
 function openRentalStatus(id, action) {
-  var labels = { mark_delivered: 'ยืนยันส่งรถเสร็จแล้ว', mark_returned: 'ยืนยันรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการจอง' };
+  var labels = { mark_delivered: 'ยืนยันส่งรถเสร็จแล้ว', mark_returned: 'ยืนยันรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการจอง', reopen_booking: 'กู้คืนรายการเข้าคิวรถ' };
   var row = rows.find(function (item) { return String(item.id) === String(id); });
   if (!row || !labels[action]) return;
   view.rentalStatusId = id; view.rentalStatusAction = action;
   $('rentalStatusTitle').textContent = labels[action];
-  $('rentalStatusMessage').textContent = (row.customer_name || row.booking_no || 'รายการนี้') + (action === 'cancel_booking' ? ' · รายการจะถูกนำออกจากคิวรถและเก็บประวัติไว้ในระบบ' : ' · ระบบจะบันทึกวันและเวลาที่ดำเนินการ');
+  $('rentalStatusMessage').textContent = (row.customer_name || row.booking_no || 'รายการนี้') + (action === 'cancel_booking' ? ' · รายการจะถูกนำออกจากคิวรถและเก็บประวัติไว้ในระบบ' : action === 'reopen_booking' ? ' · ระบบจะตรวจสอบคิวรถซ้อนก่อนกู้คืน' : ' · ระบบจะบันทึกวันและเวลาที่ดำเนินการ');
   $('cancelReasonLabel').hidden = action !== 'cancel_booking'; $('cancelReason').value = '';
   $('rentalStatusError').textContent = ''; $('rentalStatusCode').value = editToken();
   $('rentalStatusModal').hidden = false;
@@ -994,7 +994,7 @@ async function submitRentalStatus(event) {
     if (!response.ok) { var failure = httpErr(response.status); failure.message = updated.error || failure.message; throw failure; }
     try { sessionStorage.setItem('rd_edit_token', token); } catch (e) {}
     rows = rows.map(function (row) { return String(row.id) === String(updated.id) ? prep(updated) : row; });
-    closeRentalStatus(); refreshAll(); showLifecycleToast({ mark_delivered: 'บันทึกว่าส่งรถแล้ว', mark_returned: 'บันทึกรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการและเก็บประวัติไว้แล้ว' }[action]);
+    closeRentalStatus(); refreshAll(); showLifecycleToast({ mark_delivered: 'บันทึกว่าส่งรถแล้ว', mark_returned: 'บันทึกรับรถคืนแล้ว', cancel_booking: 'ยกเลิกรายการและเก็บประวัติไว้แล้ว', reopen_booking: 'กู้คืนรายการเข้าคิวรถแล้ว' }[action]);
   } catch (error) {
     if (error.status === 403) { try { sessionStorage.removeItem('rd_edit_token'); } catch (e) {} $('rentalStatusError').textContent = 'รหัสผู้ดูแลไม่ถูกต้อง'; }
     else $('rentalStatusError').textContent = error.message || 'บันทึกไม่สำเร็จ ลองอีกครั้ง';

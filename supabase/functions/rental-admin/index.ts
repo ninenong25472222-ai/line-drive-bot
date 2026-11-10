@@ -154,6 +154,11 @@ async function changeRentalStatus(input: Record<string, unknown>, url: string, k
     patch.status_before_cancel = text(current.status) || "รอตรวจสอบ"; patch.status = "ยกเลิก";
   } else {
     if (from !== "cancelled") return response({ error: "คืนสถานะได้เฉพาะรายการที่ยกเลิกแล้ว" }, 409);
+    if (text(current.car_id) && dateOk(text(current.pickup_date)) && timeOk(text(current.pickup_time)) && dateOk(text(current.return_date)) && timeOk(text(current.return_time))) {
+      const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(text(current.car_id))}&id=neq.${encodeURIComponent(id)}&duplicate_of=is.null&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_on=lte.${encodeURIComponent(text(current.return_date))}&return_on=gte.${encodeURIComponent(text(current.pickup_date))}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
+      const conflict = (candidates || []).find((row: Record<string, unknown>) => dateOk(text(row.pickup_date)) && timeOk(text(row.pickup_time)) && dateOk(text(row.return_date)) && timeOk(text(row.return_time)) && overlaps(current, row));
+      if (conflict) return response({ error: "กู้คืนไม่ได้ เพราะรถคันนี้มีรายการจองซ้อนในช่วงเวลาดังกล่าว", conflict }, 409);
+    }
     to = "scheduled"; patch.status = text(current.status_before_cancel) || "ยืนยันแล้ว";
   }
   const history = Array.isArray(current.rental_status_history) ? current.rental_status_history : [];
