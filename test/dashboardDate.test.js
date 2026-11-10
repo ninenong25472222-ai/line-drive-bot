@@ -62,6 +62,18 @@ test("Dashboard keeps duplicate Drive-file copies out of the normal work list", 
   assert.match(source, /id="lifecycle"[^>]*><option value="active">ใช้งานอยู่<\/option>/);
 });
 
+test("booking status buttons are prominent on cards and legacy cancellations are not shown as awaiting delivery", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /\.quickOps button\{[^}]*min-height:52px/);
+  assert.match(source, /\.quickOps button\{flex:1;min-width:0;min-height:48px/);
+  assert.match(source, /<\/button><div class="quickOps">' \+ operationalActions/);
+  assert.match(source, /o\._rentalStatus = r\.status === 'ยกเลิก' \? 'cancelled'/);
+  assert.match(source, /data-op-action="mark_delivered"/);
+  assert.match(source, /data-op-action="cancel_booking"/);
+  assert.match(source, /data-op-action="mark_returned"/);
+  assert.match(source, /b\.closest\('\.card'\)\.classList\.toggle\('open'\)/);
+});
+
 test("Dashboard improves Thai readability, mobile calendar density, quick filters, and action hierarchy", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /--mut:#536579/);

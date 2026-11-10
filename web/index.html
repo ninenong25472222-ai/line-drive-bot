@@ -539,7 +539,7 @@ function prep(r) {
   o._bad = !o._p || !o._r;
   o._pendingDelete = o.deletion_status === 'pending_confirmation';
   o._inTrash = ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'deleted', 'move_failed'].indexOf(o.deletion_status) >= 0;
-  o._rentalStatus = r.rental_status || (r.status === 'ยกเลิก' ? 'cancelled' : 'scheduled');
+  o._rentalStatus = r.status === 'ยกเลิก' ? 'cancelled' : (r.rental_status || 'scheduled');
   o._cancelled = o._rentalStatus === 'cancelled' || r.status === 'ยกเลิก';
   o._duplicate = !!o.duplicate_of;
   o._idx = [r.customer_name, r.company, r.booking_no, r.car, r.customer_phone, r.pickup_location, r.return_location, r.file_name].join(' ').toLowerCase();
@@ -606,7 +606,7 @@ function card(e) {
   if (r.deletion_status === 'deleted') trashAction = '<button type="button" disabled>ลบไฟล์ถาวรแล้ว</button>';
   if (r.deletion_status === 'move_failed') trashAction = '<button class="trash" type="button" data-delete-now="' + esc(r.id) + '">ลบรายการจอง</button>';
   var rentalStatusLabel = r.status === 'ผิดพลาด' ? 'ข้อมูลผิดพลาด' : ({ scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิกแล้ว' }[r._rentalStatus] || 'รอส่งรถ');
-  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิก</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : r._rentalStatus === 'cancelled' ? '<button class="opRestore" type="button" data-op-action="reopen_booking" data-op-id="' + esc(r.id) + '">กู้คืนเข้าคิว</button>' : '');
+  var operationalActions = r.status === 'ผิดพลาด' || r._inTrash ? '' : (r._rentalStatus === 'scheduled' ? '<button class="opDelivered" type="button" data-op-action="mark_delivered" data-op-id="' + esc(r.id) + '">ส่งรถเสร็จ</button><button class="opCancel" type="button" data-op-action="cancel_booking" data-op-id="' + esc(r.id) + '">ยกเลิก</button>' : r._rentalStatus === 'delivered' ? '<button class="opReturned" type="button" data-op-action="mark_returned" data-op-id="' + esc(r.id) + '">รับรถคืนแล้ว</button>' : r._rentalStatus === 'cancelled' && r.rental_status === 'cancelled' ? '<button class="opRestore" type="button" data-op-action="reopen_booking" data-op-id="' + esc(r.id) + '">กู้คืนเข้าคิว</button>' : '');
   return '<article class="card ' + (r._oth ? 'o ' : '') + e.t + '" data-booking-id="' + esc(r.id || '') + '"><div class="cardHead">' +
     '<button class="sum" type="button" aria-expanded="false"><i class="bar"></i><span class="tm">' + esc(e.tm || '--:--') + '</span>' +
     '<span class="mn"><span class="tag ' + e.t + '">' + (p ? 'ส่งรถ' : (stay ? 'เช่าอยู่' : 'คืนรถ')) + '</span>' +
