@@ -4,7 +4,7 @@ const adminTokenHash = "364ce48661e97936f40da1f02ddf90dacf54b48dd236e70c495ee04f
 const cors = {
   "access-control-allow-origin": "https://line-drive-bot.pages.dev",
   "access-control-allow-headers": "authorization, apikey, content-type, x-booking-edit-token",
-  "access-control-allow-methods": "POST, PATCH, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
   "content-type": "application/json; charset=utf-8",
 };
 const carStatuses = new Set(["ว่าง", "จองแล้ว", "กำลังใช้งาน", "ซ่อม", "งดใช้งาน"]);
@@ -84,7 +84,7 @@ async function bookingById(url: string, key: string, id: string) {
 }
 async function listBookings(url: string, key: string) {
   const query = new URLSearchParams({
-    select: "id,source,source_label,status,rental_status,rental_status_history,delivered_at,returned_at,cancelled_at,cancellation_reason,status_before_cancel,deletion_status,pending_deletion_at,trashed_at,restored_at,deleted_at,trash_reason,duplicate_of,duplicate_reason,company,booking_no,customer_name,customer_phone,customer_email,booking_channel,car_id,pickup_date,pickup_on,pickup_time,pickup_location,return_date,return_on,return_time,return_location,car,daily_rate,booking_deposit,security_deposit,delivery_fee,service_total,booking_note,wants_tax_invoice,tax_company_name,withhold_tax_5,file_name,drive_url,created_at",
+    select: "id,source,source_label,status,rental_status,rental_status_history,delivered_at,returned_at,cancelled_at,cancellation_reason,status_before_cancel,deletion_status,pending_deletion_at,trashed_at,restored_at,deleted_at,trash_reason,duplicate_of,duplicate_reason,allow_vehicle_overlap,late_free_minutes,company,booking_no,customer_name,customer_phone,customer_email,booking_channel,car_id,pickup_date,pickup_on,pickup_time,pickup_location,return_date,return_on,return_time,return_location,car,daily_rate,booking_deposit,security_deposit,delivery_fee,service_total,booking_note,wants_tax_invoice,tax_company_name,withhold_tax_5,file_name,drive_url,created_at",
     order: "pickup_date.asc.nullslast,pickup_time.asc.nullslast,created_at.desc",
     limit: "500",
   });
@@ -219,6 +219,11 @@ async function changeRentalStatus(input: Record<string, unknown>, url: string, k
 function overlaps(candidate: Record<string, unknown>, existing: Record<string, unknown>) {
   return slot(String(candidate.pickup_date), String(candidate.pickup_time)) < slot(String(existing.return_date), String(existing.return_time)) && slot(String(candidate.return_date), String(candidate.return_time)) > slot(String(existing.pickup_date), String(existing.pickup_time));
 }
+function chargedDays(durationMs: number, graceMinutes: unknown) {
+  const grace = Number(graceMinutes);
+  const graceMs = Number.isFinite(grace) ? Math.max(0, Math.min(1440, Math.floor(grace))) * 60000 : 0;
+  return Math.max(1, Math.ceil(Math.max(0, durationMs - graceMs) / 86400000));
+}
 async function uploadCarPhoto(input: Record<string, unknown>, url: string, key: string) {
   const base64 = typeof input.image_data === "string" ? input.image_data : "";
   const contentType = text(input.image_type, 100).toLowerCase();
@@ -251,22 +256,44 @@ async function saveBookingOption(req: Request, url: string, key: string) {
   const saved = await rest(url, key, "rental_booking_options?on_conflict=option_type,label", { method: "POST", headers: { "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify({ option_type: optionType, label }) });
   return response(Array.isArray(saved) && saved[0] ? saved[0] : { option_type: optionType, label }, 201);
 }
+async function rentalSettings(url: string, key: string) {
+  const rows = await rest(url, key, "rental_settings?setting_key=eq.late_return_grace_minutes&select=setting_value&limit=1");
+  const minutes = Number(Array.isArray(rows) ? rows[0]?.setting_value : 60);
+  return Number.isInteger(minutes) && minutes >= 0 && minutes <= 1440 ? minutes : 60;
+}
+async function handleRentalSettings(req: Request, url: string, key: string) {
+  if (req.method === "GET") return response({ late_free_minutes: await rentalSettings(url, key) });
+  if (req.method !== "PATCH") return response({ error: "Method not allowed" }, 405);
+  const input = await req.json();
+  const hours = Number(input.late_free_hours);
+  if (!Number.isFinite(hours) || hours < 0 || hours > 24 || Math.abs(Math.round(hours * 60) - hours * 60) > 0.000001) return response({ error: "เวลาผ่อนผันต้องอยู่ระหว่าง 0 ถึง 24 ชั่วโมง และเพิ่มครั้งละ 1 นาที" }, 400);
+  const minutes = Math.round(hours * 60);
+  await rest(url, key, "rental_settings?on_conflict=setting_key", { method: "POST", headers: { "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ setting_key: "late_return_grace_minutes", setting_value: String(minutes), updated_at: new Date().toISOString() }) });
+  return response({ late_free_minutes: minutes, late_free_hours: hours });
+}
 async function saveBooking(req: Request, url: string, key: string) {
-  const booking = bookingPayload(await req.json());
+  const input = await req.json();
+  const booking = bookingPayload(input);
   if (!text(booking.car_id) || !text(booking.customer_name) || !dateOk(text(booking.pickup_date)) || !dateOk(text(booking.return_date)) || !timeOk(text(booking.pickup_time)) || !timeOk(text(booking.return_time))) return response({ error: "กรอกข้อมูลลูกค้า รถ วัน และเวลาให้ครบ" }, 400);
   if (booking.wants_tax_invoice && !text(booking.tax_company_name)) return response({ error: "กรอกชื่อบริษัทสำหรับใบกำกับภาษีให้ครบ" }, 400);
   if (["daily_rate", "booking_deposit", "security_deposit", "delivery_fee", "service_total"].some((field) => booking[field] === null)) return response({ error: "ยอดเงินต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป" }, 400);
   if (Number(booking.daily_rate) <= 0) return response({ error: "ราคาต่อวันต้องมากกว่า 0 บาท" }, 400);
   const rentalMinutes = (slot(text(booking.return_date), text(booking.return_time)) - slot(text(booking.pickup_date), text(booking.pickup_time))) / 60000;
   if (!Number.isFinite(rentalMinutes) || rentalMinutes <= 0) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
-  const billableDays = Math.max(1, Math.ceil(rentalMinutes / 1440));
+  const lateFreeMinutes = await rentalSettings(url, key);
+  const billableDays = Math.max(1, Math.ceil(Math.max(0, rentalMinutes - lateFreeMinutes) / 1440));
+  booking.late_free_minutes = lateFreeMinutes;
   booking.service_total = (Math.round(Number(booking.daily_rate) * 100) * billableDays + Math.round(Number(booking.delivery_fee) * 100)) / 100;
   const found = await rest(url, key, `rental_cars?id=eq.${encodeURIComponent(text(booking.car_id))}&select=id,car_ref,model,status,active&limit=1`);
   const car = Array.isArray(found) ? found[0] : null;
   if (!car || !car.active || ["ซ่อม", "งดใช้งาน"].includes(car.status)) return response({ error: "รถคันนี้ไม่พร้อมรับงาน" }, 409);
-  const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&duplicate_of=is.null&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_on=lte.${encodeURIComponent(text(booking.return_date))}&return_on=gte.${encodeURIComponent(text(booking.pickup_date))}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
-  const conflict = (candidates || []).find((row: Record<string, unknown>) => dateOk(text(row.pickup_date)) && timeOk(text(row.pickup_time)) && dateOk(text(row.return_date)) && timeOk(text(row.return_time)) && overlaps(booking, row));
-  if (conflict) return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก", conflict }, 409);
+  const allowOverlap = input.allow_overlap === true;
+  if (!allowOverlap) {
+    const candidates = await rest(url, key, `rental_bookings?car_id=eq.${encodeURIComponent(car.id)}&duplicate_of=is.null&deletion_status=in.(active,restored)&status=not.in.(ยกเลิก,ผิดพลาด)&pickup_on=lte.${encodeURIComponent(text(booking.return_date))}&return_on=gte.${encodeURIComponent(text(booking.pickup_date))}&select=id,pickup_date,pickup_time,return_date,return_time,customer_name,booking_no`);
+    const conflict = (candidates || []).find((row: Record<string, unknown>) => dateOk(text(row.pickup_date)) && timeOk(text(row.pickup_time)) && dateOk(text(row.return_date)) && timeOk(text(row.return_time)) && overlaps(booking, row));
+    if (conflict) return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก", confirmation_required: true, conflict }, 409);
+  }
+  booking.allow_vehicle_overlap = allowOverlap;
   const bookingNo = `WEB-${text(booking.pickup_date).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 5).toUpperCase()}`;
   const created = await rest(url, key, "rental_bookings", { method: "POST", headers: { "content-type": "application/json", Prefer: "return=representation" }, body: JSON.stringify({ ...booking, car: `${car.model}${car.car_ref ? ` · ${car.car_ref}` : ""}`, booking_no: bookingNo, source: "Dashboard", source_label: "เว็บไซต์ / ออกใบจอง", company: "Rental Desk", status: "ยืนยันแล้ว", file_hash: `manual:${crypto.randomUUID()}`, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }) });
   return response(Array.isArray(created) ? created[0] : created, 201);
@@ -329,7 +356,7 @@ async function updateBooking(req: Request, url: string, key: string, id: string)
       if (!dateOk(pickupDate) || !timeOk(pickupTime) || !dateOk(returnDate) || !timeOk(returnTime)) return response({ error: "กรอกวันและเวลาให้ครบก่อนคำนวณราคา" }, 400);
       const duration = slot(returnDate, returnTime) - slot(pickupDate, pickupTime);
       if (!Number.isFinite(duration) || duration <= 0) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
-      const days = Math.max(1, Math.ceil(duration / 86400000));
+      const days = chargedDays(duration, merged.late_free_minutes);
       booking.service_total = (Math.round(rate * 100) * days + Math.round(fee * 100)) / 100;
     }
   } else if (scheduleChanged && Number(current?.daily_rate) > 0) {
@@ -337,7 +364,7 @@ async function updateBooking(req: Request, url: string, key: string, id: string)
     const start = slot(text(merged.pickup_date), text(merged.pickup_time));
     const end = slot(text(merged.return_date), text(merged.return_time));
     if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return response({ error: "วันและเวลาคืนรถต้องหลังวันและเวลาส่งรถ" }, 400);
-    booking.service_total = (Math.round(Number(merged.daily_rate) * 100) * Math.max(1, Math.ceil((end - start) / 86400000)) + Math.round(Number(merged.delivery_fee || 0) * 100)) / 100;
+    booking.service_total = (Math.round(Number(merged.daily_rate) * 100) * chargedDays(end - start, merged.late_free_minutes) + Math.round(Number(merged.delivery_fee || 0) * 100)) / 100;
   }
   if (booking.wants_tax_invoice === true && !text(booking.tax_company_name ?? current?.tax_company_name)) return response({ error: "กรอกชื่อบริษัทสำหรับใบกำกับภาษีให้ครบ" }, 400);
   booking.updated_at = new Date().toISOString();
@@ -354,6 +381,7 @@ Deno.serve(async (req) => {
   try {
     const path = new URL(req.url).pathname.replace(/\/$/, "");
     if (req.method === "GET" && path.endsWith("/bookings")) return await listBookings(url, key);
+    if (path.endsWith("/settings") && (req.method === "GET" || req.method === "PATCH")) return await handleRentalSettings(req, url, key);
     const fileId = path.match(/\/bookings\/([0-9a-f-]{36})\/file$/i)?.[1];
     if (req.method === "GET" && fileId) return await bookingFile(url, key, fileId, new URL(req.url).searchParams.get("download") === "1");
     if (req.method === "POST" && path.endsWith("/cars")) return await saveCar(req, url, key);
@@ -370,7 +398,7 @@ Deno.serve(async (req) => {
     let databaseError: Record<string, unknown> = {};
     try { databaseError = JSON.parse(databaseBody); } catch { /* Keep a generic server error for unknown database failures. */ }
     if (databaseError.code === "23P01" || databaseError.message === "CAR_BOOKING_CONFLICT") {
-      return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก กรุณาเลือกรถหรือเวลาใหม่" }, 409);
+      return response({ error: "พบคิวรถซ้อนในช่วงเวลานี้", confirmation_required: true }, 409);
     }
     console.error("RENTAL_ADMIN_FAILED", error);
     return response({ error: "ระบบบันทึกขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง" }, 502);

@@ -21,6 +21,21 @@ test("booking calculation matches the screenshot example exactly", () => {
   assert.equal(result.amountDue, 4200);
 });
 
+test("configured return grace reduces billable days only when it covers the extra time", () => {
+  const withinGrace = bookingMath.calculate({ ...sample, pickup_date: "2026-11-06", pickup_time: "09:00", return_date: "2026-11-07", return_time: "09:59", late_free_minutes: 60, daily_rate: 1000 });
+  const beyondGrace = bookingMath.calculate({ ...sample, pickup_date: "2026-11-06", pickup_time: "09:00", return_date: "2026-11-07", return_time: "10:01", late_free_minutes: 60, daily_rate: 1000 });
+  assert.equal(withinGrace.billableDays, 1);
+  assert.equal(withinGrace.serviceTotal, 1000);
+  assert.equal(beyondGrace.billableDays, 2);
+  assert.equal(beyondGrace.serviceTotal, 2000);
+});
+
+test("historic bookings without a saved grace value retain the original day calculation", () => {
+  const result = bookingMath.calculate({ ...sample, pickup_date: "2026-11-06", pickup_time: "09:00", return_date: "2026-11-07", return_time: "09:59", daily_rate: 1000 });
+  assert.equal(result.lateFreeMinutes, 0);
+  assert.equal(result.billableDays, 2);
+});
+
 test("VAT and 5% withholding use service subtotal and exclude the refundable deposit", () => {
   const result = bookingMath.calculate({ ...sample, wants_tax_invoice: true, withhold_tax_5: true });
   assert.equal(result.serviceTotal, 2700);

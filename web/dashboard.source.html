@@ -485,7 +485,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 </div>
 
 <script src="/assets/rental-document-engine.js"></script>
-<script src="/assets/booking-calculations.js?v=20261107-manual-rates-v2"></script>
+<script src="/assets/booking-calculations.js?v=20261114-late-grace-v1"></script>
 <script src="/assets/monthly-summary.js?v=20261110-operation-status-v1"></script>
 <script>
 /* ====== ตั้งค่า ====== */
@@ -626,6 +626,7 @@ function card(e) {
     (r._bad ? '<span class="badge w">ข้อมูลไม่ครบ</span>' : '') +
     '<span class="opBadge ' + esc(r._rentalStatus) + '">' + rentalStatusLabel + '</span>' +
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
+    (r.allow_vehicle_overlap ? '<span class="badge w">ยืนยันคิวซ้อน</span>' : '') +
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
     '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
     '<span class="meta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11l2 2v5h-2v-2H5v2H3v-5l2-2zM6 11h12M7 14h.01M17 14h.01"/></svg> ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
@@ -636,6 +637,7 @@ function card(e) {
     '<div><label>ส่งรถ</label><b>' + esc(when(r._p, r._pt)) + '<br>' + esc(r.pickup_location || '-') + '</b></div>' +
     '<div><label>คืนรถ</label><b>' + esc(when(r._r, r._rt)) + '<br>' + esc(r.return_location || '-') + '</b></div>' +
     (r._duplicate ? '<div class="wide"><label>ข้อมูลรายการหลัก</label><b>' + esc(r.duplicate_reason || 'รอตรวจสอบ') + '</b></div>' : '') +
+    (r.allow_vehicle_overlap ? '<div class="wide"><label>การจัดคิวรถ</label><b>ผู้ดูแลยืนยันบันทึกใบจองที่มีช่วงเวลาทับกับรายการอื่น</b></div>' : '') +
     (r._inTrash && r.trash_reason ? '<div class="wide"><label>เหตุผลถังขยะ</label><b>' + esc(r.trash_reason) + '</b></div>' : '') +
     (r._cancelled && r.cancellation_reason ? '<div class="wide"><label>เหตุผลที่ยกเลิก</label><b>' + esc(r.cancellation_reason) + '</b></div>' : '') +
     (Array.isArray(r.rental_status_history) && r.rental_status_history.length ? '<div class="wide"><label>ประวัติการดำเนินงาน</label><b>' + r.rental_status_history.map(function (entry) { var state = { scheduled: 'รอส่งรถ', delivered: 'ส่งรถแล้ว', returned: 'รับรถคืนแล้ว', cancelled: 'ยกเลิก' }; var at = entry.at && !Number.isNaN(Date.parse(entry.at)) ? new Date(entry.at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : ''; return esc(state[entry.to] || entry.to || '') + (at ? ' · ' + esc(at) : '') + (entry.reason ? ' · ' + esc(entry.reason) : ''); }).join('<br>') + '</b></div>' : '') +
@@ -1720,6 +1722,6 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/booking-workspace.js?v=20261114-booking-conflict-v3" defer></script>
+<script src="/booking-workspace.js?v=20261114-booking-overlap-grace-v1" defer></script>
 </body>
 </html>

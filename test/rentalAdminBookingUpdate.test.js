@@ -149,6 +149,63 @@ test("manual booking keeps the entered rate and calculates its stored total on t
   assert.equal(savedBooking.service_total, 2524.67);
 });
 
+test("server applies the saved one-hour return grace and records it on the booking", async () => {
+  let savedBooking;
+  const handler = loadAdminHandler(async (url, init = {}) => {
+    const address = String(url);
+    if (init.method === "POST" && address.endsWith("/rental_bookings")) { savedBooking = JSON.parse(init.body); return mockResponse([savedBooking]); }
+    if (address.includes("rental_settings")) return mockResponse([{ setting_value: "60" }]);
+    if (address.includes("rental_cars")) return mockResponse([{ id: "car-1", active: true, status: "ว่าง", model: "Yaris", car_ref: "A1" }]);
+    return mockResponse([]);
+  });
+  const response = await handler(new Request("https://db.example/functions/v1/rental-admin/bookings", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ car_id: "car-1", customer_name: "Test", pickup_date: "2026-11-07", pickup_time: "09:00", return_date: "2026-11-08", return_time: "10:00", daily_rate: 1000, delivery_fee: 0, booking_deposit: 0, security_deposit: 0, service_total: 1 })
+  }));
+  assert.equal(response.status, 201);
+  assert.equal(savedBooking.late_free_minutes, 60);
+  assert.equal(savedBooking.service_total, 1000);
+  assert.equal(savedBooking.allow_vehicle_overlap, false);
+});
+
+test("administrator can read and update the configurable return grace", async () => {
+  let savedSettings;
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "POST") { savedSettings = JSON.parse(init.body); return new Response(null, { status: 204 }); }
+    return mockResponse([{ setting_value: savedSettings ? savedSettings.setting_value : "60" }]);
+  });
+  const read = await handler(new Request("https://db.example/functions/v1/rental-admin/settings", { method: "GET" }));
+  assert.deepEqual(await read.json(), { late_free_minutes: 60 });
+  const write = await handler(new Request("https://db.example/functions/v1/rental-admin/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ late_free_hours: 1.5 }) }));
+  assert.equal(write.status, 200);
+  assert.deepEqual(await write.json(), { late_free_minutes: 90, late_free_hours: 1.5 });
+  assert.equal(savedSettings.setting_value, "90");
+  const invalid = await handler(new Request("https://db.example/functions/v1/rental-admin/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ late_free_hours: 1.01 }) }));
+  assert.equal(invalid.status, 400);
+});
+
+test("overlapping booking requires explicit confirmation, then saves with an audit flag", async () => {
+  const conflict = { id: "22222222-2222-4222-8222-222222222222", pickup_date: "2026-11-07", pickup_time: "10:00", return_date: "2026-11-08", return_time: "11:00", customer_name: "Existing", booking_no: "WEB-EXISTING" };
+  let savedBooking;
+  const handler = loadAdminHandler(async (url, init = {}) => {
+    const address = String(url);
+    if (init.method === "POST" && address.endsWith("/rental_bookings")) { savedBooking = JSON.parse(init.body); return mockResponse([savedBooking]); }
+    if (address.includes("rental_settings")) return mockResponse([{ setting_value: "60" }]);
+    if (address.includes("rental_cars")) return mockResponse([{ id: "car-1", active: true, status: "ว่าง", model: "Yaris", car_ref: "A1" }]);
+    if (address.includes("rental_bookings") && address.includes("car_id=eq.")) return mockResponse([conflict]);
+    return mockResponse([]);
+  });
+  const payload = { car_id: "car-1", customer_name: "Test", pickup_date: "2026-11-07", pickup_time: "10:30", return_date: "2026-11-08", return_time: "12:00", daily_rate: 900, delivery_fee: 0, booking_deposit: 0, security_deposit: 0, service_total: 900 };
+  const makeRequest = (body) => new Request("https://db.example/functions/v1/rental-admin/bookings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const warning = await handler(makeRequest(payload));
+  assert.equal(warning.status, 409);
+  assert.equal((await warning.json()).confirmation_required, true);
+  assert.equal(savedBooking, undefined);
+  const confirmed = await handler(makeRequest({ ...payload, allow_overlap: true }));
+  assert.equal(confirmed.status, 201);
+  assert.equal(savedBooking.allow_vehicle_overlap, true);
+});
+
 test("database booking overlap is returned as a clear conflict instead of an unhandled 500", async () => {
   const handler = loadAdminHandler(async (url, init = {}) => {
     const address = String(url);
@@ -164,7 +221,8 @@ test("database booking overlap is returned as a clear conflict instead of an unh
   }));
   const body = await response.json();
   assert.equal(response.status, 409);
-  assert.match(body.error, /คิวจองซ้อน/);
+  assert.match(body.error, /คิวรถซ้อน/);
+  assert.equal(body.confirmation_required, true);
 });
 
 test("operational status flow requires a cancellation reason, records history, and can restore the booking", async () => {

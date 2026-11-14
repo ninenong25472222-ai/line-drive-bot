@@ -28,7 +28,9 @@
     var end = dateTime(data.return_date, data.return_time);
     var validDuration = start !== null && end !== null && end > start;
     var durationMinutes = validDuration ? Math.round((end - start) / 60000) : 0;
-    var billableDays = validDuration ? Math.max(1, Math.ceil(durationMinutes / 1440)) : 0;
+    // Historic rows have no saved grace value, so keep their existing totals.
+    var lateFreeMinutes = Number.isFinite(Number(data.late_free_minutes)) ? Math.max(0, Math.min(1440, Math.floor(Number(data.late_free_minutes)))) : 0;
+    var billableDays = validDuration ? Math.max(1, Math.ceil(Math.max(0, durationMinutes - lateFreeMinutes) / 1440)) : 0;
     var dailyRate = cents(data.daily_rate);
     var deliveryFee = cents(data.delivery_fee);
     var storedServiceTotal = cents(data.service_total);
@@ -50,6 +52,7 @@
       hours: Math.floor((durationMinutes % 1440) / 60),
       minutes: durationMinutes % 60,
       billableDays: billableDays,
+      lateFreeMinutes: lateFreeMinutes,
       dailyRate: dailyRate / 100,
       deliveryFee: deliveryFee / 100,
       serviceTotal: serviceTotal / 100,
