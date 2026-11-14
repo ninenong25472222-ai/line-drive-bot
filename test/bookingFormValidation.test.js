@@ -57,3 +57,10 @@ test("PDF preview errors are reported separately after the booking has been save
   assert.match(source, /close\('bookingModal'\);\s*by\('rf'\)\.click\(\);\s*try\s*\{\s*await previewBookingPdf/);
   assert.match(source, /error\.status === 403 \? 'รหัสผู้ดูแลไม่ถูกต้อง/);
 });
+
+test("booking submit handles non-JSON API errors without throwing a JSON parse error", () => {
+  const submit = source.slice(source.indexOf("by('bookingForm').addEventListener('submit'"));
+  assert.match(submit, /responseText = await response\.text\(\)/);
+  assert.match(submit, /ระบบบันทึกขัดข้องชั่วคราว \(HTTP /);
+  assert.doesNotMatch(submit.slice(0, submit.indexOf("document.addEventListener('click'")), /response\.json\(\)/);
+});

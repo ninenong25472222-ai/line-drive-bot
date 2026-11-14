@@ -335,7 +335,11 @@
       by('bookingErr').textContent = '';
       try {
         var response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': tokenValue }, body: JSON.stringify(data) });
-        var result = await response.json();
+        var responseText = await response.text(), result;
+        try { result = responseText ? JSON.parse(responseText) : {}; } catch (_) {
+          if (!response.ok) throw Object.assign(new Error(response.status >= 500 ? 'ระบบบันทึกขัดข้องชั่วคราว (HTTP ' + response.status + ') กรุณารีเฟรชรายการก่อนลองใหม่' : 'ระบบตอบกลับข้อมูลไม่ถูกต้อง กรุณาลองใหม่'), { status: response.status });
+          throw new Error('ระบบตอบกลับข้อมูลไม่ถูกต้อง กรุณาลองใหม่');
+        }
         if (!response.ok) throw Object.assign(new Error(result.error || 'บันทึกใบจองไม่สำเร็จ'), { status: response.status, detail: result });
         try { sessionStorage.setItem('rd_edit_token', tokenValue); } catch (e) {}
         var documentData = Object.assign({}, data, result, { car: result.car || data.car });

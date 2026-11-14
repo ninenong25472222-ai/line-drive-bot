@@ -149,6 +149,24 @@ test("manual booking keeps the entered rate and calculates its stored total on t
   assert.equal(savedBooking.service_total, 2524.67);
 });
 
+test("database booking overlap is returned as a clear conflict instead of an unhandled 500", async () => {
+  const handler = loadAdminHandler(async (url, init = {}) => {
+    const address = String(url);
+    if (init.method === "POST" && address.endsWith("/rental_bookings")) {
+      return new Response(JSON.stringify({ code: "23P01", message: "CAR_BOOKING_CONFLICT" }), { status: 400, headers: { "content-type": "application/json" } });
+    }
+    if (address.includes("rental_cars")) return mockResponse([{ id: "car-1", active: true, status: "ว่าง", model: "Yaris", car_ref: "A1" }]);
+    return mockResponse([]);
+  });
+  const response = await handler(new Request("https://db.example/functions/v1/rental-admin/bookings", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ car_id: "car-1", customer_name: "Test", pickup_date: "2026-11-07", pickup_time: "09:00", return_date: "2026-11-08", return_time: "11:00", daily_rate: 900, delivery_fee: 0, booking_deposit: 0, security_deposit: 2000, service_total: 900 })
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 409);
+  assert.match(body.error, /คิวจองซ้อน/);
+});
+
 test("operational status flow requires a cancellation reason, records history, and can restore the booking", async () => {
   let row = bookingRow({ rental_status: "scheduled", rental_status_history: [] });
   const handler = loadAdminHandler(async (url, init = {}) => {

@@ -353,16 +353,26 @@ Deno.serve(async (req) => {
   if (!await authorized(req)) return response({ error: "รหัสผู้ดูแลไม่ถูกต้อง" }, 403);
   try {
     const path = new URL(req.url).pathname.replace(/\/$/, "");
-    if (req.method === "GET" && path.endsWith("/bookings")) return listBookings(url, key);
+    if (req.method === "GET" && path.endsWith("/bookings")) return await listBookings(url, key);
     const fileId = path.match(/\/bookings\/([0-9a-f-]{36})\/file$/i)?.[1];
-    if (req.method === "GET" && fileId) return bookingFile(url, key, fileId, new URL(req.url).searchParams.get("download") === "1");
-    if (req.method === "POST" && path.endsWith("/cars")) return saveCar(req, url, key);
+    if (req.method === "GET" && fileId) return await bookingFile(url, key, fileId, new URL(req.url).searchParams.get("download") === "1");
+    if (req.method === "POST" && path.endsWith("/cars")) return await saveCar(req, url, key);
     const carId = path.match(/\/cars\/([0-9a-f-]{36})$/i)?.[1];
-    if (req.method === "PATCH" && carId) return saveCar(req, url, key, carId);
-    if (req.method === "POST" && path.endsWith("/bookings")) return saveBooking(req, url, key);
-    if (req.method === "POST" && path.endsWith("/options")) return saveBookingOption(req, url, key);
+    if (req.method === "PATCH" && carId) return await saveCar(req, url, key, carId);
+    if (req.method === "POST" && path.endsWith("/bookings")) return await saveBooking(req, url, key);
+    if (req.method === "POST" && path.endsWith("/options")) return await saveBookingOption(req, url, key);
     const bookingId = path.match(/\/bookings\/([0-9a-f-]{36})$/i)?.[1];
-    if (req.method === "PATCH" && bookingId) return updateBooking(req, url, key, bookingId);
+    if (req.method === "PATCH" && bookingId) return await updateBooking(req, url, key, bookingId);
     return response({ error: "Method not allowed" }, 405);
-  } catch (error) { console.error("RENTAL_ADMIN_FAILED", error); return response({ error: "บันทึกข้อมูลไม่สำเร็จ" }, 502); }
+  } catch (error) {
+    const message = String(error instanceof Error ? error.message : error);
+    const databaseBody = message.match(/^DATABASE_\d+:(.*)$/s)?.[1] || "";
+    let databaseError: Record<string, unknown> = {};
+    try { databaseError = JSON.parse(databaseBody); } catch { /* Keep a generic server error for unknown database failures. */ }
+    if (databaseError.code === "23P01" || databaseError.message === "CAR_BOOKING_CONFLICT") {
+      return response({ error: "รถคันนี้มีคิวจองซ้อนในช่วงเวลาที่เลือก กรุณาเลือกรถหรือเวลาใหม่" }, 409);
+    }
+    console.error("RENTAL_ADMIN_FAILED", error);
+    return response({ error: "ระบบบันทึกขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้ง" }, 502);
+  }
 });

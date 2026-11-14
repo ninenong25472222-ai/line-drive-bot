@@ -84,7 +84,7 @@ test("Dashboard gates customer data behind the administrator PIN for this tab se
   assert.match(source, /if \(!editToken\(\)\) \{ showDataUnlock\(\); return; \}/);
   assert.match(endpoint, /if \(!token\) return json\(\{ error: "กรอกรหัสผู้ดูแลเพื่อดูข้อมูล" \}, 403\)/);
   assert.match(endpoint, /functions\/v1\/rental-admin\/bookings/);
-  assert.match(admin, /if \(req\.method === "GET" && path\.endsWith\("\/bookings"\)\) return listBookings/);
+  assert.match(admin, /if \(req\.method === "GET" && path\.endsWith\("\/bookings"\)\) return await listBookings/);
   assert.match(admin, /if \(!await authorized\(req\)\) return response\(\{ error: "รหัสผู้ดูแลไม่ถูกต้อง" \}, 403\)/);
 });
 
