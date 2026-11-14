@@ -52,6 +52,23 @@ test("editing a booking saves its custom rate and recalculates service total fro
   assert.equal(row.withhold_tax_5, true);
 });
 
+test("editing a new booking preserves its saved late-return grace when recalculating", async () => {
+  let row = bookingRow({ late_free_minutes: 60, pickup_date: "2026-11-07", pickup_time: "09:00", return_date: "2026-11-08", return_time: "09:00", daily_rate: 1000, service_total: 1000 });
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { row = { ...row, ...JSON.parse(init.body) }; return mockResponse([row]); }
+    if (String(_url).includes("rental_cars")) return mockResponse([{ id: "car-1", active: true, status: "ว่าง", model: "Yaris", car_ref: "A1" }]);
+    if (String(_url).includes("car_id=eq.")) return mockResponse([]);
+    return mockResponse([row]);
+  });
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ return_time: "10:00" })
+  }));
+  assert.equal(response.status, 200);
+  assert.equal(row.late_free_minutes, 60);
+  assert.equal(row.service_total, 1100);
+});
+
 test("date/time edits on an assigned car are checked for overlapping reservations", async () => {
   const row = bookingRow();
   let patchCount = 0;
