@@ -51,3 +51,9 @@ test("booking form reports missing data and invalid rental duration clearly", ()
   });
   assert.equal(invalidDuration(form).message, "วันและเวลาคืนรถต้องอยู่หลังวันและเวลาส่งรถ");
 });
+
+test("PDF preview errors are reported separately after the booking has been saved", () => {
+  assert.match(source, /บันทึกใบจองเรียบร้อยแล้ว แต่เปิดตัวอย่าง PDF ไม่สำเร็จ/);
+  assert.match(source, /close\('bookingModal'\);\s*by\('rf'\)\.click\(\);\s*try\s*\{\s*await previewBookingPdf/);
+  assert.match(source, /error\.status === 403 \? 'รหัสผู้ดูแลไม่ถูกต้อง/);
+});

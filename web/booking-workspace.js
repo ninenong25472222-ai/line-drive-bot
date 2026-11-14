@@ -315,7 +315,45 @@
     by('carsList').addEventListener('click', function (event) { var button = event.target.closest('[data-car-id]'); if (button) openCar(button.dataset.carId); });
     by('carImageFile').addEventListener('change', function () { var file = this.files && this.files[0]; if (file) showCarImage(URL.createObjectURL(file)); });
     by('carsForm').addEventListener('submit', async function (event) { event.preventDefault(); var form = by('carsForm'), tokenValue = form.elements.edit_token.value.trim(), data = {}, file = form.elements.image_file.files && form.elements.image_file.files[0]; new FormData(form).forEach(function (value, key) { if (key !== 'edit_token' && key !== 'image_file') data[key] = value; }); data.active = form.elements.active.checked; by('carsSave').disabled = true; by('carsErr').textContent = ''; try { var photo = await photoPayload(file); if (photo) Object.assign(data, photo); var response = await fetch(editingCarId ? '/api/cars/' + encodeURIComponent(editingCarId) : '/api/cars', { method: editingCarId ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': tokenValue }, body: JSON.stringify(data) }); var result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error || 'error'), { status: response.status }); try { sessionStorage.setItem('rd_edit_token', tokenValue); } catch (e) {} await fetchCars(); openCar(result.id); by('carsErr').textContent = 'บันทึกข้อมูลรถแล้ว'; } catch (error) { by('carsErr').textContent = error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง' : (error.message || 'บันทึกข้อมูลรถไม่สำเร็จ'); } finally { by('carsSave').disabled = false; } });
-    by('bookingForm').addEventListener('submit', async function (event) { event.preventDefault(); var form = by('bookingForm'), tokenValue = form.elements.edit_token.value.trim(), data = {}, invalid = validateBookingForm(form); if (invalid) { by('bookingErr').textContent = invalid.message; if (invalid.field) { invalid.field.focus(); invalid.field.scrollIntoView({ block: 'center', behavior: 'smooth' }); } return; } new FormData(form).forEach(function (value, key) { if (key !== 'edit_token' && key !== 'wants_tax_invoice' && key !== 'withhold_tax_5' && key !== 'document_language') data[key] = value; }); data.wants_tax_invoice = form.elements.wants_tax_invoice.checked; data.withhold_tax_5 = form.elements.withhold_tax_5.checked; data.service_total = form.dataset.serviceTotal || '0'; var language = form.elements.document_language.value === 'th' ? 'th' : 'en', selectedCar = cars.find(function (car) { return car.id === data.car_id; }); data.car = selectedCar ? carName(selectedCar) : ''; data.car_image_url = selectedCar && selectedCar.image_url ? selectedCar.image_url : ''; by('bookingSave').disabled = true; by('bookingErr').textContent = ''; try { var response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': tokenValue }, body: JSON.stringify(data) }); var result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error || 'บันทึกใบจองไม่สำเร็จ'), { status: response.status, detail: result }); try { sessionStorage.setItem('rd_edit_token', tokenValue); } catch (e) {} var documentData = Object.assign({}, data, result, { car: result.car || data.car }); by('bookingErr').textContent = 'บันทึกแล้ว กำลังเปิดตัวอย่างใบจอง…'; await previewBookingPdf(documentData, language); close('bookingModal'); by('rf').click(); } catch (error) { var conflict = error.detail && error.detail.conflict; by('bookingErr').textContent = conflict ? error.message + ' (' + (conflict.booking_no || conflict.customer_name || 'มีรายการเดิม') + ')' : (error.message || 'บันทึกใบจองไม่สำเร็จ'); } finally { by('bookingSave').disabled = false; } });
+    by('bookingForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var form = by('bookingForm'), tokenValue = form.elements.edit_token.value.trim(), data = {}, invalid = validateBookingForm(form);
+      if (invalid) {
+        by('bookingErr').textContent = invalid.message;
+        if (invalid.field) { invalid.field.focus(); invalid.field.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        return;
+      }
+      new FormData(form).forEach(function (value, key) { if (key !== 'edit_token' && key !== 'wants_tax_invoice' && key !== 'withhold_tax_5' && key !== 'document_language') data[key] = value; });
+      data.wants_tax_invoice = form.elements.wants_tax_invoice.checked;
+      data.withhold_tax_5 = form.elements.withhold_tax_5.checked;
+      data.service_total = form.dataset.serviceTotal || '0';
+      var language = form.elements.document_language.value === 'th' ? 'th' : 'en';
+      var selectedCar = cars.find(function (car) { return car.id === data.car_id; });
+      data.car = selectedCar ? carName(selectedCar) : '';
+      data.car_image_url = selectedCar && selectedCar.image_url ? selectedCar.image_url : '';
+      by('bookingSave').disabled = true;
+      by('bookingErr').textContent = '';
+      try {
+        var response = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Booking-Edit-Token': tokenValue }, body: JSON.stringify(data) });
+        var result = await response.json();
+        if (!response.ok) throw Object.assign(new Error(result.error || 'บันทึกใบจองไม่สำเร็จ'), { status: response.status, detail: result });
+        try { sessionStorage.setItem('rd_edit_token', tokenValue); } catch (e) {}
+        var documentData = Object.assign({}, data, result, { car: result.car || data.car });
+        close('bookingModal');
+        by('rf').click();
+        try {
+          await previewBookingPdf(documentData, language);
+        } catch (previewError) {
+          alert('บันทึกใบจองเรียบร้อยแล้ว แต่เปิดตัวอย่าง PDF ไม่สำเร็จ ใบจองถูกบันทึกไว้แล้ว สามารถเปิดร่างจากรายการจองได้ (' + (previewError.message || 'ข้อผิดพลาดในการสร้าง PDF') + ')');
+        }
+      } catch (error) {
+        var conflict = error.detail && error.detail.conflict;
+        var message = conflict ? error.message + ' (' + (conflict.booking_no || conflict.customer_name || 'มีรายการเดิม') + ')' : error.status === 403 ? 'รหัสผู้ดูแลไม่ถูกต้อง กรุณาตรวจสอบรหัสแล้วลองอีกครั้ง' : error.status === 503 ? 'ระบบบันทึกยังตั้งค่าไม่ครบ กรุณาแจ้งผู้ดูแลระบบ' : error.name === 'TypeError' ? 'เชื่อมต่อระบบบันทึกไม่สำเร็จ กรุณาตรวจสัญญาณอินเทอร์เน็ตแล้วลองอีกครั้ง' : (error.message || 'บันทึกใบจองไม่สำเร็จ');
+        by('bookingErr').textContent = message;
+      } finally {
+        by('bookingSave').disabled = false;
+      }
+    });
     document.addEventListener('click', async function (event) { var button = event.target.closest('[data-booking-pdf]'); if (!button) return; var item = (window.rows || []).find(function (row) { return String(row.id) === String(button.dataset.bookingPdf); }); if (!item) { alert('ไม่พบข้อมูลใบจอง โปรดรีเฟรชหน้าเว็บแล้วลองใหม่'); return; } button.disabled = true; var before = button.textContent; button.textContent = 'กำลังเปิดร่าง…'; try { await previewBookingPdf(item, button.dataset.bookingLanguage === 'th' ? 'th' : 'en'); } catch (error) { alert(error.message || 'เปิดร่างใบจองไม่สำเร็จ'); } finally { button.disabled = false; button.textContent = before; } });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
