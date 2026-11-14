@@ -893,6 +893,7 @@ function editMoneyPreview(row) {
     pickup_time: form.elements.pickup_time.value,
     return_date: form.elements.return_date.value,
     return_time: form.elements.return_time.value,
+    late_free_minutes: row.late_free_minutes,
     daily_rate: form.elements.daily_rate.value,
     delivery_fee: form.elements.delivery_fee.value,
     service_total: row.service_total,
@@ -1722,6 +1723,6 @@ $('today').textContent = 'วันนี้ ' + thaiDate(todayISO());
 billRenderHistory();
 load();
 </script>
-<script src="/booking-workspace.js?v=20261114-booking-overlap-grace-v2" defer></script>
+<script src="/booking-workspace.js?v=20261114-booking-overlap-grace-v3" defer></script>
 </body>
 </html>

@@ -36,6 +36,12 @@ test("historic bookings without a saved grace value retain the original day calc
   assert.equal(result.billableDays, 2);
 });
 
+test("booking edit preview uses the grace minutes saved on the selected booking", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const preview = source.slice(source.indexOf("function editMoneyPreview"), source.indexOf("async function openEdit"));
+  assert.match(preview, /late_free_minutes:\s*row\.late_free_minutes/);
+});
+
 test("VAT and 5% withholding use service subtotal and exclude the refundable deposit", () => {
   const result = bookingMath.calculate({ ...sample, wants_tax_invoice: true, withhold_tax_5: true });
   assert.equal(result.serviceTotal, 2700);
