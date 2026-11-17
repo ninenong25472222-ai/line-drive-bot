@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const { readPDF } = require("./services/pdfReader");
 const parserService = require("./services/parserService");
 const { savePartnerUpload } = require("./services/rentalProService");
@@ -11,8 +13,6 @@ const {
     canSendToDestination
 } = require("./services/lineRouting");
 
-require("dotenv").config();
-
 const express = require("express");
 const { messagingApi, middleware } = require("@line/bot-sdk");
 const axios = require("axios");
@@ -21,6 +21,10 @@ const stream = require("stream");
 const crypto = require("crypto");
 
 const app = express();
+const maxLineFileBytes = Math.min(
+    Math.max(Number(process.env.MAX_LINE_FILE_BYTES) || 25 * 1024 * 1024, 1024 * 1024),
+    50 * 1024 * 1024
+);
 
 // ============================
 // LINE CONFIG
@@ -123,10 +127,7 @@ async function sendResultMessage(event, text) {
             ]
         });
 
-        console.log(
-            "LINE_RESULT_SENT_TO_DESTINATION_GROUP:",
-            destinationGroupId.slice(-6)
-        );
+        console.log("LINE_RESULT_SENT_TO_DESTINATION_GROUP");
 
         return;
     }
@@ -388,9 +389,9 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
             });
             if (data.length) {
                 await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: "USER_ENTERED", data } });
-                console.log("APPSHEET_LINE_SYNC: repaired file link", bookingId);
+                console.log("APPSHEET_LINE_SYNC: repaired file link");
             }
-            console.log("APPSHEET_LINE_SYNC: duplicate", bookingId);
+            console.log("APPSHEET_LINE_SYNC: duplicate");
             return;
         }
         const values = Array(headers.length).fill("");
@@ -414,9 +415,9 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
         let endColumn = "";
         for (let n = headers.length; n > 0; n = Math.floor((n - 1) / 26)) endColumn = String.fromCharCode(65 + ((n - 1) % 26)) + endColumn;
         await sheets.spreadsheets.values.append({ spreadsheetId, range: sheetTitle + "!A:" + endColumn, valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: [values] } });
-        console.log("APPSHEET_LINE_SYNC: added booking", bookingId);
+        console.log("APPSHEET_LINE_SYNC: added booking");
     } catch (error) {
-        console.error("APPSHEET_LINE_SYNC_ERROR:", error?.response?.data || error?.message || error);
+        console.error("APPSHEET_LINE_SYNC_ERROR", error?.response?.status || error?.code || "unknown_error");
     }
 }
 
@@ -438,15 +439,17 @@ app.post(
                     ? req.body.events
                     : [];
 
-            await Promise.all(
-                events.map(handleEvent)
-            );
+            // Process a LINE batch in order so large file downloads do not
+            // multiply memory use without bound.
+            for (const event of events) {
+                await handleEvent(event);
+            }
 
             res.sendStatus(200);
         } catch (error) {
             console.error(
                 "WEBHOOK ERROR:",
-                error?.stack || error
+                error?.response?.status || error?.code || "unknown_error"
             );
 
             res.sendStatus(500);
@@ -460,22 +463,20 @@ app.post(
 
 async function handleEvent(event) {
     let replied = false;
+    let parseWarning = false;
+    let rentalProSyncFailed = false;
 
     try {
         console.log(
             "LINE_EVENT_SOURCE:",
-            event?.source?.type || "unknown",
-            event?.source?.groupId || ""
+            event?.source?.type || "unknown"
         );
 
         if (!isAllowedSourceGroup(
             event,
             process.env.SOURCE_GROUP_ID
         )) {
-            console.log(
-                "IGNORED_FILE_FROM_UNCONFIGURED_GROUP:",
-                getEventGroupId(event).slice(-6)
-            );
+            console.log("IGNORED_FILE_FROM_UNCONFIGURED_GROUP");
 
             return;
         }
@@ -496,10 +497,9 @@ async function handleEvent(event) {
                 `file-${messageId}`
             );
 
-        console.log(
-            "รับไฟล์ :",
-            fileName
-        );
+        if (Number(event.message.fileSize) > maxLineFileBytes) {
+            throw new Error("LINE_FILE_TOO_LARGE");
+        }
 
         // ============================
         // DOWNLOAD FILE FROM LINE
@@ -518,10 +518,10 @@ async function handleEvent(event) {
                 timeout: 120000,
 
                 maxContentLength:
-                    Infinity,
+                    maxLineFileBytes,
 
                 maxBodyLength:
-                    Infinity,
+                    maxLineFileBytes,
 
                 headers: {
                     Authorization:
@@ -553,69 +553,25 @@ async function handleEvent(event) {
                 .toLowerCase()
                 .endsWith(".pdf")
         ) {
-            const text =
-                await readPDF(buffer);
-
-            console.log(
-                "Final Text Length:",
-                text.length
-            );
-
-            if (
-                !text ||
-                text.trim().length < 10
-            ) {
-                throw new Error(
-                    "PDF_TEXT_EMPTY"
-                );
-            }
-
-            booking =
-                parserService.parse(text) ||
-                {
-                    company: "Other"
-                };
-
-            // แสดงเฉพาะข้อมูลที่จำเป็น
-            // ไม่แสดง rawText ทั้งไฟล์
-
-            console.log(
-                "Parsed booking:",
-                {
-                    company:
-                        booking.company,
-
-                    bookingNo:
-                        booking.bookingNo,
-
-                    customerName:
-                        booking.customerName,
-
-                    customerPhone:
-                        booking.customerPhone,
-
-                    pickupDate:
-                        booking.pickupDate,
-
-                    pickupTime:
-                        booking.pickupTime,
-
-                    pickupLocation:
-                        booking.pickupLocation,
-
-                    returnDate:
-                        booking.returnDate,
-
-                    returnTime:
-                        booking.returnTime,
-
-                    returnLocation:
-                        booking.returnLocation,
-
-                    car:
-                        booking.car
+            try {
+                const text = await readPDF(buffer);
+                if (!text || text.trim().length < 10) throw new Error("PDF_TEXT_EMPTY");
+                booking = parserService.parse(text) || { company: "Other" };
+                if (String(booking.company || "").toLowerCase() === "other" &&
+                    /(?:pick\s*up|drop\s*off|return|รับรถ|คืนรถ|วันส่งรถ|วันคืนรถ)/i.test(text) &&
+                    /\d{1,2}:\d{2}/.test(text)) {
+                    parseWarning = true;
                 }
-            );
+                if (booking.company && String(booking.company).toLowerCase() !== "other" &&
+                    (!booking.pickupDate || !booking.pickupTime || !booking.returnDate || !booking.returnTime)) {
+                    parseWarning = true;
+                }
+            } catch (parseError) {
+                // Preserve source files for manual review if extraction fails.
+                parseWarning = true;
+                booking = { company: "Other" };
+                console.warn("PDF_PARSE_FAILED; preserving original for review");
+            }
         }
 
         // ============================
@@ -755,7 +711,8 @@ const bookingCompanies = new Set([
     "trip",
     "klook",
     "reservation",
-    "chiccar"
+    "chiccar",
+    "jiraporn"
 ]);
 
 const isBookingFile =
@@ -781,12 +738,11 @@ const fileHash =
         .update(buffer)
         .digest("hex");
 
-console.log("File hash:", fileHash.slice(-8));
+console.log("File hash computed");
 
 // แสดง Log โดยไม่เปิดเผย Folder ID เต็ม
 
 console.log("Drive destination:", {
-    fileName,
     company:
         booking.company || "Other",
 
@@ -834,10 +790,8 @@ try {
         null;
 } catch (duplicateError) {
     console.error(
-        "DUPLICATE_CHECK_ERROR:",
-        duplicateError?.response?.data ||
-        duplicateError?.message ||
-        duplicateError
+        "DUPLICATE_CHECK_ERROR",
+        duplicateError?.response?.status || duplicateError?.code || "unknown_error"
     );
 }
 
@@ -881,10 +835,8 @@ if (duplicateFile?.id) {
         });
     } catch (sheetBackfillError) {
         console.error(
-            "SHEET_BACKFILL_ERROR:",
-            sheetBackfillError?.response?.data ||
-            sheetBackfillError?.message ||
-            sheetBackfillError
+            "SHEET_BACKFILL_ERROR",
+            sheetBackfillError?.response?.status || sheetBackfillError?.code || "unknown_error"
         );
     }
 
@@ -896,9 +848,11 @@ if (duplicateFile?.id) {
             driveFileId: duplicateFile.id,
             driveUrl: duplicateLink
         });
+        rentalProSyncFailed = Boolean(rentalProSync?.skipped);
         console.log(rentalProSync?.duplicate ? "RentalPro sync: ALREADY EXISTS" : rentalProSync?.skipped ? "RentalPro sync: SKIPPED (missing environment variables)" : "RentalPro sync: OK");
     } catch (rentalProError) {
-        console.error("RENTALPRO_SYNC_ERROR:", rentalProError?.response?.data || rentalProError?.message || rentalProError);
+        rentalProSyncFailed = true;
+        console.error("RENTALPRO_SYNC_ERROR", rentalProError?.response?.status || rentalProError?.code || "unknown_error");
     }
 
     if (isBookingFile) {
@@ -907,6 +861,8 @@ if (duplicateFile?.id) {
 
     const duplicateReply = [
         "♻️ ไฟล์นี้เคยบันทึกแล้ว",
+
+        ...(rentalProSyncFailed ? ["⚠️ ซิงก์ข้อมูลหน้าเว็บไม่สำเร็จ แต่ยังเปิดไฟล์ต้นฉบับเดิมได้"] : []),
 
         `📄 ${fileName}`,
 
@@ -967,9 +923,6 @@ if (!fileId) {
 // แสดง Parent Folder ที่ Google ใช้จริง
 
 console.log("Drive upload result:", {
-    fileId:
-        fileId.slice(-8),
-
     uploadedParents:
         upload.data.parents,
 
@@ -1024,14 +977,11 @@ console.log("Drive upload result:", {
             });
 
             console.log(rentalProSync?.skipped ? "RentalPro sync: SKIPPED (missing environment variables)" : "RentalPro sync: OK");
+            rentalProSyncFailed = Boolean(rentalProSync?.skipped);
         } catch (rentalProError) {
+            rentalProSyncFailed = true;
             // The LINE/Drive workflow should continue even if the website is temporarily unavailable.
-            console.error(
-                "RENTALPRO_SYNC_ERROR:",
-                rentalProError?.response?.data ||
-                rentalProError?.message ||
-                rentalProError
-            );
+            console.error("RENTALPRO_SYNC_ERROR", rentalProError?.response?.status || rentalProError?.code || "unknown_error");
         }
 
         // ============================
@@ -1207,18 +1157,12 @@ console.log("Drive upload result:", {
             }
         } catch (sortError) {
             console.error(
-                "SHEET_SORT_ERROR:",
-                sortError?.response?.data ||
-                sortError?.message ||
-                sortError
+                "SHEET_SORT_ERROR",
+                sortError?.response?.status || sortError?.code || "unknown_error"
             );
         }
 
-        console.log(
-            "Saved :",
-            booking.bookingNo ||
-            fileName
-        );
+        console.log("Drive and spreadsheet save completed");
 
         // ============================
         // PREPARE LINE MESSAGE
@@ -1245,7 +1189,9 @@ console.log("Drive upload result:", {
                 .trim()
                 .toLowerCase() === "other";
 
-        const reply1 = isOtherFile
+        const reply1 = parseWarning
+            ? "⚠️ บันทึกไฟล์ต้นฉบับแล้ว แต่ข้อมูลที่อ่านได้ยังไม่ครบ กรุณาตรวจสอบรายการและไฟล์ใน Google Drive"
+            : isOtherFile
             ? "✅ บันทึกไฟล์แล้ว\n📄 ไฟล์นี้ไม่ใช่ใบจองรถเช่า"
             : [
                 `✅ บันทึกไฟล์แล้ว ${booking.company}`,
@@ -1300,6 +1246,7 @@ console.log("Drive upload result:", {
 
         const replyText = [
             reply1,
+            ...(rentalProSyncFailed ? ["⚠️ บันทึกข้อมูลหน้าเว็บไม่สำเร็จ ไฟล์ต้นฉบับยังอยู่ใน Google Drive และ Google Sheets"] : []),
             reply2
         ].join("\n\n");
 
@@ -1323,11 +1270,7 @@ console.log("Drive upload result:", {
             "============= ERROR ============="
         );
 
-        console.error(
-            error?.response?.data ||
-            error?.stack ||
-            error
-        );
+        console.error("FILE_PROCESSING_ERROR", error?.response?.status || error?.code || error?.message || "unknown_error");
 
         console.error(
             "================================="
@@ -1388,7 +1331,7 @@ async function runPendingDeletionQueue() {
             serviceRoleKey: process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY,
             pendingFolderId: cleanText(process.env.GOOGLE_PENDING_DELETION_FOLDER_ID || "")
         });
-        console.log("PENDING_DELETION_QUEUE:", result);
+        console.log("PENDING_DELETION_QUEUE_COMPLETED");
         return result;
     } finally {
         pendingDeletionRunActive = false;
@@ -1422,7 +1365,7 @@ app.use(
     (error, req, res, next) => {
         console.error(
             "EXPRESS ERROR:",
-            error?.stack || error
+                error?.response?.status || error?.code || "unknown_error"
         );
 
         if (
@@ -1461,7 +1404,7 @@ async function runAppSheetSync() {
         });
         console.log("APPSHEET_PDF_LINK_REPAIR:", repaired);
     } catch (error) {
-        console.error("APPSHEET_SYNC_ERROR:", error?.response?.data || error?.message || error);
+        console.error("APPSHEET_SYNC_ERROR", error?.response?.status || error?.code || "unknown_error");
     }
 }
 
@@ -1514,7 +1457,7 @@ async function runCombinedSheetSync() {
         });
         console.log("COMBINED_SHEET_SYNC:", result);
     } catch (error) {
-        console.error("COMBINED_SHEET_SYNC_ERROR:", error?.response?.data || error?.message || error);
+        console.error("COMBINED_SHEET_SYNC_ERROR", error?.response?.status || error?.code || "unknown_error");
     }
 }
 

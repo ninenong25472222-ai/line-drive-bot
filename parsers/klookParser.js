@@ -594,37 +594,7 @@ function parseKlook(inputText) {
     booking.car =
         extractCar(text);
 
-    console.log("Klook result:", {
-        bookingNo:
-            booking.bookingNo,
-
-        customerName:
-            booking.customerName,
-
-        customerPhone:
-            booking.customerPhone,
-
-        pickupLocation:
-            booking.pickupLocation,
-
-        pickupDate:
-            booking.pickupDate,
-
-        pickupTime:
-            booking.pickupTime,
-
-        returnLocation:
-            booking.returnLocation,
-
-        returnDate:
-            booking.returnDate,
-
-        returnTime:
-            booking.returnTime,
-
-        car:
-            booking.car
-    });
+    console.log("Klook parser completed");
 
     return booking;
 }

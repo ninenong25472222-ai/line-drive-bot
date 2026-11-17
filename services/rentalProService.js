@@ -73,18 +73,16 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         updated_at: new Date().toISOString()
     };
 
-    // This Edge Function validates and writes with its own server-side role,
-    // and is deliberately published without JWT verification.  Keeping its
-    // public endpoint as a fallback lets the bot keep syncing when Render has
-    // not been given the optional browser key variables yet.
-    const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL || "https://kxhflbhgdtebxxjgxwks.supabase.co/functions/v1/store-rental-booking");
+    // This Edge Function validates and writes with its own server-side role.
+    // The function is public at the platform level, so authenticate this
+    // server-to-server call with the service key and never expose it to clients.
+    const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL || (rentalProUrl ? `${rentalProUrl}/functions/v1/store-rental-booking` : ""));
     const publishableKey = clean(process.env.SUPABASE_ANON_KEY);
     if (functionUrl) {
         try {
-            const headers = { "Content-Type": "application/json" };
+            const headers = { "Content-Type": "application/json", Authorization: `Bearer ${rentalProKey}` };
             if (publishableKey) {
                 headers.apikey = publishableKey;
-                headers.Authorization = `Bearer ${publishableKey}`;
             }
             const response = await axios.post(functionUrl, bookingRow, {
                 headers,
@@ -101,7 +99,6 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         return { skipped: true };
     }
 
-    let bookingTableAvailable = true;
     if (details.drive_file_id || details.file_hash) {
         try {
             // A Drive file ID remains the same even if a PDF is OCR'd again
@@ -142,37 +139,41 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
                 return { skipped: true, duplicate: true };
             }
         } catch (error) {
-            bookingTableAvailable = false;
-            console.warn("RENTALPRO_BOOKINGS_TABLE_UNAVAILABLE: keeping legacy audit log path");
+            console.warn("RENTALPRO_BOOKING_LOOKUP_FAILED", error?.response?.status || error?.code || "unknown_error");
+            throw new Error("RENTALPRO_BOOKING_LOOKUP_FAILED");
         }
     }
 
-    if (bookingTableAvailable) {
-        try {
-            await axios.post(`${rentalProUrl}/rest/v1/rental_bookings`, bookingRow, {
-                headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-                timeout: 30000
-            });
-        } catch (error) {
-            console.warn("RENTALPRO_BOOKINGS_WRITE_FAILED: keeping legacy audit log path");
-        }
+    try {
+        await axios.post(`${rentalProUrl}/rest/v1/rental_bookings`, bookingRow, {
+            headers: { apikey: rentalProKey, Authorization: `Bearer ${rentalProKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+            timeout: 30000
+        });
+    } catch (error) {
+        console.warn("RENTALPRO_BOOKING_WRITE_FAILED", error?.response?.status || error?.code || "unknown_error");
+        throw new Error("RENTALPRO_BOOKING_WRITE_FAILED");
     }
 
-    await axios.post(`${rentalProUrl}/rest/v1/audit_logs`, {
-        actor_id: null,
-        action: "partner_upload_received",
-        entity_type: "partner_upload",
-        entity_id: null,
-        details
-    }, {
-        headers: {
-            apikey: rentalProKey,
-            Authorization: `Bearer ${rentalProKey}`,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal"
-        },
-        timeout: 30000
-    });
+    try {
+        await axios.post(`${rentalProUrl}/rest/v1/audit_logs`, {
+            actor_id: null,
+            action: "partner_upload_received",
+            entity_type: "partner_upload",
+            entity_id: null,
+            details
+        }, {
+            headers: {
+                apikey: rentalProKey,
+                Authorization: `Bearer ${rentalProKey}`,
+                "Content-Type": "application/json",
+                Prefer: "return=minimal"
+            },
+            timeout: 30000
+        });
+    } catch (error) {
+        // The booking row is authoritative; audit logging is best-effort.
+        console.warn("RENTALPRO_AUDIT_LOG_FAILED", error?.response?.status || error?.code || "unknown_error");
+    }
 
     return { skipped: false };
 }

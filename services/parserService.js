@@ -4,6 +4,7 @@ const parseTrip = require("../parsers/tripParser");
 const parseKlook = require("../parsers/klookParser");
 const parseReservation = require("../parsers/reservationParser");
 const parseChicCar = require("../parsers/chicCarParser");
+const parseJirapornBooking = require("../parsers/jirapornBookingParser");
 
 function parse(text) {
     const company = detectCompany(text);
@@ -22,6 +23,9 @@ function parse(text) {
 
         case "chiccar":
             return parseChicCar(text);
+
+        case "jiraporn":
+            return parseJirapornBooking(text);
 
         default:
             return {

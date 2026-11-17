@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const adminTokenHash = "364ce48661e97936f40da1f02ddf90dacf54b48dd236e70c495ee04f651f878c";
 const cors = {
   "access-control-allow-origin": "https://line-drive-bot.pages.dev",
   "access-control-allow-headers": "authorization, apikey, content-type, x-booking-edit-token",
@@ -38,7 +37,8 @@ function sameHash(left: string, right: string) {
 }
 async function authorized(req: Request) {
   const supplied = req.headers.get("x-booking-edit-token") || "";
-  return sameHash(await sha256(supplied), adminTokenHash);
+  const expectedHash = Deno.env.get("BOOKING_EDIT_TOKEN_HASH") || "";
+  return Boolean(expectedHash) && sameHash(await sha256(supplied), expectedHash.toLowerCase());
 }
 async function rest(url: string, key: string, path: string, init: RequestInit = {}) {
   const result = await fetch(`${url}/rest/v1/${path}`, { ...init, headers: { apikey: key, Authorization: `Bearer ${key}`, ...(init.headers || {}) } });

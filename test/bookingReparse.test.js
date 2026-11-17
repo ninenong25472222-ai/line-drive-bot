@@ -32,7 +32,7 @@ test("re-reading eligibility treats blank dates as incomplete", () => {
 
 test("public booking-ingestion function cannot be used to rewrite missing dates", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "supabase", "functions", "store-rental-booking", "index.ts"), "utf8");
-  assert.match(source, /payload\?\.reparse_only === true\) return respond\(\{ error: "Date re-reading requires administrator authorization" \}, 403\)/);
+  assert.match(source, /parsed\?\.reparse_only === true\) return respond\(\{ error: "Date re-reading requires administrator authorization" \}, 403\)/);
   assert.doesNotMatch(source, /async function reparseOnly/);
   assert.match(source, /respond\(\{ ok: true, duplicate: true/);
   assert.match(source, /respond\(\{ ok: true, duplicate: false \}\)/);
