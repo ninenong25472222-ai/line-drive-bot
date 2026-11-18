@@ -263,6 +263,43 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 .dataUnlockModal{width:min(420px,100%);margin:12vh auto}.dataUnlockModal .modalFoot{justify-content:stretch}.dataUnlockModal .modalFoot button{width:100%;min-height:48px}
 #lifecycleToast{position:fixed;z-index:30;left:50%;bottom:20px;transform:translateX(-50%);width:min(560px,calc(100% - 24px));padding:13px 16px;border-radius:12px;background:#123650;color:#fff;box-shadow:0 8px 28px #14293d33;font-weight:600}
 #lifecycleToast.error{background:#8c251d}
+/* ใบออกบิล: จัดหัวเอกสารและข้อมูลลูกค้าให้กระชับ พร้อมยึดยอดรวมและลายเซ็นไว้ด้านล่างของ A4 */
+.billPageContent{display:flex;flex-direction:column;height:271mm;min-height:271mm}
+.billTop{display:grid;grid-template-columns:minmax(0,1fr) 200px;align-items:start;gap:8px;padding-bottom:7px}
+.billCompany{max-width:none;min-width:0}
+.billCompanyHeader{gap:8px;align-items:flex-start}
+.billLogoBox{width:44px;height:44px;flex:0 0 44px;border:0;border-radius:0;background:transparent}
+.billCompanyInfo{display:grid;align-content:start;gap:1px}
+.billCompanyInfo>.billLabel{display:none}
+.billCompany input{height:21px;font-size:14px;line-height:1.25}
+.billCompany textarea{height:20px;min-height:20px;font-size:9px;line-height:1.2;overflow:hidden}
+.billCompany input,.billCompany textarea,.billCompany .billTax input{border:0}
+.billCompany .billTax{display:flex;align-items:center;gap:2px;width:auto;max-width:none;font-size:8px;white-space:nowrap}
+.billCompany .billTax input{width:95px;flex:0 0 95px;font-size:8px}
+.billCompany #billCompanyPhone{width:140px;flex:0 0 140px}
+.billRight{min-width:0;text-align:right}
+.billRight h3{font-size:16px;white-space:nowrap;letter-spacing:-.35px;margin:0 0 4px}
+.billRight label{font-size:9px;line-height:1.3;margin:1px 0}
+.billRight input{width:94px;font-size:9px}
+.billCustomer{display:grid;gap:3px;padding:7px 0}
+.billCustomer>.billLabel{font-size:10px}
+.billClientRows{display:grid;gap:2px}
+.billClientRow{display:grid;grid-template-columns:125px minmax(0,1fr);align-items:center;gap:5px;min-height:17px;margin:0;font-size:9px}
+.billClientRow>span{color:#4d6171;font-size:9px;font-weight:400}
+.billClientRow input,.billClientRow textarea{box-sizing:border-box;width:100%;height:17px;min-height:17px;padding:0 2px!important;font-size:10px!important;font-weight:400!important;line-height:1.25}
+.billClientRow textarea{height:20px;min-height:20px;overflow:hidden}
+.billTable{margin-top:8px}
+.billBottom{margin-top:auto;padding-bottom:10mm}
+.billFoot{grid-template-columns:minmax(0,1fr) 220px;gap:16px;margin-top:0;padding-top:8px}
+.billNote textarea{min-height:48px;font-size:9px;line-height:1.35}
+.billTotals{font-size:11px}
+.billTotalRow{margin:2px 0}
+.billGrand{font-size:15px}
+.billSign{gap:36px;margin-top:24px;font-size:10px}
+.billSign .line{height:36px;margin-bottom:5px}
+@media(max-width:700px){.billPageContent{height:271mm;min-height:271mm}.billTop{grid-template-columns:minmax(0,1fr) 128px;gap:5px}.billLogoBox{width:38px;height:38px;flex-basis:38px}.billCompanyHeader{gap:6px}.billCompany input{font-size:12px}.billCompany textarea{font-size:8px}.billRight h3{font-size:13px;letter-spacing:-.45px}.billRight input{width:76px}.billClientRow{grid-template-columns:72px minmax(0,1fr)}}
+@media(max-width:700px){.billPdfExporting .billTop{grid-template-columns:minmax(0,1fr) 200px;gap:8px}.billPdfExporting .billCompanyHeader{gap:8px}.billPdfExporting .billLogoBox{width:44px;height:44px;flex-basis:44px}.billPdfExporting .billCompany input{font-size:14px}.billPdfExporting .billCompany textarea{font-size:9px}.billPdfExporting .billRight h3{font-size:16px}.billPdfExporting .billRight input{width:94px}.billPdfExporting .billClientRow{grid-template-columns:125px minmax(0,1fr)}}
+@media print{.billPageContent{height:276mm;min-height:276mm}.billOcrTools{display:none!important}}
 </style>
 </head>
 <body>
@@ -436,7 +473,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
     <nav class="billingTabs" aria-label="เมนูออกบิล"><button class="btn on" id="billTabEditor" type="button">แก้ไขบิล</button><button class="btn" id="billTabSettings" type="button">ตั้งค่าบริษัท</button><button class="btn" id="billTabHistory" type="button">ประวัติ</button></nav>
     <div id="billEditorPanel">
     <div class="billingTools">
-      <label>ประเภทเอกสาร<select class="ctl" id="billType"><option value="ใบแจ้งหนี้ / ใบกำกับภาษี">ใบแจ้งหนี้ / ใบกำกับภาษี</option><option value="ใบเสนอราคา">ใบเสนอราคา</option><option value="ใบเสร็จรับเงิน / ใบกำกับภาษี">ใบเสร็จรับเงิน / ใบกำกับภาษี</option></select></label>
+      <label>ประเภทเอกสาร<select class="ctl" id="billType"><option value="ใบแจ้งหนี้">ใบแจ้งหนี้ (Invoice)</option><option value="ใบเสนอราคา">ใบเสนอราคา</option><option value="ใบเสร็จรับเงิน / ใบกำกับภาษี">ใบเสร็จรับเงิน / ใบกำกับภาษี</option></select></label>
       <label>เลขที่เอกสาร<input class="ctl" id="billNumber" maxlength="40" placeholder="INV-001"></label>
       <label>วันที่เอกสาร<input class="ctl" id="billDate" type="date"></label>
       <label>ชื่อไฟล์ย่อสำหรับ LINE OA<input class="ctl" id="billFileName" maxlength="45" placeholder="INV-001-SOMCHAI"><span class="muted">ระบบจะเติม .pdf ให้อัตโนมัติ</span></label>
@@ -456,15 +493,17 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
             <div class="billCompanyHeader"><div class="billLogoBox"><img id="billLogo" alt="โลโก้กิจการ" hidden><span id="billLogoPlaceholder">LOGO</span></div><div class="billCompanyInfo"><span class="billLabel">ผู้ออกเอกสาร</span>
             <input id="billCompanyName" aria-label="ชื่อกิจการ">
             <textarea id="billCompanyAddress" aria-label="ที่อยู่กิจการ" rows="2"></textarea>
-            <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billCompanyTax" aria-label="เลขประจำตัวผู้เสียภาษีของกิจการ"></div></div></div>
+            <div class="billTax"><span>โทร</span><input id="billCompanyPhone" aria-label="เบอร์โทรกิจการ"><span>| เลขประจำตัวผู้เสียภาษี</span><input id="billCompanyTax" aria-label="เลขประจำตัวผู้เสียภาษีของกิจการ"></div></div></div>
           </div>
           <div class="billRight"><h3 id="billTitlePrint">ใบแจ้งหนี้ / ใบกำกับภาษี</h3><label>เลขที่ <input id="billNumberPrint" readonly></label><label>วันที่ <input id="billDatePrint" readonly></label></div>
         </header>
         <section class="billCustomer">
           <span class="billLabel">รายละเอียดลูกค้า</span>
-          <input id="billClientName" placeholder="ชื่อลูกค้า" aria-label="ชื่อลูกค้า">
-          <textarea id="billClientAddress" rows="2" placeholder="ที่อยู่ลูกค้า" aria-label="ที่อยู่ลูกค้า"></textarea>
-          <div class="billTax">เลขประจำตัวผู้เสียภาษี: <input id="billClientTax" placeholder="ถ้ามี" aria-label="เลขประจำตัวผู้เสียภาษีของลูกค้า"></div>
+          <div class="billClientRows">
+            <label class="billClientRow"><span>ชื่อลูกค้า</span><input id="billClientName" placeholder="กรอกชื่อลูกค้า" aria-label="ชื่อลูกค้า"></label>
+            <label class="billClientRow"><span>ที่อยู่</span><textarea id="billClientAddress" rows="1" placeholder="กรอกที่อยู่ลูกค้า" aria-label="ที่อยู่ลูกค้า"></textarea></label>
+            <label class="billClientRow"><span>เลขประจำตัวผู้เสียภาษี</span><input id="billClientTax" placeholder="ถ้ามี" aria-label="เลขประจำตัวผู้เสียภาษีของลูกค้า"></label>
+          </div>
           <div class="billOcrTools no-print">
             <div class="billOcrActions"><label class="btn" for="billOcrFile">เลือกรูปเอกสาร / ถ่ายรูป</label><input id="billOcrFile" type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" capture="environment" hidden><span class="billOcrFile muted" id="billOcrFileName">ยังไม่ได้เลือกรูป</span><button class="btn save" id="billOcrRead" type="button" disabled>อ่านและเติมข้อมูล</button><button class="btn" id="billOcrClear" type="button" hidden>ล้างรูป</button></div>
             <div class="billOcrStatus" id="billOcrStatus" role="status" aria-live="polite">อ่านชื่อ ที่อยู่ และเลขผู้เสียภาษีจากรูปในเบราว์เซอร์นี้ รูปจะไม่ถูกส่งไปเก็บในระบบ</div>
@@ -474,6 +513,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
         </section>
         <table class="billTable"><thead><tr><th>ลำดับ</th><th>รายการ</th><th>จำนวน</th><th>หน่วยละ</th><th>รวมเงิน</th><th class="no-print"></th></tr></thead><tbody id="billItems"></tbody></table>
         <button class="billAdd no-print" id="billAddItem" type="button">+ เพิ่มรายการ</button>
+        <div class="billBottom">
         <section class="billFoot">
           <div class="billNote"><span class="billLabel">หมายเหตุ</span><textarea id="billNote" rows="4">1. ชำระค่าเช่าวันทำสัญญารับรถ
 2. กรณีเกิดอุบัติเหตุแล้วเป็นฝั่งผิด จะต้องจ่ายส่วนแรก 3,000 บาท</textarea></div>
@@ -481,11 +521,12 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
         </section>
         <section class="billSign"><div><div class="line"></div><b>ผู้รับเงิน / ผู้รับบริการ</b></div><div><div class="line billSignatureLine"><img id="billSignature" alt="ลายเซ็นกิจการ" hidden></div><b>ในนาม <span id="billSignatureCompany">กิจการ</span></b></div></section>
         </div>
+        </div>
       </article>
     </div>
     </div>
     <div class="billStatus" id="billStatus" role="status"></div>
-    <section class="billPanel" id="billSettingsPanel" hidden><h3>ตั้งค่าบริษัท</h3><p class="muted">ข้อมูลนี้เก็บไว้ในเบราว์เซอร์เครื่องนี้ และจะแสดงบนเอกสารเมื่อบันทึกแล้ว</p><div class="billSettingsGrid"><div><label>ชื่อบริษัท<input class="ctl" id="billProfileName"></label><label>ที่อยู่<textarea class="ctl" id="billProfileAddress" rows="3"></textarea></label><label>Tax ID<input class="ctl" id="billProfileTax"></label></div><div><label>โลโก้<input class="ctl" id="billLogoInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billLogoHint">ยังไม่ได้เลือกรูปโลโก้</div><label>ลายเซ็น<input class="ctl" id="billSignatureInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billSignatureHint">ยังไม่ได้เลือกรูปลายเซ็น</div><button class="btn save" id="billSaveProfile" type="button">บันทึกข้อมูล</button></div></div></section>
+    <section class="billPanel" id="billSettingsPanel" hidden><h3>ตั้งค่าบริษัท</h3><p class="muted">ข้อมูลนี้เก็บไว้ในเบราว์เซอร์เครื่องนี้ และจะแสดงบนเอกสารเมื่อบันทึกแล้ว</p><div class="billSettingsGrid"><div><label>ชื่อบริษัท<input class="ctl" id="billProfileName"></label><label>ที่อยู่<textarea class="ctl" id="billProfileAddress" rows="3"></textarea></label><label>เบอร์โทร<input class="ctl" id="billProfilePhone"></label><label>Tax ID<input class="ctl" id="billProfileTax"></label></div><div><label>โลโก้<input class="ctl" id="billLogoInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billLogoHint">ยังไม่ได้เลือกรูปโลโก้</div><label>ลายเซ็น<input class="ctl" id="billSignatureInput" type="file" accept="image/*"></label><div class="billUploadHint" id="billSignatureHint">ยังไม่ได้เลือกรูปลายเซ็น</div><button class="btn save" id="billSaveProfile" type="button">บันทึกข้อมูล</button></div></div></section>
     <section class="billPanel" id="billHistoryPanel" hidden><h3>ประวัติออกบิลในเครื่องนี้</h3><div class="billHistoryList" id="billHistoryList"></div></section>
   </section>
 </div>
@@ -1391,9 +1432,12 @@ function openMonthlySummary() { renderMonthlySummary(); $('monthlySummaryModal')
 function closeMonthlySummary() { $('monthlySummaryModal').hidden = true; }
 
 /* ====== ออกบิล / ใบกำกับภาษี ====== */
-var BILL_DEFAULT_PROFILE = { name: 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์', address: '21 หมู่ที่ 3 ต.หัวเตย อ.พุนพิน จ.สุราษฎร์ธานี 84130', tax: '0843566002448', logo: '', signature: '' };
+var BILL_DEFAULT_PROFILE = { name: 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์ ( JIRAPORNCARRET )', address: '21 หมู่ที่ 3 ต.หัวเตย อ.พุนพิน จ.สุราษฎร์ธานี 84130', phone: '095-032-8080, 062-928-1405', tax: '0843566002448', logo: '/assets/jiraporn-car-rent-logo.png', signature: '' };
 var billProfile = BILL_DEFAULT_PROFILE, billHistory = [], html2pdfLoader = null;
 try { billProfile = Object.assign({}, BILL_DEFAULT_PROFILE, JSON.parse(localStorage.getItem('rental_bill_profile_v1') || '{}')); billHistory = JSON.parse(localStorage.getItem('rental_bill_history_v1') || '[]'); if (!Array.isArray(billHistory)) billHistory = []; } catch (e) {}
+if (billProfile.name === 'ห้างหุ้นส่วนจำกัด จิราพร คาร์เร้นท์') billProfile.name = BILL_DEFAULT_PROFILE.name;
+if (!billProfile.phone) billProfile.phone = BILL_DEFAULT_PROFILE.phone;
+if (!billProfile.logo) billProfile.logo = BILL_DEFAULT_PROFILE.logo;
 function billMoney(value) { return (Number(value) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function billShortName(value) { return String(value || '').trim().replace(/[\\/:*?"<>|#%{}]/g, '-').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45) || 'invoice'; }
 function billThaiDate(value) { return value ? thaiDate(value, { day: 'numeric', month: 'long', year: 'numeric' }) : ''; }
@@ -1405,17 +1449,17 @@ function billSetImage(id, placeholderId, value) {
 }
 function billApplyProfile(profile) {
   profile = profile || billProfile;
-  $('billCompanyName').value = profile.name || ''; $('billCompanyAddress').value = profile.address || ''; $('billCompanyTax').value = profile.tax || '';
+  $('billCompanyName').value = profile.name || ''; $('billCompanyAddress').value = profile.address || ''; $('billCompanyPhone').value = profile.phone || ''; $('billCompanyTax').value = profile.tax || '';
   $('billSignatureCompany').textContent = profile.name || 'กิจการ';
   billSetImage('billLogo', 'billLogoPlaceholder', profile.logo || ''); billSetImage('billSignature', null, profile.signature || '');
 }
 function billSetProfileFields() {
-  $('billProfileName').value = billProfile.name; $('billProfileAddress').value = billProfile.address; $('billProfileTax').value = billProfile.tax;
+  $('billProfileName').value = billProfile.name; $('billProfileAddress').value = billProfile.address; $('billProfilePhone').value = billProfile.phone; $('billProfileTax').value = billProfile.tax;
   $('billLogoHint').textContent = billProfile.logo ? 'เลือกรูปโลโก้แล้ว' : 'ยังไม่ได้เลือกรูปโลโก้'; $('billSignatureHint').textContent = billProfile.signature ? 'เลือกรูปลายเซ็นแล้ว' : 'ยังไม่ได้เลือกรูปลายเซ็น';
   billApplyProfile(billProfile);
 }
 function billSaveProfile() {
-  billProfile = Object.assign({}, billProfile, { name: $('billProfileName').value.trim() || BILL_DEFAULT_PROFILE.name, address: $('billProfileAddress').value.trim(), tax: $('billProfileTax').value.trim() });
+  billProfile = Object.assign({}, billProfile, { name: $('billProfileName').value.trim() || BILL_DEFAULT_PROFILE.name, address: $('billProfileAddress').value.trim(), phone: $('billProfilePhone').value.trim(), tax: $('billProfileTax').value.trim() });
   try { localStorage.setItem('rental_bill_profile_v1', JSON.stringify(billProfile)); } catch (e) { $('billStatus').textContent = 'บันทึกไม่สำเร็จ: รูปมีขนาดใหญ่เกินพื้นที่ของเบราว์เซอร์ ลองใช้ไฟล์รูปที่เล็กลง'; return; }
   billApplyProfile(billProfile); $('billStatus').textContent = 'บันทึกข้อมูลบริษัทแล้ว';
 }
@@ -1464,7 +1508,7 @@ function billCalculate() {
 }
 function billReset() {
   billSetProfileFields();
-  $('billType').value = 'ใบแจ้งหนี้ / ใบกำกับภาษี'; $('billDate').value = todayISO(); $('billNumber').value = 'INV-' + billDateForFile($('billDate').value); $('billFileName').value = billShortName($('billNumber').value);
+  $('billType').value = 'ใบแจ้งหนี้'; $('billDate').value = todayISO(); $('billNumber').value = 'INV-' + billDateForFile($('billDate').value); $('billFileName').value = billShortName($('billNumber').value);
   $('billClientName').value = ''; $('billClientAddress').value = ''; $('billClientTax').value = ''; $('billVat').checked = true; $('billWht').checked = false;
   $('billNote').value = '1. ชำระค่าเช่าวันทำสัญญารับรถ\n2. กรณีเกิดอุบัติเหตุแล้วเป็นฝั่งผิด จะต้องจ่ายส่วนแรก 3,000 บาท';
   $('billItems').innerHTML = ''; billAddItem({ desc: 'บริการรถเช่า', qty: 1, price: 0 }); billSyncDocument(); billCalculate();
@@ -1485,7 +1529,7 @@ function openBilling(id) {
 }
 function closeBilling() { $('billingModal').hidden = true; }
 function billSnapshot() {
-  return { id: Date.now(), number: $('billNumber').value.trim(), date: $('billDate').value, type: $('billType').value, fileName: billShortName($('billFileName').value), clientName: $('billClientName').value.trim(), clientAddress: $('billClientAddress').value, clientTax: $('billClientTax').value, vat: $('billVat').checked, wht: $('billWht').checked, note: $('billNote').value, items: billItemsValue(), profile: { name: $('billCompanyName').value, address: $('billCompanyAddress').value, tax: $('billCompanyTax').value, logo: billProfile.logo || '', signature: billProfile.signature || '' }, total: $('billGrand').textContent };
+  return { id: Date.now(), number: $('billNumber').value.trim(), date: $('billDate').value, type: $('billType').value, fileName: billShortName($('billFileName').value), clientName: $('billClientName').value.trim(), clientAddress: $('billClientAddress').value, clientTax: $('billClientTax').value, vat: $('billVat').checked, wht: $('billWht').checked, note: $('billNote').value, items: billItemsValue(), profile: { name: $('billCompanyName').value, address: $('billCompanyAddress').value, phone: $('billCompanyPhone').value, tax: $('billCompanyTax').value, logo: billProfile.logo || '', signature: billProfile.signature || '' }, total: $('billGrand').textContent };
 }
 function billRenderHistory() {
   $('billHistoryList').innerHTML = billHistory.length ? billHistory.map(function (entry) { return '<div class="billHistoryItem"><span><b>' + esc(entry.number || 'ไม่มีเลขที่') + '</b> · ' + esc(entry.clientName || 'ไม่ระบุลูกค้า') + '<br><span class="muted">' + esc(entry.date || '-') + ' · ' + esc(entry.total || '0.00') + ' บาท</span></span><button type="button" data-bill-history="' + esc(entry.id) + '">เปิด</button></div>'; }).join('') : '<div class="muted">ยังไม่มีประวัติ</div>';
@@ -1497,7 +1541,7 @@ function billSaveHistory() {
 }
 function billLoadHistory(id) {
   var entry = billHistory.find(function (item) { return String(item.id) === String(id); }); if (!entry) return;
-  $('billNumber').value = entry.number || ''; $('billDate').value = entry.date || todayISO(); $('billType').value = entry.type || 'ใบแจ้งหนี้ / ใบกำกับภาษี'; $('billFileName').value = entry.fileName || billShortName(entry.number);
+  $('billNumber').value = entry.number || ''; $('billDate').value = entry.date || todayISO(); $('billType').value = entry.type === 'ใบแจ้งหนี้ / ใบกำกับภาษี' ? 'ใบแจ้งหนี้' : (entry.type || 'ใบแจ้งหนี้'); $('billFileName').value = entry.fileName || billShortName(entry.number);
   $('billClientName').value = entry.clientName || ''; $('billClientAddress').value = entry.clientAddress || ''; $('billClientTax').value = entry.clientTax || ''; $('billVat').checked = entry.vat !== false; $('billWht').checked = !!entry.wht; $('billNote').value = entry.note || '';
   var profile = Object.assign({}, billProfile, entry.profile || {}); billApplyProfile(profile);
   $('billItems').innerHTML = ''; (entry.items || []).forEach(billAddItem); if (!$('billItems').children.length) billAddItem(); billSwitchTab('editor'); billSyncDocument(); billCalculate(); $('billStatus').textContent = 'เปิดเอกสารจากประวัติแล้ว';
@@ -1523,6 +1567,7 @@ function billFitPaperToA4(paper) {
   Array.prototype.forEach.call(paper.querySelectorAll('.no-print'), function (node) { hidden.push([node, node.style.display]); node.style.display = 'none'; });
   paper.style.boxSizing = 'border-box'; paper.style.width = '210mm'; paper.style.height = '296mm'; paper.style.minHeight = '296mm'; paper.style.maxHeight = '296mm'; paper.style.padding = '10mm 11mm'; paper.style.margin = '0'; paper.style.overflow = 'hidden'; paper.style.boxShadow = 'none';
   var computed = window.getComputedStyle(paper), available = paper.clientHeight - parseFloat(computed.paddingTop) - parseFloat(computed.paddingBottom), scale = 1;
+  content.style.height = available + 'px'; content.style.minHeight = available + 'px';
   for (var i = 0; i < 6; i++) {
     content.style.width = (100 / scale) + '%'; content.style.transform = 'scale(' + scale + ')';
     var naturalHeight = content.scrollHeight || content.getBoundingClientRect().height;
