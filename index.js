@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const { readBookingDocument } = require("./services/bookingDocumentService");
+const { readBookingPdfFromDrive } = require("./services/driveBookingReader");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 const { repairAppSheetPdfLinks } = require("./services/appSheetPdfLinkService");
@@ -1302,6 +1303,25 @@ app.get("/health", (req, res) => {
     res.status(200).json({
         status: "ok"
     });
+});
+
+// The dashboard uses this server-side path for re-reading incomplete bookings.
+// The admin PIN is verified by rental-admin before this service downloads the
+// Drive file through the account's existing Google OAuth connection.
+app.post("/admin/bookings/:id/read", async (req, res) => {
+    try {
+        const result = await readBookingPdfFromDrive({
+            id: req.params.id,
+            token: cleanText(req.get("x-booking-edit-token") || ""),
+            drive,
+            supabaseUrl: process.env.RENTALPRO_SUPABASE_URL || process.env.SUPABASE_URL,
+            anonKey: process.env.SUPABASE_ANON_KEY,
+        });
+        return res.status(200).json(result);
+    } catch (error) {
+        console.warn("BOOKING_FILE_REREAD_FAILED", { status: error.status || 502, reason: cleanText(error.message || "read_failed").slice(0, 180) });
+        return res.status(error.status || 502).json({ error: error.message || "อ่านไฟล์ไม่สำเร็จ" });
+    }
 });
 
 let pendingDeletionRunActive = false;

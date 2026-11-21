@@ -1332,22 +1332,13 @@ function readDetailsFromText(company, text) {
   return { pickup_date: events[0] ? events[0].date : '', pickup_time: events[0] ? events[0].time : '', return_date: events[1] ? events[1].date : '', return_time: events[1] ? events[1].time : '' };
 }
 async function readBookingDetails(row) {
-  var extracted = await readPdfText(row), first = readDetailsFromText(row.company || '', extracted.text);
-  if (bookingPdfComplete(first)) return first;
-  var originalScore = bookingPdfScore(first), ocrText;
-  try {
-    var pdfjs = await pdfReaderPromise;
-    ocrText = await pdfOcrText(extracted.buffer, function (pageNo, pageCount) {
-      var item = $('reparseList').querySelector('[data-reparse-row="' + String(row.id) + '"] .reparseState');
-      if (item) { item.className = 'reparseState working'; item.textContent = 'OCR ' + pageNo + '/' + pageCount; }
-    });
-  } catch (error) {
-    if (!originalScore) throw new Error('อ่านข้อความจาก PDF ไม่ครบ และ OCR ไม่สำเร็จ กรุณาลองใหม่เมื่ออินเทอร์เน็ตเสถียร');
-    return first;
-  }
-  var second = readDetailsFromText(row.company || '', ocrText), secondScore = bookingPdfScore(second), chosen = secondScore > originalScore ? second : first;
-  ['pickup_date', 'pickup_time', 'return_date', 'return_time'].forEach(function (field) { if (!chosen[field]) chosen[field] = first[field] || second[field] || ''; });
-  return chosen;
+  var response = await fetch('/api/bookings/' + encodeURIComponent(row.id) + '/reread', {
+    method: 'POST', headers: { 'X-Booking-Edit-Token': editToken() }
+  });
+  var result = await response.json().catch(function () { return {}; });
+  if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error || 'บริการอ่านไฟล์ตอบกลับผิดพลาด' });
+  if (!result.foundCount) throw Object.assign(new Error('อ่าน PDF ได้ แต่ไม่พบข้อมูลวันและเวลา'), { detail: 'ไม่พบวันหรือเวลาเช่าที่ระบบรู้จัก' });
+  return result;
 }
 async function requestReparse(id) {
   var row = rows.find(function (item) { return String(item.id) === String(id); });
@@ -1393,7 +1384,7 @@ async function reparseAllIncomplete() {
         setReparseRow(targets[i].id, 'ok', result.updatedFields && result.updatedFields.length ? 'เติมข้อมูลแล้ว' : 'ข้อมูลครบ');
       } catch (error) {
         batchReparse.failed++;
-        setReparseRow(targets[i].id, 'fail', 'อ่านไม่สำเร็จ');
+        setReparseRow(targets[i].id, 'fail', String(error.detail || error.message || 'อ่านไม่สำเร็จ').slice(0, 90));
         if (error.status === 403 || error.status === 503) throw error;
       }
       batchReparse.done = i + 1;
