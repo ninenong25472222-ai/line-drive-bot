@@ -1069,13 +1069,17 @@ async function openBookingFile(id, download) {
   if (popup) popup.opener = null;
   try {
     var suffix = download ? '?download=1' : '';
-    var response = await fetch('/api/bookings/' + encodeURIComponent(id) + '/file' + suffix, { headers: { 'X-Booking-Edit-Token': editToken() } });
-    var result = await response.json().catch(function () { return {}; });
-    if (!response.ok) { var failure = httpErr(response.status); failure.message = result.error || failure.message; throw failure; }
-    if (!result.url) throw new Error('ไม่พบลิงก์ไฟล์');
-    if (download) window.location.assign(result.url);
-    else if (popup) popup.location.replace(result.url);
-    else window.location.assign(result.url);
+    var response = await fetch('/api/bookings/' + encodeURIComponent(id) + '/content' + suffix, { headers: { 'X-Booking-Edit-Token': editToken() } });
+    if (!response.ok) { var result = await response.json().catch(function () { return {}; }); var failure = httpErr(response.status); failure.message = result.error || failure.message; throw failure; }
+    var blob = await response.blob();
+    if (!blob.size || !/^application\/pdf/i.test(blob.type || response.headers.get('content-type') || '')) throw new Error('ไฟล์จาก Google Drive ไม่ใช่ PDF ที่เปิดได้');
+    var objectUrl = URL.createObjectURL(blob);
+    if (download) {
+      var row = rows.find(function (item) { return String(item.id) === String(id); });
+      var anchor = document.createElement('a'); anchor.href = objectUrl; anchor.download = String(row && row.file_name || row && row.booking_no || 'booking').replace(/[\\/:*?"<>|]/g, '_').replace(/\.pdf$/i, '') + '.pdf';
+      document.body.appendChild(anchor); anchor.click(); anchor.remove(); setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000);
+    } else if (popup) { popup.location.replace(objectUrl); setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000); }
+    else { window.location.assign(objectUrl); setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 60000); }
   } catch (error) {
     if (popup) popup.close();
     if (error.status === 403) {
@@ -1168,29 +1172,69 @@ function openReparseModal() {
   $('reparseModal').hidden = false;
 }
 var pdfReaderPromise = null;
+var tesseractPromise = null;
 function driveFileId(url) {
   var match = String(url || '').match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/i);
   return match ? match[1] : '';
 }
-async function readPdfText(url) {
-  var id = driveFileId(url);
-  if (!id) throw new Error('ไม่พบไฟล์ PDF ใน Google Drive');
-  var response = await fetch('https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t');
+function bookingPdfComplete(details) { return Boolean(details && details.pickup_date && details.pickup_time && details.return_date && details.return_time); }
+function bookingPdfScore(details) { return ['pickup_date', 'pickup_time', 'return_date', 'return_time'].reduce(function (score, field) { return score + (details && details[field] ? 1 : 0); }, 0); }
+async function bookingPdfBuffer(row) {
+  if (!row || !row.id) throw new Error('ไม่พบรหัสรายการจอง');
+  var response = await fetch('/api/bookings/' + encodeURIComponent(row.id) + '/content', { headers: { 'X-Booking-Edit-Token': editToken() } });
+  if (!response.ok) { var errorBody = await response.json().catch(function () { return {}; }); var failure = httpErr(response.status); failure.message = errorBody.error || failure.message; throw failure; }
   var buffer = await response.arrayBuffer();
-  if (!response.ok || new TextDecoder().decode(new Uint8Array(buffer).slice(0, 4)) !== '%PDF') throw new Error('ดาวน์โหลดไฟล์ PDF ไม่สำเร็จ');
-  if (!pdfReaderPromise) pdfReaderPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
-  var pdfjs = await pdfReaderPromise;
+  if (new TextDecoder().decode(new Uint8Array(buffer).slice(0, 5)) !== '%PDF-') throw new Error('ไฟล์ที่ดาวน์โหลดไม่ใช่ PDF ที่อ่านได้');
+  return buffer;
+}
+async function pdfTextLayer(pdfjs, buffer) {
   var pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise, pages = [];
-  for (var pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
-    var content = await (await pdf.getPage(pageNo)).getTextContent();
-    pages.push(content.items.map(function (item) { return item.str || ''; }).join(' '));
-  }
-  // Keep page and line separation.  Some booking PDFs put the two dates in a
-  // table and PDF.js needs those boundaries to associate each time correctly.
+  try {
+    for (var pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+      var page = await pdf.getPage(pageNo), content = await page.getTextContent(), lines = [];
+      (content.items || []).forEach(function (item) {
+        var value = String(item.str || '').trim(); if (!value) return;
+        var x = Number(item.transform && item.transform[4]) || 0, y = Number(item.transform && item.transform[5]) || 0;
+        var line = lines.find(function (entry) { return Math.abs(entry.y - y) <= 2.5; });
+        if (!line) { line = { y: y, items: [] }; lines.push(line); }
+        line.items.push({ x: x, value: value });
+      });
+      lines.sort(function (a, b) { return b.y - a.y; });
+      pages.push(lines.map(function (line) { return line.items.sort(function (a, b) { return a.x - b.x; }).map(function (entry) { return entry.value; }).join(' '); }).join('\n'));
+      if (page.cleanup) page.cleanup();
+    }
+  } finally { if (pdf.cleanup) await pdf.cleanup(); }
   return pages.join('\n\n').replace(/[ \t]+/g, ' ').trim();
 }
+async function pdfOcrText(buffer, onProgress) {
+  if (!tesseractPromise) tesseractPromise = import('https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.esm.min.js');
+  var tesseract = await tesseractPromise, worker = null, pdfjs = await pdfReaderPromise;
+  var pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise, pages = [];
+  try {
+    worker = await tesseract.createWorker(['eng', 'tha'], 1);
+    for (var pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+      if (onProgress) onProgress(pageNo, pdf.numPages);
+      var page = await pdf.getPage(pageNo), viewport = page.getViewport({ scale: 2.5 }), canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+      var context = canvas.getContext('2d', { alpha: false }); context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, viewport: viewport, canvas: canvas }).promise;
+      var result = await worker.recognize(canvas); pages.push(result && result.data ? result.data.text || '' : '');
+      canvas.width = 0; canvas.height = 0; if (page.cleanup) page.cleanup();
+    }
+  } finally {
+    if (worker) await worker.terminate();
+    if (pdf.cleanup) await pdf.cleanup();
+  }
+  return pages.join('\n\n').trim();
+}
+async function readPdfText(row, onProgress) {
+  var buffer = await bookingPdfBuffer(row);
+  if (!pdfReaderPromise) pdfReaderPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+  var pdfjs = await pdfReaderPromise, text = await pdfTextLayer(pdfjs, buffer);
+  return { text: text, buffer: buffer };
+}
 function thaiMonthDate(day, month, year) {
-  var months = { 'ม.ค.': '01', 'ก.พ.': '02', 'มี.ค.': '03', 'เม.ย.': '04', 'พ.ค.': '05', 'มิ.ย.': '06', 'ก.ค.': '07', 'ส.ค.': '08', 'ก.ย.': '09', 'ต.ค.': '10', 'พ.ย.': '11', 'ธ.ค.': '12' };
+  var months = { 'ม.ค.': '01', 'มกราคม': '01', 'ก.พ.': '02', 'กุมภาพันธ์': '02', 'มี.ค.': '03', 'มีนาคม': '03', 'เม.ย.': '04', 'เมษายน': '04', 'พ.ค.': '05', 'พฤษภาคม': '05', 'มิ.ย.': '06', 'มิถุนายน': '06', 'ก.ค.': '07', 'กรกฎาคม': '07', 'ส.ค.': '08', 'สิงหาคม': '08', 'ก.ย.': '09', 'กันยายน': '09', 'ต.ค.': '10', 'ตุลาคม': '10', 'พ.ย.': '11', 'พฤศจิกายน': '11', 'ธ.ค.': '12', 'ธันวาคม': '12' };
   var m = months[String(month).replace(/\s+/g, '')];
   return m ? String(+year > 2400 ? +year - 543 : +year) + '-' + m + '-' + pad(+day) : '';
 }
@@ -1199,7 +1243,9 @@ function bookingText(value) {
 }
 function bookingDate(day, month, year) {
   var y = +year > 2400 ? +year - 543 : +year;
-  return String(y) + '-' + pad(+month) + '-' + pad(+day);
+  var d = +day, m = +month, date = new Date(Date.UTC(y, m - 1, d));
+  if (!Number.isInteger(y) || y < 1900 || y > 2200 || date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return '';
+  return String(y) + '-' + pad(m) + '-' + pad(d);
 }
 function bookingTime(hour, minute) {
   var h = +hour;
@@ -1215,6 +1261,16 @@ function timeEvents(text) {
   var events = [], match, regex = /\b([01]?\d|2[0-3])\s*:\s*([0-5]\d)\b/g;
   while ((match = regex.exec(text)) !== null) events.push({ time: bookingTime(match[1], match[2]), index: match.index });
   return events;
+}
+function sectionBetween(text, startPattern, endPattern) {
+  var start = startPattern.exec(text); if (!start) return '';
+  var from = start.index + start[0].length, tail = text.slice(from), end = endPattern.exec(tail);
+  return end ? tail.slice(0, end.index) : tail;
+}
+function firstDateTimeInSection(text) {
+  var date = numericDateEvents(text)[0], time = timeEvents(text)[0];
+  if (date && time) return { date: date.date, time: time.time };
+  return null;
 }
 function labelledDateTime(text, label) {
   var labelMatch = label.exec(text);
@@ -1259,7 +1315,13 @@ function readDetailsFromText(company, text) {
     drop = labelledDateTime(text, /drop\s*-?\s*off\s+date(?:\s*&\s*time)?/ig);
     return completePair(pick, drop);
   }
-  var months = 'ม\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*พ\\s*\\.|มี\\s*\\.\\s*ค\\s*\\.|เม\\s*\\.\\s*ย\\s*\\.|พ\\s*\\.\\s*ค\\s*\\.|มิ\\s*\\.\\s*ย\\s*\\.|ก\\s*\\.\\s*ค\\s*\\.|ส\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*ย\\s*\\.|ต\\s*\\.\\s*ค\\s*\\.|พ\\s*\\.\\s*ย\\s*\\.|ธ\\s*\\.\\s*ค\\s*\\.';
+  if (/jiraporn/i.test(company)) {
+    var pickupSection = sectionBetween(text, /Pick\s*Up\s*\/\s*รับรถ/i, /Return\s*\/\s*คืนรถ/i);
+    var returnSection = sectionBetween(text, /Return\s*\/\s*คืนรถ/i, /รายละเอียดการชำระเงิน|รายละเอียดรถเช่า|คำขอพิเศษ/i);
+    pick = firstDateTimeInSection(pickupSection); drop = firstDateTimeInSection(returnSection);
+    return completePair(pick, drop);
+  }
+  var months = 'ม\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*พ\\s*\\.|มี\\s*\\.\\s*ค\\s*\\.|เม\\s*\\.\\s*ย\\s*\\.|พ\\s*\\.\\s*ค\\s*\\.|มิ\\s*\\.\\s*ย\\s*\\.|ก\\s*\\.\\s*ค\\s*\\.|ส\\s*\\.\\s*ค\\s*\\.|ก\\s*\\.\\s*ย\\s*\\.|ต\\s*\\.\\s*ค\\s*\\.|พ\\s*\\.\\s*ย\\s*\\.|ธ\\s*\\.\\s*ค\\s*\\.|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม';
   var regex = new RegExp('(\\d{1,2})\\s*(' + months + ')\\s*(\\d{4})\\s*([0-2]?\\d)\\s*:\\s*([0-5]\\d)', 'gi'), events = [], match;
   while ((match = regex.exec(text)) !== null) {
     var date = thaiMonthDate(match[1], match[2], match[3]), time = pad(+match[4]) + ':' + match[5];
@@ -1268,7 +1330,22 @@ function readDetailsFromText(company, text) {
   return { pickup_date: events[0] ? events[0].date : '', pickup_time: events[0] ? events[0].time : '', return_date: events[1] ? events[1].date : '', return_time: events[1] ? events[1].time : '' };
 }
 async function readBookingDetails(row) {
-  return readDetailsFromText(row.company || '', await readPdfText(row.drive_url));
+  var extracted = await readPdfText(row), first = readDetailsFromText(row.company || '', extracted.text);
+  if (bookingPdfComplete(first)) return first;
+  var originalScore = bookingPdfScore(first), ocrText;
+  try {
+    var pdfjs = await pdfReaderPromise;
+    ocrText = await pdfOcrText(extracted.buffer, function (pageNo, pageCount) {
+      var item = $('reparseList').querySelector('[data-reparse-row="' + String(row.id) + '"] .reparseState');
+      if (item) { item.className = 'reparseState working'; item.textContent = 'OCR ' + pageNo + '/' + pageCount; }
+    });
+  } catch (error) {
+    if (!originalScore) throw new Error('อ่านข้อความจาก PDF ไม่ครบ และ OCR ไม่สำเร็จ กรุณาลองใหม่เมื่ออินเทอร์เน็ตเสถียร');
+    return first;
+  }
+  var second = readDetailsFromText(row.company || '', ocrText), secondScore = bookingPdfScore(second), chosen = secondScore > originalScore ? second : first;
+  ['pickup_date', 'pickup_time', 'return_date', 'return_time'].forEach(function (field) { if (!chosen[field]) chosen[field] = first[field] || second[field] || ''; });
+  return chosen;
 }
 async function requestReparse(id) {
   var row = rows.find(function (item) { return String(item.id) === String(id); });

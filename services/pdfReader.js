@@ -256,13 +256,12 @@ async function extractTextLayer(buffer) {
 // ============================
 
 async function createOcrWorker() {
-    // ค่าเริ่มต้นใช้ภาษาอังกฤษ
-    // ตั้ง OCR_LANGUAGES=eng+tha
-    // ใน Railway ได้เมื่อต้องการ OCR ไทย
+    // เอกสารจองส่วนใหญ่ผสมภาษาไทยและอังกฤษ จึงโหลดทั้งสองภาษาเป็นค่าเริ่มต้น
+    // สามารถกำหนด OCR_LANGUAGES เพื่อปรับให้เหมาะกับเอกสารเฉพาะชุดได้
 
     const languages =
         process.env.OCR_LANGUAGES ||
-        "eng";
+        "eng+tha";
 
     console.log(
         "OCR Languages:",
@@ -457,7 +456,7 @@ async function extractTextWithOcr(
 // ฟังก์ชันหลัก
 // ============================
 
-async function readPDF(buffer) {
+async function readPDF(buffer, options = {}) {
     if (
         !Buffer.isBuffer(buffer) ||
         buffer.length === 0
@@ -473,27 +472,14 @@ async function readPDF(buffer) {
     // ขั้นที่ 1: Text Layer
     // ========================
 
-    try {
-        text =
-            await extractTextLayer(
-                buffer
-            );
-
-        console.log(
-            "อ่านด้วย pdfjs-dist สำเร็จ"
-        );
-
-        console.log(
-            "Text Layer Length:",
-            text.length
-        );
-    } catch (error) {
-        console.error(
-            "อ่าน Text Layer ไม่สำเร็จ:",
-            error.message
-        );
-
-        text = "";
+    if (options.forceOCR !== true) {
+        try {
+            text = await extractTextLayer(buffer);
+            console.log("อ่านด้วย pdfjs-dist สำเร็จ", { textLength: text.length });
+        } catch (error) {
+            console.error("อ่าน Text Layer ไม่สำเร็จ:", error.message);
+            text = "";
+        }
     }
 
     // มีข้อความเพียงพอแล้ว
@@ -544,5 +530,7 @@ async function readPDF(buffer) {
 }
 
 module.exports = {
-    readPDF
+    readPDF,
+    extractTextLayer,
+    extractTextWithOcr
 };

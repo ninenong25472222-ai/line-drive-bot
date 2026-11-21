@@ -1,7 +1,6 @@
 require("dotenv").config();
 
-const { readPDF } = require("./services/pdfReader");
-const parserService = require("./services/parserService");
+const { readBookingDocument } = require("./services/bookingDocumentService");
 const { savePartnerUpload } = require("./services/rentalProService");
 const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 const { repairAppSheetPdfLinks } = require("./services/appSheetPdfLinkService");
@@ -15,7 +14,7 @@ const {
 
 const express = require("express");
 const { messagingApi, middleware } = require("@line/bot-sdk");
-const axios = require("axios");
+const { downloadLineFile } = require("./services/lineFileService");
 const { google } = require("googleapis");
 const stream = require("stream");
 const crypto = require("crypto");
@@ -505,40 +504,14 @@ async function handleEvent(event) {
         // DOWNLOAD FILE FROM LINE
         // ============================
 
-        const response =
-            await axios({
-                method: "get",
-
-                url:
-                    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
-
-                responseType:
-                    "arraybuffer",
-
-                timeout: 120000,
-
-                maxContentLength:
-                    maxLineFileBytes,
-
-                maxBodyLength:
-                    maxLineFileBytes,
-
-                headers: {
-                    Authorization:
-                        `Bearer ${process.env.CHANNEL_ACCESS_TOKEN}`
-                }
-            });
-
-        const buffer =
-            Buffer.from(
-                response.data
-            );
-
-        if (!buffer.length) {
-            throw new Error(
-                "DOWNLOADED_FILE_EMPTY"
-            );
-        }
+        const downloaded = await downloadLineFile({
+            messageId,
+            accessToken: process.env.CHANNEL_ACCESS_TOKEN,
+            maxBytes: maxLineFileBytes,
+            fileName,
+            onRetry: ({ attempt, status, code }) => console.warn("LINE_FILE_DOWNLOAD_RETRY", { attempt, status: status || undefined, code: code || undefined })
+        });
+        const buffer = downloaded.buffer;
 
         // ============================
         // READ AND PARSE PDF
@@ -554,9 +527,13 @@ async function handleEvent(event) {
                 .endsWith(".pdf")
         ) {
             try {
-                const text = await readPDF(buffer);
-                if (!text || text.trim().length < 10) throw new Error("PDF_TEXT_EMPTY");
-                booking = parserService.parse(text) || { company: "Other" };
+                const document = await readBookingDocument(buffer);
+                const text = document.text;
+                booking = document.booking || { company: "Other" };
+                console.log("PDF_BOOKING_READ_RESULT", {
+                    usedOcrFallback: document.usedOcrFallback,
+                    completeDateTime: Boolean(booking.pickupDate && booking.pickupTime && booking.returnDate && booking.returnTime)
+                });
                 if (String(booking.company || "").toLowerCase() === "other" &&
                     /(?:pick\s*up|drop\s*off|return|รับรถ|คืนรถ|วันส่งรถ|วันคืนรถ)/i.test(text) &&
                     /\d{1,2}:\d{2}/.test(text)) {
@@ -1281,9 +1258,19 @@ console.log("Drive upload result:", {
             event.replyToken
         ) {
             try {
+                const messageByCode = {
+                    LINE_FILE_TOO_LARGE: "❌ ไฟล์ใหญ่เกินกำหนด กรุณาส่ง PDF ที่มีขนาดไม่เกิน 25 MB",
+                    LINE_FILE_NO_LONGER_AVAILABLE: "❌ LINE ไม่พบไฟล์ต้นฉบับแล้ว กรุณาส่งไฟล์นี้เข้ามาใหม่",
+                    LINE_FILE_DOWNLOAD_UNAUTHORIZED: "❌ บอตไม่มีสิทธิ์ดาวน์โหลดไฟล์จาก LINE กรุณาแจ้งผู้ดูแลระบบ",
+                    LINE_FILE_DOWNLOAD_RATE_LIMITED: "⏳ LINE จำกัดการดาวน์โหลดชั่วคราว กรุณารอสักครู่แล้วส่งไฟล์ซ้ำ",
+                    LINE_FILE_DOWNLOAD_TEMPORARILY_UNAVAILABLE: "⏳ LINE หรือเครือข่ายขัดข้องชั่วคราว ระบบลองดาวน์โหลดซ้ำแล้ว กรุณาส่งไฟล์ซ้ำอีกครั้ง",
+                    LINE_FILE_DOWNLOAD_TIMEOUT: "⏳ ดาวน์โหลดไฟล์จาก LINE นานเกินไป กรุณาลองส่งไฟล์ซ้ำ",
+                    LINE_FILE_CONTENT_NOT_PDF: "❌ ไฟล์นี้ไม่ใช่ PDF ที่อ่านได้ กรุณาตรวจสอบชนิดไฟล์ก่อนส่ง",
+                };
+                const errorCode = String(error?.message || "");
                 await sendResultMessage(
                     event,
-                    "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาลองส่งใหม่อีกครั้ง"
+                    messageByCode[errorCode] || "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาตรวจสอบไฟล์แล้วส่งใหม่อีกครั้ง"
                 );
 
                 replied = true;

@@ -41,6 +41,26 @@ test("Dashboard file reader handles Klook dates and times with split spaces", ()
   );
 });
 
+test("Dashboard file reader extracts Jiraporn dates and times from the pickup and return sections", () => {
+  const parse = dashboardFileParser();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(parse("Jiraporn", "Pick Up / รับรถ วันที่ : 19/11/2569 เวลา: 10 : 50 น. สถานที่รับ สนามบิน Return / คืนรถ วันที่ : 22/11/2569 เวลา: 11:00 น. สถานที่คืน สนามบิน รายละเอียดการชำระเงิน"))),
+    { pickup_date: "2026-11-19", pickup_time: "10:50", return_date: "2026-11-22", return_time: "11:00" },
+  );
+});
+
+test("Dashboard file reader supports full Thai month names and rejects impossible calendar dates", () => {
+  const parse = dashboardFileParser();
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(parse("Other", "19 พฤศจิกายน 2569 10:50 22 พฤศจิกายน 2569 11:00"))),
+    { pickup_date: "2026-11-19", pickup_time: "10:50", return_date: "2026-11-22", return_time: "11:00" },
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(parse("ChicCar", "31/02/2026 10:50 01/03/2026 11:00"))),
+    { pickup_date: "", pickup_time: "10:50", return_date: "2026-03-01", return_time: "11:00" },
+  );
+});
+
 test("Dashboard offers a single re-read action only for incomplete booking files", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /id="reparseAll"/);
@@ -246,6 +266,8 @@ test("Dashboard clearly opens the real Google Drive attachment through its own f
   assert.match(source, /ดูไฟล์จริง \(Google Drive\)/);
   assert.match(source, /ดาวน์โหลดไฟล์จริง/);
   assert.match(source, /\/file/);
+  assert.match(source, /\/content/);
+  assert.match(source, /URL\.createObjectURL\(blob\)/);
   assert.match(source, /async function openBookingFile/);
   assert.match(source, /'X-Booking-Edit-Token': editToken\(\)/);
   assert.match(source, /openBookingFile\(file\.dataset\.bookingFile/);

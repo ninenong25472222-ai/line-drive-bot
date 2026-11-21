@@ -6,6 +6,10 @@ function detectCompany(inputText = "") {
         .replace(/\s+/g, " ")
         .trim();
 
+    if (/JIRAPORNCARRET|จิราพร\s*คาร์เร้นท์/i.test(text)) {
+        return "jiraporn";
+    }
+
     // ============================
     // KLOOK
     // ============================

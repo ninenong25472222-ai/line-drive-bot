@@ -110,6 +110,57 @@ async function bookingFile(url: string, key: string, id: string, download: boole
   if (download && !driveId) return response({ error: "แปลงลิงก์ดาวน์โหลดไม่สำเร็จ" }, 422);
   return response({ url: download ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}` : driveUrl, file_name: text(booking.file_name), booking_no: text(booking.booking_no) });
 }
+async function bookingPdfContent(url: string, key: string, id: string, download: boolean) {
+  const rows = await rest(url, key, `rental_bookings?id=eq.${encodeURIComponent(id)}&select=drive_url,file_name,booking_no&limit=1`);
+  const booking = Array.isArray(rows) ? rows[0] : null;
+  if (!booking) return response({ error: "ไม่พบรายการจอง" }, 404);
+  let driveUrl: URL;
+  try { driveUrl = new URL(text(booking.drive_url, 2000)); } catch { return response({ error: "รายการนี้ไม่มีไฟล์ใบจองที่เปิดได้" }, 422); }
+  if (driveUrl.protocol !== "https:" || !["drive.google.com", "drive.usercontent.google.com", "docs.google.com"].includes(driveUrl.hostname.toLowerCase())) return response({ error: "ลิงก์ไฟล์ไม่ใช่ Google Drive" }, 422);
+  const driveId = driveUrl.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/)?.[1] || driveUrl.searchParams.get("id") || "";
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(driveId)) return response({ error: "ไม่พบรหัสไฟล์ Google Drive" }, 422);
+
+  const downloadUrls = [
+    `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=download&confirm=t`,
+    `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}&confirm=t`,
+  ];
+  let bytes: Uint8Array | null = null;
+  let sawTooLarge = false;
+  for (const downloadUrl of downloadUrls) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 45000);
+        try {
+          const fileResponse = await fetch(downloadUrl, { signal: controller.signal });
+          if ([408, 425, 429, 500, 502, 503, 504].includes(fileResponse.status) && attempt < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+            continue;
+          }
+          if (!fileResponse.ok) break;
+          const announcedSize = Number(fileResponse.headers.get("content-length") || 0);
+          if (announcedSize > 40 * 1024 * 1024) { sawTooLarge = true; break; }
+          const received = new Uint8Array(await fileResponse.arrayBuffer());
+          if (received.byteLength > 40 * 1024 * 1024) { sawTooLarge = true; break; }
+          if (received.length >= 5 && new TextDecoder().decode(received.slice(0, 5)) === "%PDF-") { bytes = received; break; }
+          // Drive sometimes serves a confirmation/error HTML page from its first
+          // download URL; try its alternate public-download endpoint next.
+          break;
+        } finally { clearTimeout(timer); }
+      } catch (error) {
+        if (attempt >= 3) break;
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
+    if (bytes || sawTooLarge) break;
+  }
+  if (sawTooLarge) return response({ error: "ไฟล์ใหญ่เกิน 40 MB" }, 413);
+  if (!bytes) return response({ error: "Google Drive ดาวน์โหลด PDF ไม่สำเร็จ หรือไฟล์ยังไม่ได้เปิดสิทธิ์ด้วยลิงก์" }, 502);
+  const name = text(booking.file_name, 200) || text(booking.booking_no, 80) || "booking";
+  const safeName = name.replace(/[\r\n"\\/]/g, "_").replace(/\.pdf$/i, "").slice(0, 120) || "booking";
+  const encodedName = encodeURIComponent(`${safeName}.pdf`).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return new Response(bytes, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `${download ? "attachment" : "inline"}; filename="booking.pdf"; filename*=UTF-8''${encodedName}`, "content-length": String(bytes.byteLength), "x-content-type-options": "nosniff", "cache-control": "no-store" } });
+}
 async function reparseBooking(input: Record<string, unknown>, url: string, key: string, id: string) {
   const current = await bookingById(url, key, id);
   if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
@@ -382,6 +433,8 @@ Deno.serve(async (req) => {
     const path = new URL(req.url).pathname.replace(/\/$/, "");
     if (req.method === "GET" && path.endsWith("/bookings")) return await listBookings(url, key);
     if (path.endsWith("/settings") && (req.method === "GET" || req.method === "PATCH")) return await handleRentalSettings(req, url, key);
+    const contentId = path.match(/\/bookings\/([0-9a-f-]{36})\/content$/i)?.[1];
+    if (req.method === "GET" && contentId) return await bookingPdfContent(url, key, contentId, new URL(req.url).searchParams.get("download") === "1");
     const fileId = path.match(/\/bookings\/([0-9a-f-]{36})\/file$/i)?.[1];
     if (req.method === "GET" && fileId) return await bookingFile(url, key, fileId, new URL(req.url).searchParams.get("download") === "1");
     if (req.method === "POST" && path.endsWith("/cars")) return await saveCar(req, url, key);

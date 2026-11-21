@@ -158,9 +158,8 @@ async function reparseBooking({ supabaseUrl, serviceRoleKey, id }) {
   }
 
   // Load the full PDF/OCR reader only for this explicit operator action.
-  const { readPDF } = require("../../services/pdfReader");
-  const parserService = require("../../services/parserService");
-  const parsed = parserService.parse(await readPDF(buffer)) || {};
+  const { readBookingDocument } = require("../../services/bookingDocumentService");
+  const { booking: parsed = {} } = await readBookingDocument(buffer);
   const { patch, foundFields } = reparsedPatch(current, parsed);
   if (!foundFields.length) return { error: "No booking details were found in this file", statusCode: 422 };
   if (!Object.keys(patch).length) return { booking: current, updatedFields: [], foundFields };
