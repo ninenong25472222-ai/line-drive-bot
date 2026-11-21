@@ -69,6 +69,10 @@ test("Dashboard offers a single re-read action only for incomplete booking files
   assert.match(source, /กำลังอ่านไฟล์/);
   assert.doesNotMatch(source, /id="reparseToken"/);
   assert.match(source, /!row\._oth && row\._bad && row\.id && safeUrl\(row\.drive_url\)/);
+  assert.match(source, /o\._bad = !o\._p \|\| !o\._pt \|\| !o\._r \|\| !o\._rt/);
+  assert.match(source, /ข้อมูลวัน\/เวลาไม่ครบ/);
+  assert.match(source, /if \(!row\._pt\) missing\.push\('เวลาส่งรถ'\)/);
+  assert.match(source, /if \(!row\._rt\) missing\.push\('เวลาคืนรถ'\)/);
   assert.doesNotMatch(source, /data-reparse=/);
 });
 

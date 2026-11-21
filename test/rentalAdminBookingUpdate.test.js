@@ -135,6 +135,27 @@ test("administrator reparse fills only valid missing dates and times", async () 
   assert.equal(row.return_time, "09:00");
 });
 
+test("administrator reparse replaces malformed schedule fields but preserves valid existing values", async () => {
+  let row = bookingRow({ pickup_date: "2026-02-31", pickup_time: "09:00", return_date: "2026-11-09", return_time: "bad" });
+  let patchBody;
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { patchBody = JSON.parse(init.body); row = { ...row, ...patchBody }; return mockResponse([row]); }
+    return mockResponse([row]);
+  });
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reparse_only: true, pickup_date: "2026-11-07", pickup_time: "10:30", return_date: "2026-11-10", return_time: "11:00" })
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.updatedFields, ["pickup_date", "return_time"]);
+  assert.deepEqual(Object.keys(patchBody).sort(), ["pickup_date", "return_time", "updated_at"]);
+  assert.equal(row.pickup_date, "2026-11-07");
+  assert.equal(row.pickup_time, "09:00");
+  assert.equal(row.return_date, "2026-11-09");
+  assert.equal(row.return_time, "11:00");
+});
+
 test("administrator file-link route returns only a validated Drive link", async () => {
   const row = bookingRow({ drive_url: "https://drive.google.com/file/d/drive-id-123/view", file_name: "booking.pdf" });
   const handler = loadAdminHandler(async () => mockResponse([row]));

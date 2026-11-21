@@ -343,7 +343,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
     <div><b id="sTotal">—</b><span>รายการ</span></div>
     <div><b id="sSoon">—</b><span>รับ/คืน ภายใน 48 ชม.</span></div>
     <div><b id="sOther">—</b><span>Other</span></div>
-    <button class="statAction w" id="sBadAction" type="button" data-quick-filter="incomplete" aria-pressed="false"><b id="sBad">—</b><span>ข้อมูลวันที่ไม่ครบ</span></button>
+    <button class="statAction w" id="sBadAction" type="button" data-quick-filter="incomplete" aria-pressed="false"><b id="sBad">—</b><span>ข้อมูลวัน/เวลาไม่ครบ</span></button>
     <button class="statAction w" id="sDupAction" type="button" data-quick-filter="duplicates" aria-pressed="false"><b id="sDup">—</b><span>สำเนาไฟล์ซ้ำ</span></button>
   </div>
 
@@ -371,7 +371,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
   </div>
 
   <div class="row2" id="reparsePanel" hidden>
-    <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด</button>
+    <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลวัน/เวลาไม่ครบทั้งหมด</button>
     <span class="muted" id="reparseHint"></span>
   </div>
 
@@ -452,7 +452,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
 <div class="modalBg" id="reparseModal" hidden>
   <section class="modal reparseModal" aria-labelledby="reparseTitle">
     <div class="modalHead"><h2 id="reparseTitle">อ่านไฟล์ใบจองอีกครั้ง</h2><button class="btn" id="reparseClose" type="button">ปิด</button></div>
-    <p class="muted">ระบบจะอ่านเฉพาะใบจองที่มีข้อมูลวันที่ไม่ครบ และเติมเฉพาะช่องที่ยังว่าง โดยไม่แก้ไฟล์ต้นฉบับหรือข้อมูลที่คุณแก้เอง</p>
+    <p class="muted">ระบบจะอ่านใบจองที่วันหรือเวลาไม่ครบ แล้วเติมเฉพาะช่องที่ว่างหรือรูปแบบไม่ถูกต้อง โดยคงข้อมูลเดิมที่ถูกต้องและไม่แก้ไฟล์ต้นฉบับ</p>
     <div class="reparseList" id="reparseList" aria-live="polite"></div>
     <div class="muted" id="reparseStatus" role="status" style="margin-top:10px"></div>
     <div class="modalFoot"><button class="btn" id="reparseCancel" type="button">ยกเลิก</button><button class="btn save" id="reparseStart" type="button">เริ่มอ่านไฟล์</button></div>
@@ -595,7 +595,7 @@ function prep(r) {
   o._pt = ptime(r.pickup_time); o._rt = ptime(r.return_time);
   o._src = String(r.source_label || r.source || '');
   o._oth = o._src.toLowerCase().indexOf('other') >= 0;
-  o._bad = !o._p || !o._r;
+  o._bad = !o._p || !o._pt || !o._r || !o._rt;
   o._pendingDelete = o.deletion_status === 'pending_confirmation';
   o._inTrash = ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'deleted', 'move_failed'].indexOf(o.deletion_status) >= 0;
   o._rentalStatus = r.status === 'ยกเลิก' ? 'cancelled' : (r.rental_status || 'scheduled');
@@ -1135,14 +1135,16 @@ function updateReparseAction() {
     return;
   }
   button.disabled = !targets.length;
-  button.textContent = 'อ่านไฟล์ที่ข้อมูลวันที่ไม่ครบทั้งหมด (' + targets.length + ')';
+  button.textContent = 'อ่านไฟล์ที่ข้อมูลวัน/เวลาไม่ครบทั้งหมด (' + targets.length + ')';
   hint.textContent = targets.length ? 'ระบบจะเติมเฉพาะช่องที่ว่าง' : ((batchReparse && batchReparse.note) || '');
 }
 function missingDateText(row) {
   var missing = [];
-  if (!row._p) missing.push('วันรับรถ');
+  if (!row._p) missing.push('วันส่งรถ');
+  if (!row._pt) missing.push('เวลาส่งรถ');
   if (!row._r) missing.push('วันคืนรถ');
-  return missing.join(' · ') || 'ตรวจข้อมูลอีกครั้ง';
+  if (!row._rt) missing.push('เวลาคืนรถ');
+  return missing.join(' · ') || 'ตรวจรูปแบบวันและเวลา';
 }
 function renderReparseList() {
   $('reparseList').innerHTML = reparsePlan.map(function (row) {

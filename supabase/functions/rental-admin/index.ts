@@ -165,12 +165,13 @@ async function reparseBooking(input: Record<string, unknown>, url: string, key: 
   const current = await bookingById(url, key, id);
   if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
   const fields = ["pickup_date", "pickup_time", "return_date", "return_time"];
-  if (fields.every((field) => text(current[field]))) return response({ error: "วันและเวลาครบแล้ว ไม่ต้องอ่านซ้ำ" }, 409);
+  const isValidField = (field: string, value: string) => field.endsWith("_date") ? dateOk(value) : timeOk(value);
+  if (fields.every((field) => isValidField(field, text(current[field])))) return response({ error: "วันและเวลาครบและถูกต้องแล้ว ไม่ต้องอ่านซ้ำ" }, 409);
   const patch: Record<string, unknown> = {};
   for (const field of fields) {
     const value = text(input[field], 20);
-    if (text(current[field]) || !value) continue;
-    if (field.endsWith("_date") ? dateOk(value) : timeOk(value)) patch[field] = value;
+    if (isValidField(field, text(current[field])) || !value) continue;
+    if (isValidField(field, value)) patch[field] = value;
   }
   if (!Object.keys(patch).length) return response({ error: "ไม่พบข้อมูลวันที่หรือเวลาที่เติมได้" }, 422);
   const merged = { ...current, ...patch };
