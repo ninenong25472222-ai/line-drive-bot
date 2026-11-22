@@ -2,6 +2,7 @@ const axios = require("axios");
 
 const rentalProUrl = String(process.env.RENTALPRO_SUPABASE_URL || "").replace(/\/$/, "");
 const rentalProKey = String(process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY || "");
+const rentalProBookingToken = String(process.env.RENTALPRO_BOOKING_WRITE_TOKEN || "");
 
 function clean(value = "") {
     return String(value ?? "").replace(/\u0000/g, "").trim();
@@ -75,12 +76,12 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
 
     // This Edge Function validates and writes with its own server-side role.
     // The function is public at the platform level, so authenticate this
-    // server-to-server call with the service key and never expose it to clients.
+    // server-to-server call with a dedicated token; never expose it to clients.
     const functionUrl = clean(process.env.SUPABASE_FUNCTION_URL || (rentalProUrl ? `${rentalProUrl}/functions/v1/store-rental-booking` : ""));
     const publishableKey = clean(process.env.SUPABASE_ANON_KEY);
-    if (functionUrl) {
+    if (functionUrl && rentalProBookingToken) {
         try {
-            const headers = { "Content-Type": "application/json", Authorization: `Bearer ${rentalProKey}` };
+            const headers = { "Content-Type": "application/json", Authorization: `Bearer ${rentalProBookingToken}` };
             if (publishableKey) {
                 headers.apikey = publishableKey;
             }
@@ -92,6 +93,8 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         } catch (error) {
             console.warn("SUPABASE_FUNCTION_WRITE_FAILED:", error.response?.status || error.code || "unknown_error", "falling back to legacy Supabase path");
         }
+    } else if (functionUrl) {
+        console.warn("SUPABASE_FUNCTION_WRITE_SKIPPED: missing booking write token");
     }
 
     if (!rentalProUrl || !rentalProKey) {

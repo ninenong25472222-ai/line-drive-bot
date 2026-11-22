@@ -4,14 +4,18 @@ const cors = { "access-control-allow-origin": "https://line-drive-bot.pages.dev"
 const preserveFields = ["booking_no", "customer_name", "customer_phone", "customer_email", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location", "car", "drive_file_id", "drive_url"];
 const writableFields = ["source", "source_label", "status", "company", "booking_no", "customer_name", "customer_phone", "customer_email", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location", "car", "file_name", "file_hash", "drive_file_id", "drive_url", "updated_at"];
 const textLimits: Record<string, number> = { source: 40, source_label: 100, status: 40, company: 100, booking_no: 120, customer_name: 200, customer_phone: 80, customer_email: 254, pickup_date: 30, pickup_time: 20, pickup_location: 300, return_date: 30, return_time: 20, return_location: 300, car: 200, file_name: 255, file_hash: 64, drive_file_id: 200, drive_url: 1000, updated_at: 40 };
+// Dedicated high-entropy server-to-server credential; only its SHA-256 verifier is deployed here.
+const bookingWriteTokenHash = "8325556a57703e704971b9554d2a9f068262bf0e07998bfca748abf81b64a8c3";
 const respond = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const clean = (value: unknown) => String(value ?? "").trim();
 const missing = (value: unknown) => !clean(value);
-async function constantTimeEqual(left: string, right: string) {
-  if (!left || !right) return false;
-  const [leftHash, rightHash] = await Promise.all([left, right].map(async (value) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))));
+async function matchesBookingWriteToken(token: string) {
+  if (!token) return false;
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)));
+  const expected = Uint8Array.from(bookingWriteTokenHash.match(/.{2}/g) || [], byte => parseInt(byte, 16));
+  if (digest.length !== expected.length) return false;
   let mismatch = 0;
-  for (let index = 0; index < leftHash.length; index++) mismatch |= leftHash[index] ^ rightHash[index];
+  for (let index = 0; index < digest.length; index++) mismatch |= digest[index] ^ expected[index];
   return mismatch === 0;
 }
 function sanitizeBooking(input: unknown) {
@@ -71,7 +75,7 @@ Deno.serve(async (req) => {
     if (!url || !key) return respond({ error: "Server configuration is incomplete" }, 500);
     const authorization = req.headers.get("authorization") || "";
     const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-    if (!await constantTimeEqual(supplied, key)) return respond({ error: "Unauthorized" }, 401);
+    if (!await matchesBookingWriteToken(supplied)) return respond({ error: "Unauthorized" }, 401);
     if (!/^application\/json(?:\s*;|$)/i.test(req.headers.get("content-type") || "")) return respond({ error: "Content-Type must be application/json" }, 415);
     const contentLength = Number(req.headers.get("content-length") || 0);
     if (contentLength > 65536) return respond({ error: "Request is too large" }, 413);

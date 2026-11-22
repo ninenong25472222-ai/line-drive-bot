@@ -9,6 +9,8 @@ function loadStoreHandler(fetchMock) {
   const file = path.join(__dirname, "..", "supabase", "functions", "store-rental-booking", "index.ts");
   let source = stripTypeScriptTypes(fs.readFileSync(file, "utf8"));
   source = source.replace(/^import\s+["'][^"']+["'];\s*/m, "");
+  const testTokenHash = require("node:crypto").createHash("sha256").update("server-only-test-secret").digest("hex");
+  source = source.replace(/const bookingWriteTokenHash = ["'][a-f0-9]{64}["'];/, `const bookingWriteTokenHash = "${testTokenHash}";`);
   let handler;
   const Deno = {
     serve(fn) { handler = fn; },
@@ -64,9 +66,9 @@ test("admin token hash is read from a secret setting instead of source code", ()
   assert.doesNotMatch(source, /const adminTokenHash\s*=\s*["'][a-f0-9]{64}["']/i);
 });
 
-test("bot sends the server-only Supabase key to the protected ingestion function", () => {
+test("bot sends the dedicated server-only token to the protected ingestion function", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "services", "rentalProService.js"), "utf8");
-  assert.match(source, /Authorization:\s*`Bearer \$\{rentalProKey\}`/);
+  assert.match(source, /Authorization:\s*`Bearer \$\{rentalProBookingToken\}`/);
   assert.doesNotMatch(source, /headers\.Authorization\s*=\s*`Bearer \$\{publishableKey\}`/);
   assert.doesNotMatch(source, /https:\/\/[^"']+\.supabase\.co\/functions\/v1\/store-rental-booking/);
 });
