@@ -1,6 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { downloadLineFile } = require("../services/lineFileService");
+const { downloadLineFile, lineFileErrorMessage } = require("../services/lineFileService");
+
+test("LINE processing errors have actionable user-facing messages instead of a generic retry alert", () => {
+  assert.match(lineFileErrorMessage(new Error("LINE_FILE_DOWNLOAD_UNAUTHORIZED")), /สิทธิ์ดาวน์โหลดจาก LINE/);
+  assert.match(lineFileErrorMessage(new Error("LINE_FILE_CONTENT_NOT_PDF")), /ไม่ใช่ PDF/);
+  assert.match(lineFileErrorMessage(new Error("UNEXPECTED_INTERNAL_ERROR")), /อย่าส่งซ้ำทันที/);
+});
 
 test("LINE file download retries transient failures then returns the complete PDF bytes", async () => {
   let calls = 0;

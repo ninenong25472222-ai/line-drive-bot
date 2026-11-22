@@ -11,6 +11,23 @@ function statusOf(error) {
     return Number(error?.response?.status || error?.status || 0);
 }
 
+function lineFileErrorMessage(error) {
+    const code = String(error?.message || error?.code || "");
+    const messages = {
+        LINE_FILE_TOO_LARGE: "ไฟล์ใหญ่เกินกำหนด (25 MB) กรุณาส่งไฟล์ขนาดเล็กลง",
+        LINE_FILE_NO_LONGER_AVAILABLE: "LINE หมดอายุไฟล์นี้แล้ว กรุณาส่งไฟล์เข้ามาใหม่",
+        LINE_FILE_DOWNLOAD_UNAUTHORIZED: "สิทธิ์ดาวน์โหลดจาก LINE หมดอายุ กรุณาแจ้งผู้ดูแลระบบ",
+        LINE_FILE_DOWNLOAD_RATE_LIMITED: "LINE จำกัดการดาวน์โหลดชั่วคราว กรุณารอสักครู่ก่อนลองใหม่",
+        LINE_FILE_DOWNLOAD_TEMPORARILY_UNAVAILABLE: "เชื่อมต่อ LINE ไม่สำเร็จชั่วคราว ระบบลองซ้ำแล้ว กรุณาลองใหม่อีกครั้ง",
+        LINE_FILE_DOWNLOAD_TIMEOUT: "ดาวน์โหลดไฟล์ใช้เวลานานเกินไป กรุณาลองใหม่เมื่อสัญญาณดีขึ้น",
+        LINE_FILE_CONTENT_NOT_PDF: "ไฟล์ที่ส่งมาไม่ใช่ PDF ที่อ่านได้ กรุณาส่งไฟล์ PDF ต้นฉบับ",
+        LINE_FILE_MESSAGE_ID_MISSING: "LINE ไม่ได้ส่งรหัสไฟล์มา กรุณาส่งไฟล์ใหม่อีกครั้ง",
+        LINE_CHANNEL_ACCESS_TOKEN_MISSING: "ระบบเชื่อมต่อ LINE ยังไม่พร้อม กรุณาแจ้งผู้ดูแลระบบ",
+        DOWNLOADED_FILE_EMPTY: "LINE ส่งไฟล์เปล่ากลับมา กรุณาส่งไฟล์ใหม่อีกครั้ง",
+    };
+    return messages[code] || "ระบบรับไฟล์แล้ว แต่ประมวลผลไม่สำเร็จ กรุณาอย่าส่งซ้ำทันที—แจ้งผู้ดูแลพร้อมชื่อไฟล์และเวลาที่ส่ง เพื่อป้องกันไฟล์ซ้ำ";
+}
+
 function isRetryable(error) {
     const status = statusOf(error);
     if (RETRYABLE_STATUS.has(status)) return true;
@@ -77,4 +94,4 @@ async function downloadLineFile({
     throw new Error(lastError?.message || "LINE_FILE_DOWNLOAD_FAILED");
 }
 
-module.exports = { downloadLineFile, isRetryable };
+module.exports = { downloadLineFile, isRetryable, lineFileErrorMessage };

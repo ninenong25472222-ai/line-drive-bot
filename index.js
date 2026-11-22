@@ -15,7 +15,7 @@ const {
 
 const express = require("express");
 const { messagingApi, middleware } = require("@line/bot-sdk");
-const { downloadLineFile } = require("./services/lineFileService");
+const { downloadLineFile, lineFileErrorMessage } = require("./services/lineFileService");
 const { google } = require("googleapis");
 const stream = require("stream");
 const crypto = require("crypto");
@@ -1259,19 +1259,9 @@ console.log("Drive upload result:", {
             event.replyToken
         ) {
             try {
-                const messageByCode = {
-                    LINE_FILE_TOO_LARGE: "❌ ไฟล์ใหญ่เกินกำหนด กรุณาส่ง PDF ที่มีขนาดไม่เกิน 25 MB",
-                    LINE_FILE_NO_LONGER_AVAILABLE: "❌ LINE ไม่พบไฟล์ต้นฉบับแล้ว กรุณาส่งไฟล์นี้เข้ามาใหม่",
-                    LINE_FILE_DOWNLOAD_UNAUTHORIZED: "❌ บอตไม่มีสิทธิ์ดาวน์โหลดไฟล์จาก LINE กรุณาแจ้งผู้ดูแลระบบ",
-                    LINE_FILE_DOWNLOAD_RATE_LIMITED: "⏳ LINE จำกัดการดาวน์โหลดชั่วคราว กรุณารอสักครู่แล้วส่งไฟล์ซ้ำ",
-                    LINE_FILE_DOWNLOAD_TEMPORARILY_UNAVAILABLE: "⏳ LINE หรือเครือข่ายขัดข้องชั่วคราว ระบบลองดาวน์โหลดซ้ำแล้ว กรุณาส่งไฟล์ซ้ำอีกครั้ง",
-                    LINE_FILE_DOWNLOAD_TIMEOUT: "⏳ ดาวน์โหลดไฟล์จาก LINE นานเกินไป กรุณาลองส่งไฟล์ซ้ำ",
-                    LINE_FILE_CONTENT_NOT_PDF: "❌ ไฟล์นี้ไม่ใช่ PDF ที่อ่านได้ กรุณาตรวจสอบชนิดไฟล์ก่อนส่ง",
-                };
-                const errorCode = String(error?.message || "");
                 await sendResultMessage(
                     event,
-                    messageByCode[errorCode] || "❌ ไม่สามารถประมวลผลไฟล์ได้ กรุณาตรวจสอบไฟล์แล้วส่งใหม่อีกครั้ง"
+                    "❌ " + lineFileErrorMessage(error)
                 );
 
                 replied = true;
