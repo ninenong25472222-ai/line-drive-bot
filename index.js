@@ -117,25 +117,45 @@ async function sendResultMessage(event, text) {
         getEventGroupId(event);
 
     if (canSendToDestination(event, destinationGroupId)) {
-        await client.pushMessage({
-            to: destinationGroupId,
-            messages: [
-                {
-                    type: "text",
-                    text
-                }
-            ]
+        try {
+            await client.pushMessage({
+                to: destinationGroupId,
+                messages: [
+                    {
+                        type: "text",
+                        text
+                    }
+                ]
+            });
+
+            console.log("LINE_RESULT_SENT_TO_DESTINATION_GROUP");
+            return;
+        } catch (error) {
+            console.error("LINE_RESULT_DESTINATION_PUSH_FAILED", error?.response?.status || error?.code || "unknown_error");
+        }
+    }
+
+    // Keep customer details and Drive links out of the source group. When the
+    // destination is missing or cannot receive messages, return only a generic
+    // notice while the LINE reply token is still available instead of failing
+    // silently.
+    if (event?.replyToken) {
+        await client.replyMessage({
+            replyToken: event.replyToken,
+            messages: [{
+                type: "text",
+                text: "⚠️ ระบบรับไฟล์แล้ว แต่ส่งผลการประมวลผลไปยังกลุ่มปลายทางไม่ได้ กรุณาแจ้งผู้ดูแลให้ตรวจสอบการตั้งค่ากลุ่ม LINE"
+            }]
         });
-
-        console.log("LINE_RESULT_SENT_TO_DESTINATION_GROUP");
-
+        console.warn("LINE_RESULT_ROUTING_FALLBACK_SENT", {
+            hasDestinationGroup: Boolean(destinationGroupId),
+            matchesSourceGroup: Boolean(destinationGroupId && destinationGroupId === sourceGroupId)
+        });
         return;
     }
 
-    // Never reply in a source group. A missing or matching destination is a
-    // configuration error, not a reason to send the result back to Group 1.
     console.error(
-        "LINE_RESULT_NOT_SENT_INVALID_DESTINATION_CONFIGURATION",
+        "LINE_RESULT_NOT_SENT_NO_REPLY_TOKEN",
         {
             hasDestinationGroup: Boolean(destinationGroupId),
             matchesSourceGroup: Boolean(
