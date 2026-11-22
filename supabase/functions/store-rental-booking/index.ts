@@ -5,7 +5,7 @@ const preserveFields = ["booking_no", "customer_name", "customer_phone", "custom
 const writableFields = ["source", "source_label", "status", "company", "booking_no", "customer_name", "customer_phone", "customer_email", "pickup_date", "pickup_time", "pickup_location", "return_date", "return_time", "return_location", "car", "file_name", "file_hash", "drive_file_id", "drive_url", "updated_at"];
 const textLimits: Record<string, number> = { source: 40, source_label: 100, status: 40, company: 100, booking_no: 120, customer_name: 200, customer_phone: 80, customer_email: 254, pickup_date: 30, pickup_time: 20, pickup_location: 300, return_date: 30, return_time: 20, return_location: 300, car: 200, file_name: 255, file_hash: 64, drive_file_id: 200, drive_url: 1000, updated_at: 40 };
 // Dedicated high-entropy server-to-server credential; only its SHA-256 verifier is deployed here.
-const bookingWriteTokenHash = "8325556a57703e704971b9554d2a9f068262bf0e07998bfca748abf81b64a8c3";
+const bookingWriteTokenHash = "9caeb6c176e93e9e887f4d18a14394bdab9304c175e005debeac418912d2b764";
 const respond = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const clean = (value: unknown) => String(value ?? "").trim();
 const missing = (value: unknown) => !clean(value);
