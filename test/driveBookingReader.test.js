@@ -23,7 +23,7 @@ test("reads a real PDF through Google Drive auth after checking the admin PIN", 
   });
   assert.equal(fileIdSeen, "driveFile_123456789");
   assert.equal(tokenSeen, "pin");
-  assert.deepEqual(result, { pickup_date: "2026-11-21", pickup_time: "09:30", return_date: "2026-11-23", return_time: "10:00", company: "Trip", foundCount: 4, usedOcrFallback: true, ocrFailed: false });
+  assert.deepEqual(result, { pickup_date: "2026-11-21", pickup_time: "09:30", return_date: "2026-11-23", return_time: "10:00", customer_name: "", company: "Trip", foundCount: 4, usedOcrFallback: true, ocrFailed: false });
 });
 
 test("reader propagates PIN errors without downloading from Drive", async () => {
@@ -71,6 +71,17 @@ test("reader clearly identifies a missing or inaccessible Drive file after both 
       ? Response.json({ url: "https://drive.google.com/file/d/driveFile_123456789/view" })
       : new Response("not found", { status: 404 }),
   }), (error) => error.status === 404 && /ไม่พบไฟล์ต้นฉบับ/.test(error.message));
+});
+
+test("reader returns a name even when no rental dates could be parsed", async () => {
+  const result = await readBookingPdfFromDrive({
+    id, token: "pin", drive: { files: { async get() { return { data: Readable.from([Buffer.from("%PDF-1.7 example")]) }; } } },
+    supabaseUrl: "https://db.example", anonKey: "anon",
+    fetchImpl: async () => Response.json({ url: "https://drive.google.com/file/d/driveFile_123456789/view" }),
+    readDocument: async () => ({ booking: { customerName: "Nacan Sermsook", company: "ChicCar" } }),
+  });
+  assert.equal(result.customer_name, "Nacan Sermsook");
+  assert.equal(result.foundCount, 1);
 });
 
 test("reader refuses to apply an impossible pickup/return order", async () => {

@@ -371,7 +371,7 @@ body{background:radial-gradient(ellipse at 100% 0,#e0efeb 0,transparent 33%),var
   </div>
 
   <div class="row2" id="reparsePanel" hidden>
-    <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลวัน/เวลาไม่ครบทั้งหมด</button>
+    <button class="btn" id="reparseAll" type="button">อ่านไฟล์ที่ข้อมูลไม่ครบทั้งหมด</button>
     <span class="muted" id="reparseHint"></span>
   </div>
 
@@ -602,6 +602,7 @@ function prep(r) {
   o._src = String(r.source_label || r.source || '');
   o._oth = o._src.toLowerCase().indexOf('other') >= 0;
   o._bad = !o._p || !o._pt || !o._r || !o._rt;
+  o._nameMissing = !String(r.customer_name || '').trim();
   o._pendingDelete = o.deletion_status === 'pending_confirmation';
   o._inTrash = ['pending_move', 'pending_confirmation', 'restore_requested', 'pending_permanent_delete', 'deleted', 'move_failed'].indexOf(o.deletion_status) >= 0;
   o._rentalStatus = r.status === 'ยกเลิก' ? 'cancelled' : (r.rental_status || 'scheduled');
@@ -681,7 +682,8 @@ function card(e) {
     (r._duplicate ? '<span class="badge w">สำเนาไฟล์ซ้ำ</span>' : '') +
     (r.allow_vehicle_overlap ? '<span class="badge w">ยืนยันคิวซ้อน</span>' : '') +
     (r._inTrash ? '<span class="badge w">' + esc({ pending_move: 'รอย้ายถังขยะ', pending_confirmation: 'รอยืนยันลบ', restore_requested: 'รอกู้คืน', pending_permanent_delete: 'รอลบถาวร', deleted: 'ลบถาวรแล้ว', move_failed: 'ย้ายไม่สำเร็จ' }[r.deletion_status] || 'ถังขยะ') + '</span>' : '') +
-    '<span class="name">' + esc(r.customer_name || r.company || 'ไม่ระบุชื่อ') + '</span>' +
+    (r._nameMissing && !r._oth ? '<span class="badge w">ไม่พบชื่อลูกค้า</span>' : '') +
+    '<span class="name">' + esc(r.customer_name || 'ไม่ระบุชื่อลูกค้า') + '</span>' +
     '<span class="meta"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11l2 2v5h-2v-2H5v2H3v-5l2-2zM6 11h12M7 14h.01M17 14h.01"/></svg> ' + esc(r.car || 'ยังไม่ระบุรถ') + ' · <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg> ' + esc(place || 'ไม่ระบุสถานที่') + '</span></span>' +
     '<span class="chev" aria-hidden="true">⌄</span></button><div class="quickOps">' + operationalActions + '</div></div>' +
     '<div class="det">' +
@@ -815,7 +817,7 @@ function renderCalTimeline(list, y, m, n, monthStart, monthEnd) {
       var clippedStart = start < monthStart ? monthStart : start, clippedEnd = end > monthEnd ? monthEnd : end;
       var firstDay = Number(clippedStart.slice(8, 10)), lastDay = Number(clippedEnd.slice(8, 10)), lane = laneEnds.findIndex(function (laneEnd) { return laneEnd < clippedStart; });
       if (lane < 0) lane = laneEnds.length; laneEnds[lane] = clippedEnd;
-      var customer = r.customer_name || r.company || 'ไม่ระบุผู้เช่า';
+      var customer = r.customer_name || 'ไม่ระบุชื่อลูกค้า';
       var period = 'ส่ง ' + (r._p ? Number(r._p.slice(8, 10)) : 'ก่อนเดือนนี้') + ' → คืน ' + (r._r ? Number(r._r.slice(8, 10)) : 'ไม่ระบุวันคืน') + (r._pt || r._rt ? ' · เวลา ' + (r._pt || '--:--') + '–' + (r._rt || '--:--') : '');
       var title = car.name + ' · ' + customer + ' · ' + period + (r.booking_no ? ' · เลขจอง ' + r.booking_no : '');
       var pending = /รอยืนยัน|pending/i.test(String(r.status || '')) ? ' pending' : '';
@@ -837,7 +839,7 @@ function renderCalDayDetails(list) {
   var rentals = selected.map(function (r) {
     var pickup = r._p ? 'ส่งรถ ' + thaiDate(r._p, { day: 'numeric', month: 'short' }) + (r._pt ? ' ' + r._pt : '') : 'ไม่ระบุวันส่งรถ';
     var returning = r._r ? 'คืนรถ ' + thaiDate(r._r, { day: 'numeric', month: 'short' }) + (r._rt ? ' ' + r._rt : '') : 'ไม่ระบุวันคืนรถ';
-    return '<div class="calDayRental"><b>' + esc(r.car || 'ไม่ระบุรถ') + ' · ' + esc(r.customer_name || r.company || 'ไม่ระบุผู้เช่า') + '</b><small>' + esc(pickup + ' → ' + returning) + '</small></div>';
+    return '<div class="calDayRental"><b>' + esc(r.car || 'ไม่ระบุรถ') + ' · ' + esc(r.customer_name || 'ไม่ระบุชื่อลูกค้า') + '</b><small>' + esc(pickup + ' → ' + returning) + '</small></div>';
   }).join('');
   box.innerHTML = '<div class="calDayDetailsHead"><h3>' + esc(view.calSelectedId ? 'รายละเอียดรายการจอง' : thaiDate(view.day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' + selected.length + ' รายการ') + '</h3><button type="button" id="clearCalDay" aria-label="ล้างรายการที่เลือก">×</button></div>' + (rentals || '<div class="muted">ไม่มีรถเช่าในวันที่เลือก</div>');
   $('clearCalDay').onclick = function () { view.day = ''; view.calSelectedId = ''; refreshAll(); };
@@ -1129,7 +1131,7 @@ function errText(e) {
   return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต';
 }
 function incompleteFileRows() {
-  return rows.filter(function (row) { return !row._oth && row._bad && row.id && safeUrl(row.drive_url); });
+  return rows.filter(function (row) { return !row._oth && (row._bad || row._nameMissing) && row.id && safeUrl(row.drive_url); });
 }
 function updateReparseAction() {
   var targets = incompleteFileRows(), panel = $('reparsePanel'), button = $('reparseAll'), hint = $('reparseHint');
@@ -1141,16 +1143,17 @@ function updateReparseAction() {
     return;
   }
   button.disabled = !targets.length;
-  button.textContent = 'อ่านไฟล์ที่ข้อมูลวัน/เวลาไม่ครบทั้งหมด (' + targets.length + ')';
+  button.textContent = 'อ่านไฟล์ที่ข้อมูลไม่ครบทั้งหมด (' + targets.length + ')';
   hint.textContent = targets.length ? 'ระบบจะเติมเฉพาะช่องที่ว่าง' : ((batchReparse && batchReparse.note) || '');
 }
 function missingDateText(row) {
   var missing = [];
+  if (row._nameMissing) missing.push('ชื่อลูกค้า');
   if (!row._p) missing.push('วันส่งรถ');
   if (!row._pt) missing.push('เวลาส่งรถ');
   if (!row._r) missing.push('วันคืนรถ');
   if (!row._rt) missing.push('เวลาคืนรถ');
-  return missing.join(' · ') || 'ตรวจรูปแบบวันและเวลา';
+  return missing.join(' · ') || 'ตรวจข้อมูลในใบจอง';
 }
 function renderReparseList() {
   $('reparseList').innerHTML = reparsePlan.map(function (row) {
@@ -1191,7 +1194,7 @@ async function readBookingDetails(row) {
       : 'บริการอ่านไฟล์ตอบกลับไม่ถูกต้อง (HTTP ' + response.status + ') กรุณาลองใหม่อีกครั้ง';
   }
   if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error || 'บริการอ่านไฟล์ไม่สำเร็จ (HTTP ' + response.status + ')' });
-  if (!result.foundCount) throw Object.assign(new Error('อ่าน PDF ได้ แต่ไม่พบข้อมูลวันและเวลา'), { detail: 'ไม่พบวันหรือเวลาเช่าที่ระบบรู้จัก' });
+  if (!result.foundCount) throw Object.assign(new Error('อ่าน PDF ได้ แต่ไม่พบข้อมูลที่ต้องเติม'), { detail: result.error || 'ไม่พบชื่อลูกค้า วัน หรือเวลาที่ระบบรู้จัก' });
   return result;
 }
 async function requestReparse(id) {
@@ -1339,7 +1342,7 @@ function renderMonthlySummary() {
   html += report.rows.length ? report.rows.map(function (item) {
     var state = item.cancelled ? (item.status || 'ยกเลิก/ผิดพลาด') : item.archived ? 'ถังขยะ / เก็บถาวร' : (item.status || 'ใช้งาน');
     var stateClass = item.cancelled ? 'cancelled' : item.archived ? 'archived' : '';
-    return '<tr><td>' + esc(summaryDate(item.pickup)) + (item.row.pickup_time ? '<br>' + esc(item.row.pickup_time) : '') + '</td><td>' + esc(item.row.booking_no || '-') + '</td><td>' + esc(item.row.customer_name || item.row.company || '-') + '<br><span class="muted">' + esc(item.row.car || 'ยังไม่ระบุรถ') + '</span></td><td><span class="summaryStatus ' + stateClass + '">' + esc(state) + '</span></td><td class="money">' + summaryMoney(item.service / 100) + '</td><td class="money">' + summaryMoney(item.vat / 100) + '</td><td class="money">' + summaryMoney(item.withholding / 100) + '</td><td class="money">' + summaryMoney(item.cancelled ? 0 : item.due / 100) + '</td></tr>';
+    return '<tr><td>' + esc(summaryDate(item.pickup)) + (item.row.pickup_time ? '<br>' + esc(item.row.pickup_time) : '') + '</td><td>' + esc(item.row.booking_no || '-') + '</td><td>' + esc(item.row.customer_name || 'ไม่ระบุชื่อลูกค้า') + '<br><span class="muted">' + esc(item.row.car || 'ยังไม่ระบุรถ') + '</span></td><td><span class="summaryStatus ' + stateClass + '">' + esc(state) + '</span></td><td class="money">' + summaryMoney(item.service / 100) + '</td><td class="money">' + summaryMoney(item.vat / 100) + '</td><td class="money">' + summaryMoney(item.withholding / 100) + '</td><td class="money">' + summaryMoney(item.cancelled ? 0 : item.due / 100) + '</td></tr>';
   }).join('') : '<tr><td colspan="8" class="summaryEmpty">ไม่มีรายการจองที่มีวันส่งรถในเดือนนี้</td></tr>';
   html += '</tbody></table></div><div class="muted" style="margin-top:7px">ตัวเลขเป็นยอดตามใบจอง ไม่ใช่ยอดรับเงินจริง และแสดงเฉพาะข้อมูลที่โหลดในหน้าระบบ</div></section>';
   $('summaryContent').innerHTML = html;
@@ -1348,7 +1351,7 @@ function monthlySummaryCsv() {
   var report = monthlySummaryData();
   function cell(value) { var text = String(value == null ? '' : value); if (/^[=+@-]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; }
   var records = [['เดือนส่งรถ', 'วันส่งรถ', 'เวลา', 'เลขจอง', 'ลูกค้า', 'รถ', 'สถานะรายงาน', 'สถานะจอง', 'ค่าบริการ', 'VAT', 'หัก ณ ที่จ่าย', 'ยอดโอนจอง', 'เงินมัดจำ', 'คาดว่าชำระวันรับรถ']];
-  report.rows.forEach(function (item) { records.push([report.month, item.pickup, item.row.pickup_time || '', item.row.booking_no || '', item.row.customer_name || item.row.company || '', item.row.car || '', item.cancelled ? 'ยกเลิก/ผิดพลาด' : item.archived ? 'ถังขยะ/เก็บถาวร' : 'ใช้งาน', item.status, summaryMoney(item.service / 100), summaryMoney(item.vat / 100), summaryMoney(item.withholding / 100), summaryMoney(item.advance / 100), summaryMoney(item.security / 100), summaryMoney(item.cancelled ? 0 : item.due / 100)]); });
+  report.rows.forEach(function (item) { records.push([report.month, item.pickup, item.row.pickup_time || '', item.row.booking_no || '', item.row.customer_name || '', item.row.car || '', item.cancelled ? 'ยกเลิก/ผิดพลาด' : item.archived ? 'ถังขยะ/เก็บถาวร' : 'ใช้งาน', item.status, summaryMoney(item.service / 100), summaryMoney(item.vat / 100), summaryMoney(item.withholding / 100), summaryMoney(item.advance / 100), summaryMoney(item.security / 100), summaryMoney(item.cancelled ? 0 : item.due / 100)]); });
   var blob = new Blob(['\ufeff' + records.map(function (record) { return record.map(cell).join(','); }).join('\r\n')], { type: 'text/csv;charset=utf-8' });
   var url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = 'Rental-Summary-' + report.month + '.csv'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 }

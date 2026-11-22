@@ -28,3 +28,12 @@ test("ChicCar retains matching pickup and return times", () => {
     assert.equal(booking.pickupTime, "10:00");
     assert.equal(booking.returnTime, "10:00");
 });
+
+test("ChicCar reads customer names from English and Thai labels without confusing the company name", () => {
+    const english = parseChicCar("Customer Name: Nacan Sermsook Telephone: +66950328080 Pick Up 20:00");
+    const thai = parseChicCar("บริษัท ChicCar ชื่อผู้เช่า: นาย ณัฐพล ใจดี เบอร์โทรศัพท์: 0950328080 วันรับรถ 20:00");
+    const companyOnly = parseChicCar("ChicCar Reservation No. 009990311992");
+    assert.equal(english.customerName, "Nacan Sermsook");
+    assert.equal(thai.customerName, "นาย ณัฐพล ใจดี");
+    assert.equal(companyOnly.customerName, "");
+});

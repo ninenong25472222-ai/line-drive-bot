@@ -104,9 +104,10 @@ async function readBookingPdfFromDrive({ id, token, drive, supabaseUrl, anonKey,
         pickup_time: String(booking.pickupTime || ""),
         return_date: String(booking.returnDate || ""),
         return_time: String(booking.returnTime || ""),
+        customer_name: String(booking.customerName || booking.renter || "").trim(),
     };
     const foundCount = Object.values(fields).filter(Boolean).length;
-    if (!foundCount) throw serviceError("อ่านไฟล์ได้ แต่ไม่พบวันและเวลาเช่าที่ระบบรู้จัก", 422);
+    if (!foundCount) throw serviceError("อ่านไฟล์ได้ แต่ไม่พบชื่อลูกค้าหรือวันและเวลาเช่าที่ระบบรู้จัก", 422);
     return { ...fields, company: String(booking.company || ""), foundCount, usedOcrFallback: Boolean(result.usedOcrFallback), ocrFailed: Boolean(result.ocrFailed) };
 }
 

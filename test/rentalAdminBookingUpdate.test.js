@@ -156,6 +156,35 @@ test("administrator reparse replaces malformed schedule fields but preserves val
   assert.equal(row.return_time, "11:00");
 });
 
+test("administrator reparse can fill a missing customer name without changing a complete schedule", async () => {
+  let row = bookingRow({ customer_name: "", company: "ChicCar" });
+  let patchBody;
+  const handler = loadAdminHandler(async (_url, init = {}) => {
+    if (init.method === "PATCH") { patchBody = JSON.parse(init.body); row = { ...row, ...patchBody }; return mockResponse([row]); }
+    return mockResponse([row]);
+  });
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reparse_only: true, customer_name: "Nacan Sermsook" })
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.updatedFields, ["customer_name"]);
+  assert.equal(row.customer_name, "Nacan Sermsook");
+  assert.equal(row.pickup_date, "2026-11-07");
+});
+
+test("administrator reparse never substitutes the company name for the customer", async () => {
+  const row = bookingRow({ customer_name: "", company: "ChicCar" });
+  const handler = loadAdminHandler(async () => mockResponse([row]));
+  const response = await handler(new Request(`https://db.example/functions/v1/rental-admin/bookings/${row.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reparse_only: true, customer_name: "ChicCar" })
+  }));
+  assert.equal(response.status, 422);
+  assert.match((await response.json()).error, /ไม่พบชื่อลูกค้า/);
+});
+
 test("administrator file-link route returns only a validated Drive link", async () => {
   const row = bookingRow({ drive_url: "https://drive.google.com/file/d/drive-id-123/view", file_name: "booking.pdf" });
   const handler = loadAdminHandler(async () => mockResponse([row]));

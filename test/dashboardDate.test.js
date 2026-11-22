@@ -56,6 +56,16 @@ test("Dashboard canonicalizes old schedule values and flags a reversed pickup/re
   assert.equal(reversed._bad, true);
 });
 
+test("Dashboard never presents a company name as a customer's name", () => {
+  const prep = dashboardBookingPreparer();
+  const row = prep({ company: "ChicCar", customer_name: "" });
+  assert.equal(row._nameMissing, true);
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /r\.customer_name \|\| 'ไม่ระบุชื่อลูกค้า'/);
+  assert.doesNotMatch(source, /r\.customer_name \|\| r\.company/);
+  assert.match(source, /row\._bad \|\| row\._nameMissing/);
+});
+
 test("Dashboard uses the protected server PDF reader instead of a duplicate browser OCR parser", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
   assert.match(source, /async function readBookingDetails\(row\)/);
@@ -70,9 +80,10 @@ test("Dashboard offers a single re-read action only for incomplete booking files
   assert.match(source, /id="reparseList"/);
   assert.match(source, /กำลังอ่านไฟล์/);
   assert.doesNotMatch(source, /id="reparseToken"/);
-  assert.match(source, /!row\._oth && row\._bad && row\.id && safeUrl\(row\.drive_url\)/);
+  assert.match(source, /!row\._oth && \(row\._bad \|\| row\._nameMissing\) && row\.id && safeUrl\(row\.drive_url\)/);
   assert.match(source, /o\._bad = !o\._p \|\| !o\._pt \|\| !o\._r \|\| !o\._rt/);
   assert.match(source, /ข้อมูลวัน\/เวลาไม่ครบ/);
+  assert.match(source, /อ่านไฟล์ที่ข้อมูลไม่ครบทั้งหมด/);
   assert.match(source, /if \(!row\._pt\) missing\.push\('เวลาส่งรถ'\)/);
   assert.match(source, /if \(!row\._rt\) missing\.push\('เวลาคืนรถ'\)/);
   assert.doesNotMatch(source, /data-reparse=/);

@@ -166,14 +166,20 @@ async function reparseBooking(input: Record<string, unknown>, url: string, key: 
   if (!current) return response({ error: "ไม่พบรายการจอง" }, 404);
   const fields = ["pickup_date", "pickup_time", "return_date", "return_time"];
   const isValidField = (field: string, value: string) => field.endsWith("_date") ? dateOk(value) : timeOk(value);
-  if (fields.every((field) => isValidField(field, text(current[field])))) return response({ error: "วันและเวลาครบและถูกต้องแล้ว ไม่ต้องอ่านซ้ำ" }, 409);
+  const needsScheduleRepair = fields.some((field) => !isValidField(field, text(current[field])));
+  const needsCustomerName = !text(current.customer_name);
+  if (!needsScheduleRepair && !needsCustomerName) return response({ error: "ชื่อ วัน และเวลาครบแล้ว ไม่ต้องอ่านซ้ำ" }, 409);
   const patch: Record<string, unknown> = {};
   for (const field of fields) {
     const value = text(input[field], 20);
     if (isValidField(field, text(current[field])) || !value) continue;
     if (isValidField(field, value)) patch[field] = value;
   }
-  if (!Object.keys(patch).length) return response({ error: "ไม่พบข้อมูลวันที่หรือเวลาที่เติมได้" }, 422);
+  const candidateName = text(input.customer_name, 200);
+  if (needsCustomerName && candidateName && candidateName.toLocaleLowerCase() !== text(current.company).toLocaleLowerCase()) {
+    patch.customer_name = candidateName;
+  }
+  if (!Object.keys(patch).length) return response({ error: "ไม่พบชื่อลูกค้า วันที่ หรือเวลาที่เติมได้" }, 422);
   const merged = { ...current, ...patch };
   if (fields.every((field) => text(merged[field])) && slot(text(merged.return_date), text(merged.return_time)) <= slot(text(merged.pickup_date), text(merged.pickup_time))) return response({ error: "เวลาในไฟล์ไม่ถูกต้อง วันคืนรถต้องหลังวันส่งรถ" }, 422);
   patch.updated_at = new Date().toISOString();

@@ -69,6 +69,20 @@ function extractBookingNumber(text) {
 function extractCustomerName(text) {
     const source = toOneLine(text);
 
+    const stop = "(?=\\s+(?:Telephone\\b|Customer\\s+Phone\\b|Renter\\s+Phone\\b|E-?Mail\\b|Pick\\s*Up\\b|Return\\b|Date\\b|Time\\b|Reservation\\s+No\\b|Flight\\b|Vehicle\\b|Car\\b|เบอร์โทร|เบอร์โทรศัพท์|โทรศัพท์|อีเมล|วันรับรถ|วันคืนรถ|สถานที่รับ|สถานที่คืน)|$)";
+    const labeledPatterns = [
+        new RegExp(`(?:Renter|Customer|Guest)\\s+Name\\s*[:：-]?\\s*(.{2,100}?)${stop}`, "i"),
+        new RegExp(`(?:ชื่อผู้เช่า|ชื่อลูกค้า|ชื่อผู้จอง)\\s*[:：-]?\\s*(.{2,100}?)${stop}`, "i"),
+    ];
+
+    for (const pattern of labeledPatterns) {
+        const match = source.match(pattern);
+        if (match) {
+            const name = toOneLine(match[1]).replace(/^[\s:：-]+|[\s,;|]+$/g, "");
+            if (name && !/^(?:Chic\s*Car|ChicCar|Chic\s*Network)$/i.test(name)) return name;
+        }
+    }
+
     const patterns = [
         /Renter\s+Name\s*:?[\s-]*([A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){1,4})(?=\s+(?:Telephone|E-?Mail|Pick\s*Up|Return|Date|Time)\b)/i,
 
@@ -79,7 +93,8 @@ function extractCustomerName(text) {
         const match = source.match(pattern);
 
         if (match) {
-            return toOneLine(match[1]);
+            const name = toOneLine(match[1]);
+            if (!/^(?:Chic\s*Car|ChicCar|Chic\s*Network)$/i.test(name)) return name;
         }
     }
 
