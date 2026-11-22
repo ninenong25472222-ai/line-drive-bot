@@ -758,9 +758,7 @@ console.log("Drive destination:", {
 });
 
 const mimeType =
-    response.headers[
-        "content-type"
-    ] ||
+    downloaded.contentType ||
     "application/octet-stream";
 
 // ตรวจไฟล์ซ้ำจากเนื้อไฟล์จริงในโฟลเดอร์ปลายทาง

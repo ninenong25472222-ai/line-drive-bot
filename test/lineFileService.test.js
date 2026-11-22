@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { downloadLineFile, lineFileErrorMessage } = require("../services/lineFileService");
 
 test("LINE processing errors have actionable user-facing messages instead of a generic retry alert", () => {
@@ -28,6 +30,18 @@ test("LINE file download retries transient failures then returns the complete PD
   assert.deepEqual(waits, [1000, 2000]);
   assert.equal(result.attempts, 3);
   assert.equal(result.buffer.toString(), "%PDF-1.7 sample");
+  assert.equal(result.contentType, "application/pdf");
+});
+
+test("LINE upload uses the downloaded content type instead of an undefined response", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+  const downloadStart = source.indexOf("const downloaded = await downloadLineFile");
+  const mimeTypeStart = source.indexOf("const mimeType =", downloadStart);
+  assert.notEqual(downloadStart, -1);
+  assert.notEqual(mimeTypeStart, -1);
+  const mimeTypeBlock = source.slice(mimeTypeStart, source.indexOf(";", mimeTypeStart) + 1);
+  assert.match(mimeTypeBlock, /downloaded\.contentType/);
+  assert.doesNotMatch(mimeTypeBlock, /response\.headers/);
 });
 
 test("LINE file download does not retry permanent authorization failures", async () => {
