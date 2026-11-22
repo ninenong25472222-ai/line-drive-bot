@@ -11,11 +11,49 @@ function dashboardDateParser() {
   return vm.runInNewContext(`${source.slice(start, end)}; pdate;`);
 }
 
+function dashboardTimeParser() {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const start = source.indexOf("var pad =");
+  const end = source.indexOf("function prep");
+  return vm.runInNewContext(`${source.slice(start, end)}; ptime;`);
+}
+
+function dashboardBookingPreparer() {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  const start = source.indexOf("function prep(r)");
+  const end = source.indexOf("/* ====== ตัวกรอง", start);
+  return vm.runInNewContext(`${source.slice(start, end)}; prep;`, { pdate: dashboardDateParser(), ptime: dashboardTimeParser() });
+}
+
 test("Dashboard recognizes Thai dates from Trip booking files", () => {
   const pdate = dashboardDateParser();
   assert.equal(pdate("23 ต.ค. 2026"), "2026-10-23");
   assert.equal(pdate("6 ส . ค . 2026"), "2026-08-06");
   assert.equal(pdate("23/10/2569"), "2026-10-23");
+  assert.equal(pdate("๒๓/๑๐/๒๕๖๙"), "2026-10-23");
+});
+
+test("Dashboard displays AM/PM times in 24-hour format and flags invalid times", () => {
+  const ptime = dashboardTimeParser();
+  assert.equal(ptime("8:30:00 PM"), "20:30");
+  assert.equal(ptime("12:05 AM"), "00:05");
+  assert.equal(ptime("12:05 PM"), "12:05");
+  assert.equal(ptime("๒๐:๓๐ น."), "20:30");
+  assert.equal(ptime("25:30"), "");
+  assert.equal(ptime("8:30 PM extra"), "");
+});
+
+test("Dashboard canonicalizes old schedule values and flags a reversed pickup/return order", () => {
+  const prep = dashboardBookingPreparer();
+  const valid = prep({ pickup_date: "22/10/2569", pickup_time: "8:30 PM", return_date: "23/10/2569", return_time: "9:00 PM" });
+  assert.equal(valid.pickup_date, "2026-10-22");
+  assert.equal(valid.pickup_time, "20:30");
+  assert.equal(valid._bad, false);
+
+  const reversed = prep({ pickup_date: "22/10/2569", pickup_time: "8:30 PM", return_date: "22/10/2569", return_time: "8:00 PM" });
+  assert.equal(reversed.pickup_date, "");
+  assert.equal(reversed.return_date, "");
+  assert.equal(reversed._bad, true);
 });
 
 test("Dashboard uses the protected server PDF reader instead of a duplicate browser OCR parser", () => {

@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { google } = require("googleapis");
 const { savePartnerUpload } = require("./rentalProService");
+const { normalizeSchedule } = require("../utils/dateTime");
 
 const normalize = (value = "") => String(value ?? "")
     .toLowerCase()
@@ -97,9 +98,12 @@ const buildBooking = (row, headers, carLookup) => {
     const bookingNo = cell(row, headers, ["bookingid", "bookingno", "เลขที่จอง", "เลขจอง"]);
     const customerName = cell(row, headers, ["customername", "rentername", "ชื่อลูกค้า", "ผู้เช่า"]);
     const carReference = cell(row, headers, ["carref", "carid", "vehicleid", "ทะเบียน", "รหัสรถ", "รถ"]);
-    const pickupDate = cell(row, headers, ["pickupdate", "วันส่งรถ", "วันที่ส่งรถ", "วันรับรถ", "รับรถวันที่", "วันที่รับรถ"]);
-    const returnDate = cell(row, headers, ["returndate", "วันคืนรถ", "คืนรถวันที่", "วันที่คืนรถ"]);
-    if (!bookingNo || !customerName || !pickupDate || !returnDate) return null;
+    const rawPickupDate = cell(row, headers, ["pickupdate", "วันส่งรถ", "วันที่ส่งรถ", "วันรับรถ", "รับรถวันที่", "วันที่รับรถ"]);
+    const rawPickupTime = cell(row, headers, ["pickuptime", "เวลาส่งรถ", "เวลารับรถ", "เวลารับ", "เวลาเริ่มเช่า"]);
+    const rawReturnDate = cell(row, headers, ["returndate", "วันคืนรถ", "คืนรถวันที่", "วันที่คืนรถ"]);
+    const rawReturnTime = cell(row, headers, ["returntime", "เวลาคืนรถ", "เวลาส่งคืน", "เวลาคืน"]);
+    if (!bookingNo || !customerName || !rawPickupDate || !rawReturnDate) return null;
+    const schedule = normalizeSchedule({ pickupDate: rawPickupDate, pickupTime: rawPickupTime, returnDate: rawReturnDate, returnTime: rawReturnTime });
     const bookingPdf = cell(row, headers, ["booking_pdf", "booking pdf", "pdf file", "ไฟล์ใบจอง"]);
     const directLink = cell(row, headers, ["link", "url", "drive_url", "drive url", "file_url", "file url", "pdf_url", "pdf url"]);
     const notes = cell(row, headers, ["notes", "note", "หมายเหตุ"]);
@@ -110,11 +114,11 @@ const buildBooking = (row, headers, carLookup) => {
         customerName,
         customerPhone: cell(row, headers, ["tel", "phone", "เบอร์โทร", "โทรศัพท์"]),
         customerEmail: cell(row, headers, ["email", "อีเมล"]),
-        pickupDate,
-        pickupTime: cell(row, headers, ["pickuptime", "เวลาส่งรถ", "เวลารับรถ", "เวลารับ", "เวลาเริ่มเช่า"]),
+        pickupDate: schedule.booking.pickupDate,
+        pickupTime: schedule.booking.pickupTime,
         pickupLocation: cell(row, headers, ["pickuplocation", "จุดรับรถ", "สถานที่รับ"]),
-        returnDate,
-        returnTime: cell(row, headers, ["returntime", "เวลาคืนรถ", "เวลาส่งคืน", "เวลาคืน"]),
+        returnDate: schedule.booking.returnDate,
+        returnTime: schedule.booking.returnTime,
         returnLocation: cell(row, headers, ["returnlocation", "จุดคืนรถ", "สถานที่คืน"]),
         car: carLookup.get(normalize(carReference)) || carReference,
         total: cell(row, headers, ["total", "price", "amount", "ยอดรวม", "ราคา"]),
@@ -122,7 +126,8 @@ const buildBooking = (row, headers, carLookup) => {
         source: cell(row, headers, ["bookingsource", "source", "ช่องทาง"]) || "AppSheet",
         driveUrl,
         fileReference: fileReferenceFrom(bookingPdf),
-        fileName: driveUrl ? `Booking-${bookingNo}.pdf` : ""
+        fileName: driveUrl ? `Booking-${bookingNo}.pdf` : "",
+        scheduleIssue: !schedule.chronological ? "pickup_after_return" : ""
     };
 };
 
@@ -135,7 +140,7 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
     ]);
     const drive = google.drive({ version: "v3", auth });
     const carLookup = createCarLookup(carTable);
-    const results = { scanned: bookingTable.rows.length, imported: 0, duplicates: 0, skipped: 0, resolvedFiles: 0, unavailableFiles: 0 };
+    const results = { scanned: bookingTable.rows.length, imported: 0, duplicates: 0, skipped: 0, resolvedFiles: 0, unavailableFiles: 0, incompleteSchedules: 0, invalidSchedules: 0 };
     const fileCache = new Map();
     for (const row of bookingTable.rows) {
         const booking = buildBooking(row, bookingTable.headers, carLookup);
@@ -143,6 +148,8 @@ async function syncAppSheetBookings({ auth, spreadsheetId, bookingSheetTitle = "
             results.skipped += 1;
             continue;
         }
+        if (booking.scheduleIssue) results.invalidSchedules += 1;
+        if (!booking.pickupDate || !booking.pickupTime || !booking.returnDate || !booking.returnTime) results.incompleteSchedules += 1;
         if (!booking.driveUrl && booking.fileReference) {
             const resolved = await resolveAppSheetDriveUrl(drive, booking.fileReference, fileCache);
             if (resolved) {

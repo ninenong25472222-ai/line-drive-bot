@@ -571,7 +571,7 @@ function mkISO(y, m, d) {
   return String(y).padStart(4, '0') + '-' + pad(m) + '-' + pad(d);
 }
 function pdate(v) {                       // รองรับ yyyy-mm-dd, yyyy/m/d, dd/mm/yyyy, dd-mm-yyyy, วันภาษาไทย, ปี พ.ศ.
-  var s = String(v == null ? '' : v).trim(), m;
+  var s = String(v == null ? '' : v).trim().replace(/[๐-๙]/g, function (digit) { return String('๐๑๒๓๔๕๖๗๘๙'.indexOf(digit)); }), m;
   if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return mkISO(+m[1], +m[2], +m[3]);
   if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/))) return mkISO(+m[3], +m[2], +m[1]);
   var thaiMonths = { 'ม.ค.': 1, 'ก.พ.': 2, 'มี.ค.': 3, 'เม.ย.': 4, 'พ.ค.': 5, 'มิ.ย.': 6, 'ก.ค.': 7, 'ส.ค.': 8, 'ก.ย.': 9, 'ต.ค.': 10, 'พ.ย.': 11, 'ธ.ค.': 12,
@@ -585,14 +585,20 @@ function pdate(v) {                       // รองรับ yyyy-mm-dd, yyyy
   }
   return '';
 }
-function ptime(v) {                       // 09:30:00 / 9.30 → 09:30
-  var m = String(v == null ? '' : v).match(/(\d{1,2})[:.](\d{2})/);
-  return m && +m[1] < 24 && +m[2] < 60 ? pad(+m[1]) + ':' + m[2] : '';
+function ptime(v) {                       // Normalize 24-hour and AM/PM values without guessing invalid times.
+  var m = String(v == null ? '' : v).trim().replace(/[๐-๙]/g, function (digit) { return String('๐๑๒๓๔๕๖๗๘๙'.indexOf(digit)); }).replace(/น\.?$/i, '').trim().match(/^(\d{1,2})\s*[:.]\s*(\d{2})(?:\s*:\s*(\d{2}))?\s*(A\.?M\.?|P\.?M\.?)?$/i);
+  if (!m) return '';
+  var hour = +m[1], minute = +m[2], second = m[3] == null ? 0 : +m[3], meridiem = (m[4] || '').replace(/\./g, '').toUpperCase();
+  if (minute > 59 || second > 59 || (meridiem && (hour < 1 || hour > 12)) || hour > 23) return '';
+  if (meridiem) hour = (hour % 12) + (meridiem === 'PM' ? 12 : 0);
+  return pad(hour) + ':' + pad(minute);
 }
 function prep(r) {
   var o = Object.assign({}, r);
   o._p = pdate(r.pickup_on || r.pickup_date); o._r = pdate(r.return_on || r.return_date);
   o._pt = ptime(r.pickup_time); o._rt = ptime(r.return_time);
+  if (o._p && o._pt && o._r && o._rt && (o._r + 'T' + o._rt) <= (o._p + 'T' + o._pt)) o._p = o._pt = o._r = o._rt = '';
+  o.pickup_date = o._p; o.return_date = o._r; o.pickup_time = o._pt; o.return_time = o._rt;
   o._src = String(r.source_label || r.source || '');
   o._oth = o._src.toLowerCase().indexOf('other') >= 0;
   o._bad = !o._p || !o._pt || !o._r || !o._rt;

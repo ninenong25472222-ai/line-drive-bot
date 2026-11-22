@@ -13,13 +13,25 @@ test("keeps the Booking_PDF Drive link when importing an AppSheet booking", () =
 
 test("imports Thai send-car and return-car date/time columns instead of leaving booking times blank", () => {
     const headers = ["BookingID", "CustomerName", "วันส่งรถ", "เวลาส่งรถ", "วันคืนรถ", "เวลาคืนรถ"];
-    const row = ["f09b7c2b", "คุณ นันทพร", "22/10/2569", "08:30", "28/10/2569", "08:30"];
+    const row = ["f09b7c2b", "คุณ นันทพร", "22/10/2569", "8:30:00 PM", "28/10/2569", "08:30:00 AM"];
     const booking = buildBooking(row, headers, new Map());
 
-    assert.equal(booking.pickupDate, "22/10/2569");
-    assert.equal(booking.pickupTime, "08:30");
-    assert.equal(booking.returnDate, "28/10/2569");
+    assert.equal(booking.pickupDate, "2026-10-22");
+    assert.equal(booking.pickupTime, "20:30");
+    assert.equal(booking.returnDate, "2026-10-28");
     assert.equal(booking.returnTime, "08:30");
+});
+
+test("rejects impossible and reversed AppSheet schedules rather than storing misleading dates", () => {
+    const headers = ["BookingID", "CustomerName", "วันส่งรถ", "เวลาส่งรถ", "วันคืนรถ", "เวลาคืนรถ"];
+    const invalidDate = buildBooking(["a", "ลูกค้า", "31/02/2569", "08:30", "01/03/2569", "08:30"], headers, new Map());
+    assert.equal(invalidDate.pickupDate, "");
+    assert.equal(invalidDate.returnDate, "2026-03-01");
+
+    const reversed = buildBooking(["b", "ลูกค้า", "22/10/2569", "20:30", "22/10/2569", "08:30"], headers, new Map());
+    assert.equal(reversed.pickupDate, "");
+    assert.equal(reversed.returnDate, "");
+    assert.equal(reversed.scheduleIssue, "pickup_after_return");
 });
 
 test("does not create a fake file name when an AppSheet row has no file link", () => {
