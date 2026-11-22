@@ -1183,8 +1183,14 @@ async function readBookingDetails(row) {
   var response = await fetch('/api/bookings/' + encodeURIComponent(row.id) + '/reread', {
     method: 'POST', headers: { 'X-Booking-Edit-Token': editToken() }
   });
-  var result = await response.json().catch(function () { return {}; });
-  if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error || 'บริการอ่านไฟล์ตอบกลับผิดพลาด' });
+  var raw = await response.text();
+  var result = {};
+  try { result = raw ? JSON.parse(raw) : {}; } catch (parseError) {
+    result.error = response.status === 429
+      ? 'ระบบอ่านไฟล์ถูกเรียกบ่อยเกินไป กรุณารอประมาณ 1 นาทีแล้วลองอีกครั้ง'
+      : 'บริการอ่านไฟล์ตอบกลับไม่ถูกต้อง (HTTP ' + response.status + ') กรุณาลองใหม่อีกครั้ง';
+  }
+  if (!response.ok) throw Object.assign(httpErr(response.status), { detail: result.error || 'บริการอ่านไฟล์ไม่สำเร็จ (HTTP ' + response.status + ')' });
   if (!result.foundCount) throw Object.assign(new Error('อ่าน PDF ได้ แต่ไม่พบข้อมูลวันและเวลา'), { detail: 'ไม่พบวันหรือเวลาเช่าที่ระบบรู้จัก' });
   return result;
 }

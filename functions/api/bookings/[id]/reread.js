@@ -20,8 +20,22 @@ export async function onRequest(context) {
     return json({ error: "บริการอ่านไฟล์กำลังเริ่มทำงานหรือเชื่อมต่อไม่ได้ กรุณารอสักครู่แล้วลองใหม่" }, 503);
   }
   const body = await response.text();
-  return new Response(body || "{}", {
-    status: response.status,
-    headers: { "access-control-allow-origin": "*", "cache-control": "no-store", "content-type": response.headers.get("content-type") || "application/json; charset=utf-8" },
-  });
+  const contentType = response.headers.get("content-type") || "";
+  let payload;
+  try {
+    payload = body ? JSON.parse(body) : {};
+  } catch {
+    // Render can return an HTML error page during a cold start, proxy failure,
+    // or rate limit. Keep the dashboard's API contract JSON so it can show a
+    // useful explanation instead of a misleading JSON parse error.
+    console.warn("BOOKING_REREAD_UPSTREAM_NON_JSON", {
+      status: response.status,
+      contentType: contentType.slice(0, 80),
+    });
+    const error = response.status === 429
+      ? "ระบบอ่านไฟล์ถูกเรียกบ่อยเกินไป กรุณารอประมาณ 1 นาทีแล้วลองอีกครั้ง"
+      : `บริการอ่านไฟล์ตอบกลับไม่ถูกต้อง (HTTP ${response.status}) กรุณาลองใหม่อีกครั้ง หากยังไม่สำเร็จให้แจ้งผู้ดูแล`;
+    return json({ error }, response.ok ? 502 : response.status);
+  }
+  return json(payload, response.status);
 }

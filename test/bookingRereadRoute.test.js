@@ -49,3 +49,23 @@ test("booking reread proxy preserves the useful error message from the bot", asy
   assert.equal(response.status, 422);
   assert.equal((await response.json()).error, "ไม่พบวันหรือเวลาเช่า");
 });
+
+test("booking reread proxy converts a non-JSON Render error page into an actionable JSON error", async () => {
+  const handler = loadHandler(async () => new Response("<html>Too Many Requests</html>", {
+    status: 429, headers: { "content-type": "text/html" },
+  }));
+  const id = "11111111-1111-4111-8111-111111111111";
+  const response = await handler({ request: new Request(`https://app.example/api/bookings/${id}/reread`, { method: "POST", headers: { "x-booking-edit-token": "staff-pin" } }), params: { id }, env: {} });
+  assert.equal(response.status, 429);
+  assert.match((await response.json()).error, /รอประมาณ 1 นาที/);
+});
+
+test("booking reread proxy labels successful but invalid upstream payloads as gateway errors", async () => {
+  const handler = loadHandler(async () => new Response("<html>Bad gateway</html>", {
+    status: 200, headers: { "content-type": "text/html" },
+  }));
+  const id = "11111111-1111-4111-8111-111111111111";
+  const response = await handler({ request: new Request(`https://app.example/api/bookings/${id}/reread`, { method: "POST", headers: { "x-booking-edit-token": "staff-pin" } }), params: { id }, env: {} });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /HTTP 200/);
+});
