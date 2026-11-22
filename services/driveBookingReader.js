@@ -60,6 +60,9 @@ async function readBookingPdfFromDrive({ id, token, drive, supabaseUrl, anonKey,
     } catch (error) {
         throw serviceError(`อ่านข้อความใน PDF ไม่สำเร็จ: ${String(error?.message || "ข้อผิดพลาด OCR").slice(0, 180)}`, 422);
     }
+    if (result?.scheduleIssue === "pickup_after_return") {
+        throw serviceError("วันหรือเวลาในใบจองไม่เรียงกัน (วันคืนรถต้องอยู่หลังวันส่งรถ) ระบบไม่บันทึกวันเวลาเพื่อป้องกันคิวผิด กรุณาตรวจไฟล์ต้นฉบับ", 422);
+    }
     const booking = result?.booking || {};
     const fields = {
         pickup_date: String(booking.pickupDate || ""),

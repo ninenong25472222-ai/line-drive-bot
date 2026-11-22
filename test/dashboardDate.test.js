@@ -11,13 +11,6 @@ function dashboardDateParser() {
   return vm.runInNewContext(`${source.slice(start, end)}; pdate;`);
 }
 
-function dashboardFileParser() {
-  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
-  const start = source.indexOf("var pad =");
-  const end = source.indexOf("async function readBookingDetails");
-  return vm.runInNewContext(`${source.slice(start, end)}; readDetailsFromText;`);
-}
-
 test("Dashboard recognizes Thai dates from Trip booking files", () => {
   const pdate = dashboardDateParser();
   assert.equal(pdate("23 ต.ค. 2026"), "2026-10-23");
@@ -25,40 +18,11 @@ test("Dashboard recognizes Thai dates from Trip booking files", () => {
   assert.equal(pdate("23/10/2569"), "2026-10-23");
 });
 
-test("Dashboard file reader preserves identical ChicCar pickup and return times", () => {
-  const parse = dashboardFileParser();
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parse("ChicCar", "Pick Up/รับรถ Return/คืนรถ วันที่ 12 / 10 / 2026 วันที่ 13 / 10 / 2026 เวลา 16 : 00 เวลา 16 : 00"))),
-    { pickup_date: "2026-10-12", pickup_time: "16:00", return_date: "2026-10-13", return_time: "16:00" },
-  );
-});
-
-test("Dashboard file reader handles Klook dates and times with split spaces", () => {
-  const parse = dashboardFileParser();
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parse("Klook", "ข้อมูลการรับ / ส่ง เวลานัดรับ 2026-10-07 13 : 00 ข้อมูลการส่งกลับ 2026-10-10 13 : 00"))),
-    { pickup_date: "2026-10-07", pickup_time: "13:00", return_date: "2026-10-10", return_time: "13:00" },
-  );
-});
-
-test("Dashboard file reader extracts Jiraporn dates and times from the pickup and return sections", () => {
-  const parse = dashboardFileParser();
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parse("Jiraporn", "Pick Up / รับรถ วันที่ : 19/11/2569 เวลา: 10 : 50 น. สถานที่รับ สนามบิน Return / คืนรถ วันที่ : 22/11/2569 เวลา: 11:00 น. สถานที่คืน สนามบิน รายละเอียดการชำระเงิน"))),
-    { pickup_date: "2026-11-19", pickup_time: "10:50", return_date: "2026-11-22", return_time: "11:00" },
-  );
-});
-
-test("Dashboard file reader supports full Thai month names and rejects impossible calendar dates", () => {
-  const parse = dashboardFileParser();
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parse("Other", "19 พฤศจิกายน 2569 10:50 22 พฤศจิกายน 2569 11:00"))),
-    { pickup_date: "2026-11-19", pickup_time: "10:50", return_date: "2026-11-22", return_time: "11:00" },
-  );
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(parse("ChicCar", "31/02/2026 10:50 01/03/2026 11:00"))),
-    { pickup_date: "", pickup_time: "10:50", return_date: "2026-03-01", return_time: "11:00" },
-  );
+test("Dashboard uses the protected server PDF reader instead of a duplicate browser OCR parser", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "web", "dashboard.source.html"), "utf8");
+  assert.match(source, /async function readBookingDetails\(row\)/);
+  assert.match(source, /\/api\/bookings\/'.*\/reread/);
+  assert.doesNotMatch(source, /readDetailsFromText|pdfOcrText|createWorker\(\['eng', 'tha'\]/);
 });
 
 test("Dashboard offers a single re-read action only for incomplete booking files", () => {
@@ -269,7 +233,6 @@ test("Dashboard clearly opens the real Google Drive attachment through its own f
   assert.match(source, /data-booking-file=/);
   assert.match(source, /ดูไฟล์จริง \(Google Drive\)/);
   assert.match(source, /ดาวน์โหลดไฟล์จริง/);
-  assert.match(source, /\/file/);
   assert.match(source, /\/content/);
   assert.match(source, /URL\.createObjectURL\(blob\)/);
   assert.match(source, /async function openBookingFile/);

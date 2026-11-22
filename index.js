@@ -553,8 +553,10 @@ async function handleEvent(event) {
                 booking = document.booking || { company: "Other" };
                 console.log("PDF_BOOKING_READ_RESULT", {
                     usedOcrFallback: document.usedOcrFallback,
-                    completeDateTime: Boolean(booking.pickupDate && booking.pickupTime && booking.returnDate && booking.returnTime)
+                    completeDateTime: Boolean(booking.pickupDate && booking.pickupTime && booking.returnDate && booking.returnTime),
+                    scheduleIssue: document.scheduleIssue || undefined
                 });
+                if (document.scheduleIssue) parseWarning = true;
                 if (String(booking.company || "").toLowerCase() === "other" &&
                     /(?:pick\s*up|drop\s*off|return|รับรถ|คืนรถ|วันส่งรถ|วันคืนรถ)/i.test(text) &&
                     /\d{1,2}:\d{2}/.test(text)) {

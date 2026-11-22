@@ -1,6 +1,26 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { readBookingDocument } = require("../services/bookingDocumentService");
+const { readBookingDocument, normalizeDate, normalizeTime, normalizeSchedule } = require("../services/bookingDocumentService");
+
+test("normalizes Thai Buddhist and English dates, validates calendar days and time", () => {
+  assert.equal(normalizeDate("23 ต.ค. 2569"), "2026-10-23");
+  assert.equal(normalizeDate("23/10/2026"), "2026-10-23");
+  assert.equal(normalizeDate("Oct 23, 2026"), "2026-10-23");
+  assert.equal(normalizeDate("23 October 2026"), "2026-10-23");
+  assert.equal(normalizeDate("31/02/2026"), "");
+  assert.equal(normalizeTime("7:05 PM"), "19:05");
+  assert.equal(normalizeTime("13.05"), "13:05");
+  assert.equal(normalizeTime("24:10"), "");
+  assert.equal(normalizeTime("10:05:60"), "");
+});
+
+test("rejects a full schedule whose return precedes pickup", () => {
+  const schedule = normalizeSchedule({ pickupDate: "2026-11-21", pickupTime: "19:30", returnDate: "2026-11-21", returnTime: "15:00" });
+  assert.equal(schedule.complete, false);
+  assert.equal(schedule.chronological, false);
+  assert.equal(schedule.booking.pickupDate, "");
+  assert.equal(schedule.booking.returnTime, "");
+});
 
 test("booking PDF reader retries OCR when a recognized booking is missing date/time fields", async () => {
   const calls = [];
@@ -15,6 +35,42 @@ test("booking PDF reader retries OCR when a recognized booking is missing date/t
   assert.equal(result.booking.pickupTime, "19:30");
   assert.equal(result.booking.returnDate, "2026-11-21");
   assert.equal(result.booking.returnTime, "15:00");
+});
+
+test("booking PDF reader prefers a coherent OCR schedule over an inverted text-layer schedule", async () => {
+  const result = await readBookingDocument(Buffer.from("pdf"), {
+    readPdf: async (_buffer, options = {}) => options.forceOCR ? "ocr text" : "Pick Up Return Trip",
+    parse: (text) => text === "ocr text"
+      ? { company: "Trip", pickupDate: "23 ต.ค. 2569", pickupTime: "08:00", returnDate: "24 ต.ค. 2569", returnTime: "08:00" }
+      : { company: "Trip", pickupDate: "2026-10-24", pickupTime: "08:00", returnDate: "2026-10-23", returnTime: "08:00" },
+  });
+  assert.equal(result.booking.pickupDate, "2026-10-23");
+  assert.equal(result.booking.returnDate, "2026-10-24");
+  assert.equal(result.usedOcrFallback, true);
+  assert.equal(result.scheduleIssue, "");
+});
+
+test("booking PDF reader safely combines complementary text and OCR fields when neither overwrites the other", async () => {
+  const result = await readBookingDocument(Buffer.from("pdf"), {
+    readPdf: async (_buffer, options = {}) => options.forceOCR ? "ocr text" : "Pick Up Return Trip",
+    parse: (text) => text === "ocr text"
+      ? { company: "Trip", pickupDate: "2026-10-23", pickupTime: "", returnDate: "", returnTime: "08:00" }
+      : { company: "Trip", pickupDate: "2026-10-23", pickupTime: "07:30", returnDate: "2026-10-24", returnTime: "" },
+  });
+  assert.equal(result.booking.pickupTime, "07:30");
+  assert.equal(result.booking.returnDate, "2026-10-24");
+  assert.equal(result.booking.returnTime, "08:00");
+  assert.equal(result.usedOcrFallback, true);
+});
+
+test("booking PDF reader marks an unresolved inverted schedule for manual review", async () => {
+  const result = await readBookingDocument(Buffer.from("pdf"), {
+    readPdf: async (_buffer, options = {}) => options.forceOCR ? "ocr text" : "Pick Up Return Trip",
+    parse: () => ({ company: "Trip", pickupDate: "2026-10-24", pickupTime: "08:00", returnDate: "2026-10-23", returnTime: "08:00" }),
+  });
+  assert.equal(result.scheduleIssue, "pickup_after_return");
+  assert.equal(result.booking.pickupDate, "");
+  assert.equal(result.booking.returnDate, "");
 });
 
 test("booking PDF reader avoids OCR when text layer already has complete schedule", async () => {
@@ -37,5 +93,5 @@ test("booking PDF reader keeps usable extracted data if OCR service fails", asyn
   });
   assert.equal(result.ocrFailed, true);
   assert.equal(result.booking.pickupDate, "2026-11-19");
-  assert.equal(result.booking.returnDate, undefined);
+  assert.equal(result.booking.returnDate, "");
 });

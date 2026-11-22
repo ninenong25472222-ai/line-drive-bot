@@ -41,3 +41,12 @@ test("reader rejects non-PDF payloads and unsafe file links", async () => {
   assert.equal(driveIdFromUrl("http://drive.google.com/file/d/driveFile_123456789/view"), "");
   assert.equal(driveIdFromUrl("https://attacker.example/file/d/driveFile_123456789/view"), "");
 });
+
+test("reader refuses to apply an impossible pickup/return order", async () => {
+  await assert.rejects(readBookingPdfFromDrive({
+    id, token: "pin", drive: { files: { async get() { return { data: Readable.from([Buffer.from("%PDF-1.7 example")]) }; } } },
+    supabaseUrl: "https://db.example", anonKey: "anon",
+    fetchImpl: async () => Response.json({ url: "https://drive.google.com/file/d/driveFile_123456789/view" }),
+    readDocument: async () => ({ scheduleIssue: "pickup_after_return", booking: {} }),
+  }), (error) => error.status === 422 && /ไม่เรียงกัน/.test(error.message));
+});
