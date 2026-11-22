@@ -42,6 +42,37 @@ test("reader rejects non-PDF payloads and unsafe file links", async () => {
   assert.equal(driveIdFromUrl("https://attacker.example/file/d/driveFile_123456789/view"), "");
 });
 
+test("reader falls back to public Drive download when OAuth lookup returns 404", async () => {
+  let fetchCalls = 0;
+  const pdf = Buffer.from("%PDF-1.7 public link fallback");
+  const result = await readBookingPdfFromDrive({
+    id, token: "pin", drive: { files: { async get() { throw { code: 404, message: "File not found" }; } } },
+    supabaseUrl: "https://db.example", anonKey: "anon",
+    fetchImpl: async (url) => {
+      fetchCalls += 1;
+      if (url.includes("/functions/v1/")) return Response.json({ url: "https://drive.google.com/file/d/driveFile_123456789/view" });
+      if (url.startsWith("https://drive.usercontent.google.com/")) return new Response(pdf, { status: 200, headers: { "content-type": "application/pdf" } });
+      return new Response("not found", { status: 404 });
+    },
+    readDocument: async (buffer) => {
+      assert.deepEqual(buffer, pdf);
+      return { booking: { pickupDate: "2026-11-21", pickupTime: "09:30", returnDate: "2026-11-23", returnTime: "10:00" } };
+    },
+  });
+  assert.equal(fetchCalls, 2);
+  assert.equal(result.foundCount, 4);
+});
+
+test("reader clearly identifies a missing or inaccessible Drive file after both download paths fail", async () => {
+  await assert.rejects(readBookingPdfFromDrive({
+    id, token: "pin", drive: { files: { async get() { throw { code: 404, message: "File not found" }; } } },
+    supabaseUrl: "https://db.example", anonKey: "anon",
+    fetchImpl: async (url) => url.includes("/functions/v1/")
+      ? Response.json({ url: "https://drive.google.com/file/d/driveFile_123456789/view" })
+      : new Response("not found", { status: 404 }),
+  }), (error) => error.status === 404 && /ไม่พบไฟล์ต้นฉบับ/.test(error.message));
+});
+
 test("reader refuses to apply an impossible pickup/return order", async () => {
   await assert.rejects(readBookingPdfFromDrive({
     id, token: "pin", drive: { files: { async get() { return { data: Readable.from([Buffer.from("%PDF-1.7 example")]) }; } } },

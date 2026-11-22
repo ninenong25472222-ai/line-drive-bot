@@ -15,6 +15,31 @@ function driveIdFromUrl(value) {
     return url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
 }
 
+function driveStatus(error) {
+    return Number(error?.response?.status || error?.code || error?.status || 0);
+}
+
+async function downloadPublicDrivePdf(fileId, fetchImpl) {
+    const urls = [
+        `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download&confirm=t`,
+        `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}&confirm=t`,
+    ];
+    for (const url of urls) {
+        try {
+            const response = await fetchImpl(url, { redirect: "follow", signal: AbortSignal.timeout(45000) });
+            if (!response.ok) continue;
+            const announcedSize = Number(response.headers?.get?.("content-length") || 0);
+            if (announcedSize > MAX_PDF_BYTES) throw serviceError("ไฟล์ใหญ่เกิน 40 MB", 413);
+            const bytes = Buffer.from(await response.arrayBuffer());
+            if (bytes.length > MAX_PDF_BYTES) throw serviceError("ไฟล์ใหญ่เกิน 40 MB", 413);
+            if (bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-") return bytes;
+        } catch (error) {
+            if (error.status) throw error;
+        }
+    }
+    return null;
+}
+
 async function readBookingPdfFromDrive({ id, token, drive, supabaseUrl, anonKey, fetchImpl = fetch, readDocument = readBookingDocument }) {
     if (!/^[0-9a-f-]{36}$/i.test(String(id || ""))) throw serviceError("รหัสรายการจองไม่ถูกต้อง", 400);
     if (!token) throw serviceError("กรอกรหัสผู้ดูแลเพื่ออ่านไฟล์", 403);
@@ -50,7 +75,17 @@ async function readBookingPdfFromDrive({ id, token, drive, supabaseUrl, anonKey,
         pdf = Buffer.concat(chunks, size);
     } catch (error) {
         if (error.status) throw error;
-        throw serviceError("ดาวน์โหลดไฟล์จาก Google Drive ไม่สำเร็จ กรุณาตรวจสิทธิ์ไฟล์แล้วลองใหม่", 502);
+        // Files shared as "anyone with the link" may be downloadable even when
+        // Drive API metadata lookup is hidden from the OAuth account. Try the
+        // public download endpoints before declaring the source unavailable.
+        pdf = await downloadPublicDrivePdf(fileId, fetchImpl);
+        if (!pdf) {
+            const status = driveStatus(error);
+            if (status === 404 || status === 403) {
+                throw serviceError("ไม่พบไฟล์ต้นฉบับใน Google Drive หรือบัญชีบอตไม่มีสิทธิ์เข้าถึง (Drive " + status + "). ตรวจว่าไฟล์ยังอยู่และเปิดสิทธิ์ให้บัญชีบอตหรือเปิดลิงก์ได้ แล้วลองใหม่", status);
+            }
+            throw serviceError("ดาวน์โหลดไฟล์จาก Google Drive ไม่สำเร็จ กรุณาตรวจสิทธิ์ไฟล์แล้วลองใหม่", 502);
+        }
     }
     if (pdf.length < 5 || pdf.subarray(0, 5).toString("ascii") !== "%PDF-") throw serviceError("ไฟล์จาก Google Drive ไม่ใช่ PDF ที่อ่านได้", 422);
 
@@ -75,4 +110,4 @@ async function readBookingPdfFromDrive({ id, token, drive, supabaseUrl, anonKey,
     return { ...fields, company: String(booking.company || ""), foundCount, usedOcrFallback: Boolean(result.usedOcrFallback), ocrFailed: Boolean(result.ocrFailed) };
 }
 
-module.exports = { readBookingPdfFromDrive, driveIdFromUrl, MAX_PDF_BYTES };
+module.exports = { readBookingPdfFromDrive, driveIdFromUrl, downloadPublicDrivePdf, MAX_PDF_BYTES };
