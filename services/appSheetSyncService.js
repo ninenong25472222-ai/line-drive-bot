@@ -97,8 +97,8 @@ const buildBooking = (row, headers, carLookup) => {
     const bookingNo = cell(row, headers, ["bookingid", "bookingno", "เลขที่จอง", "เลขจอง"]);
     const customerName = cell(row, headers, ["customername", "rentername", "ชื่อลูกค้า", "ผู้เช่า"]);
     const carReference = cell(row, headers, ["carref", "carid", "vehicleid", "ทะเบียน", "รหัสรถ", "รถ"]);
-    const pickupDate = cell(row, headers, ["pickupdate", "รับรถวันที่", "วันที่รับรถ"]);
-    const returnDate = cell(row, headers, ["returndate", "คืนรถวันที่", "วันที่คืนรถ"]);
+    const pickupDate = cell(row, headers, ["pickupdate", "วันส่งรถ", "วันที่ส่งรถ", "วันรับรถ", "รับรถวันที่", "วันที่รับรถ"]);
+    const returnDate = cell(row, headers, ["returndate", "วันคืนรถ", "คืนรถวันที่", "วันที่คืนรถ"]);
     if (!bookingNo || !customerName || !pickupDate || !returnDate) return null;
     const bookingPdf = cell(row, headers, ["booking_pdf", "booking pdf", "pdf file", "ไฟล์ใบจอง"]);
     const directLink = cell(row, headers, ["link", "url", "drive_url", "drive url", "file_url", "file url", "pdf_url", "pdf url"]);
@@ -111,10 +111,10 @@ const buildBooking = (row, headers, carLookup) => {
         customerPhone: cell(row, headers, ["tel", "phone", "เบอร์โทร", "โทรศัพท์"]),
         customerEmail: cell(row, headers, ["email", "อีเมล"]),
         pickupDate,
-        pickupTime: cell(row, headers, ["pickuptime", "เวลารับรถ", "เวลารับ"]),
+        pickupTime: cell(row, headers, ["pickuptime", "เวลาส่งรถ", "เวลารับรถ", "เวลารับ", "เวลาเริ่มเช่า"]),
         pickupLocation: cell(row, headers, ["pickuplocation", "จุดรับรถ", "สถานที่รับ"]),
         returnDate,
-        returnTime: cell(row, headers, ["returntime", "เวลาคืนรถ", "เวลาคืน"]),
+        returnTime: cell(row, headers, ["returntime", "เวลาคืนรถ", "เวลาส่งคืน", "เวลาคืน"]),
         returnLocation: cell(row, headers, ["returnlocation", "จุดคืนรถ", "สถานที่คืน"]),
         car: carLookup.get(normalize(carReference)) || carReference,
         total: cell(row, headers, ["total", "price", "amount", "ยอดรวม", "ราคา"]),

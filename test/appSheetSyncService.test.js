@@ -11,6 +11,17 @@ test("keeps the Booking_PDF Drive link when importing an AppSheet booking", () =
     assert.equal(booking.fileName, "Booking-f09b7c2b.pdf");
 });
 
+test("imports Thai send-car and return-car date/time columns instead of leaving booking times blank", () => {
+    const headers = ["BookingID", "CustomerName", "วันส่งรถ", "เวลาส่งรถ", "วันคืนรถ", "เวลาคืนรถ"];
+    const row = ["f09b7c2b", "คุณ นันทพร", "22/10/2569", "08:30", "28/10/2569", "08:30"];
+    const booking = buildBooking(row, headers, new Map());
+
+    assert.equal(booking.pickupDate, "22/10/2569");
+    assert.equal(booking.pickupTime, "08:30");
+    assert.equal(booking.returnDate, "28/10/2569");
+    assert.equal(booking.returnTime, "08:30");
+});
+
 test("does not create a fake file name when an AppSheet row has no file link", () => {
     const headers = ["BookingID", "CustomerName", "PickupDate", "ReturnDate"];
     const booking = buildBooking(["f09b7c2b", "คุณ นันทพร", "22/10/2569", "28/10/2569"], headers, new Map());
