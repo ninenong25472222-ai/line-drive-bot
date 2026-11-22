@@ -1313,7 +1313,7 @@ app.post("/admin/bookings/:id/read", async (req, res) => {
         const result = await readBookingPdfFromDrive({
             id: req.params.id,
             token: cleanText(req.get("x-booking-edit-token") || ""),
-            drive,
+            drive: google.drive({ version: "v3", auth }),
             supabaseUrl: process.env.RENTALPRO_SUPABASE_URL || process.env.SUPABASE_URL,
             anonKey: process.env.SUPABASE_ANON_KEY,
         });
