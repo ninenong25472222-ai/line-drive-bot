@@ -73,14 +73,30 @@ test("booking PDF reader marks an unresolved inverted schedule for manual review
   assert.equal(result.booking.returnDate, "");
 });
 
-test("booking PDF reader avoids OCR when text layer already has complete schedule", async () => {
+test("booking PDF reader avoids OCR when text layer has a complete schedule and customer name", async () => {
   let calls = 0;
   const result = await readBookingDocument(Buffer.from("pdf"), {
     readPdf: async () => { calls += 1; return "text"; },
-    parse: () => ({ company: "Klook", pickupDate: "2026-11-19", pickupTime: "19:30", returnDate: "2026-11-21", returnTime: "15:00" }),
+    parse: () => ({ company: "Klook", customerName: "Guest Name", pickupDate: "2026-11-19", pickupTime: "19:30", returnDate: "2026-11-21", returnTime: "15:00" }),
   });
   assert.equal(calls, 1);
   assert.equal(result.usedOcrFallback, false);
+});
+
+test("booking PDF reader uses OCR to recover a Thai customer name when text-layer dates are already complete", async () => {
+  const calls = [];
+  const result = await readBookingDocument(Buffer.from("pdf"), {
+    readPdf: async (_buffer, options = {}) => {
+      calls.push(options.forceOCR === true);
+      return options.forceOCR ? "ชื่อผู้ขับขี่ ณัช ภู่วรวรรณ เบอร์โทรติดต่อ 0950328080" : "Pick Up Return Trip";
+    },
+    parse: (text) => text.includes("ชื่อผู้ขับขี่")
+      ? { company: "ChicCar", customerName: "ณัช ภู่วรวรรณ", pickupDate: "2026-11-22", pickupTime: "20:00", returnDate: "2026-11-25", returnTime: "20:00" }
+      : { company: "ChicCar", customerName: "", pickupDate: "2026-11-22", pickupTime: "20:00", returnDate: "2026-11-25", returnTime: "20:00" },
+  });
+  assert.deepEqual(calls, [false, true]);
+  assert.equal(result.booking.customerName, "ณัช ภู่วรวรรณ");
+  assert.equal(result.usedOcrFallback, true);
 });
 
 test("booking PDF reader keeps usable extracted data if OCR service fails", async () => {

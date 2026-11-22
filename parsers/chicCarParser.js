@@ -72,7 +72,7 @@ function extractCustomerName(text) {
     const stop = "(?=\\s+(?:Telephone\\b|Customer\\s+Phone\\b|Renter\\s+Phone\\b|E-?Mail\\b|Pick\\s*Up\\b|Return\\b|Date\\b|Time\\b|Reservation\\s+No\\b|Flight\\b|Vehicle\\b|Car\\b|เบอร์โทร|เบอร์โทรศัพท์|โทรศัพท์|อีเมล|วันรับรถ|วันคืนรถ|สถานที่รับ|สถานที่คืน)|$)";
     const labeledPatterns = [
         new RegExp(`(?:Renter|Customer|Guest)\\s+Name\\s*[:：-]?\\s*(.{2,100}?)${stop}`, "i"),
-        new RegExp(`(?:ชื่อผู้เช่า|ชื่อลูกค้า|ชื่อผู้จอง)\\s*[:：-]?\\s*(.{2,100}?)${stop}`, "i"),
+        new RegExp(`(?:ชื่อผู้เช่า|ชื่อลูกค้า|ชื่อผู้จอง|ชื่อผู้ขับขี่)\\s*[:：-]?\\s*(.{2,100}?)${stop}`, "i"),
     ];
 
     for (const pattern of labeledPatterns) {

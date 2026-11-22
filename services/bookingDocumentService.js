@@ -22,7 +22,9 @@ async function readBookingDocument(buffer, dependencies = {}) {
     const initial = parse(sourceText) || { company: "Other" };
     const initialSchedule = normalizeSchedule(initial);
 
-    if (initialSchedule.complete || !mightBeBooking(sourceText, initial)) {
+    // Date/time may be complete while text-layer extraction misses a Thai
+    // customer name. OCR that case too so the dashboard can repair blank names.
+    if ((initialSchedule.complete && present(initial.customerName || initial.renter)) || !mightBeBooking(sourceText, initial)) {
         return { text: sourceText, booking: initialSchedule.booking, usedOcrFallback: false, scheduleIssue: !initialSchedule.chronological ? "pickup_after_return" : "" };
     }
 
@@ -52,13 +54,19 @@ async function readBookingDocument(buffer, dependencies = {}) {
     }
     const preferred = { ...(selectedSchedule === ocrSchedule || (!isRecognized(initial) && isRecognized(ocrBooking)) ? ocrBooking : initial) };
     for (const field of DATE_TIME_FIELDS) preferred[field] = selectedSchedule.booking[field];
+    if (!present(preferred.customerName) && present(preferred.renter)) preferred.customerName = preferred.renter;
+    const filledCustomerNameFromOcr = !present(preferred.customerName) && present(ocrBooking.customerName || ocrBooking.renter);
+    if (filledCustomerNameFromOcr) {
+        preferred.customerName = ocrBooking.customerName || ocrBooking.renter;
+        preferred.renter = preferred.customerName;
+    }
     if (!isRecognized(preferred) && isRecognized(initial)) preferred.company = initial.company;
     if (!present(preferred.bookingNo)) preferred.bookingNo = initial.bookingNo || ocrBooking.bookingNo || "";
     if (!present(preferred.customerName)) preferred.customerName = initial.customerName || ocrBooking.customerName || "";
     if (!present(preferred.customerPhone)) preferred.customerPhone = initial.customerPhone || ocrBooking.customerPhone || "";
     if (!present(preferred.car)) preferred.car = initial.car || ocrBooking.car || "";
 
-    const usedOcrFallback = filledFromOcr || !isRecognized(initial) && isRecognized(ocrBooking);
+    const usedOcrFallback = filledFromOcr || filledCustomerNameFromOcr || !isRecognized(initial) && isRecognized(ocrBooking);
     return {
         text: usedOcrFallback ? ocrText : sourceText,
         booking: preferred,
