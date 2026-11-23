@@ -763,6 +763,26 @@ const mimeType =
     downloaded.contentType ||
     "application/octet-stream";
 
+async function ensureDriveLinkAccess(drive, fileId) {
+    try {
+        await drive.permissions.create({
+            fileId,
+            requestBody: { role: "reader", type: "anyone" }
+        });
+        return { public: true, error: "" };
+    } catch (error) {
+        console.error(
+            "DRIVE_PUBLIC_PERMISSION_ERROR:",
+            error?.response?.data || error?.message || error
+        );
+        return {
+            public: false,
+            error: error?.response?.data?.error?.message || error?.message ||
+                "Google Drive ไม่อนุญาตให้เปิดลิงก์สาธารณะ"
+        };
+    }
+}
+
 // ตรวจไฟล์ซ้ำจากเนื้อไฟล์จริงในโฟลเดอร์ปลายทาง
 let duplicateFile = null;
 
@@ -794,6 +814,7 @@ try {
 }
 
 if (duplicateFile?.id) {
+    const duplicateAccess = await ensureDriveLinkAccess(drive, duplicateFile.id);
     const duplicateLink =
         `https://drive.google.com/file/d/${duplicateFile.id}/view`;
 
@@ -866,7 +887,9 @@ if (duplicateFile?.id) {
 
         "",
 
-        "📂 เปิดไฟล์เดิม",
+        duplicateAccess.public
+            ? "📂 เปิดไฟล์เดิม"
+            : "📂 ไฟล์เดิมถูกบันทึกแล้ว แต่ Google Drive ยังไม่อนุญาตลิงก์สาธารณะ",
 
         duplicateLink
     ].join("\n");
@@ -937,17 +960,10 @@ console.log("Drive upload result:", {
 });
 
         // ============================
-        // MAKE FILE PUBLIC
+        // MAKE FILE PUBLIC (best effort)
         // ============================
 
-        await drive.permissions.create({
-            fileId,
-
-            requestBody: {
-                role: "reader",
-                type: "anyone"
-            }
-        });
+        const driveAccess = await ensureDriveLinkAccess(drive, fileId);
 
         const link =
             `https://drive.google.com/file/d/${fileId}/view`;
@@ -960,6 +976,8 @@ console.log("Drive upload result:", {
 
         booking.pdfLink =
             link;
+
+        booking.drivePublic = driveAccess.public;
 
         // ============================
         // SYNC TO RENTALPRO
