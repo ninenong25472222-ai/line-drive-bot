@@ -7,6 +7,8 @@ const { syncAppSheetBookings } = require("./services/appSheetSyncService");
 const { repairAppSheetPdfLinks } = require("./services/appSheetPdfLinkService");
 const { syncCombinedSpreadsheet } = require("./services/combinedSheetService");
 const { queueExpiredBookings } = require("./services/bookingLifecycleService");
+const { claimLineEvent, finishLineEvent } = require("./services/lineEventReceiptService");
+const { enqueueSyncJob, updateSyncState, updateDriveSharingAudit, nextSyncJobs, setSyncJob, claimSyncJob } = require("./services/syncJobService");
 const {
     getEventGroupId,
     isAllowedSourceGroup,
@@ -164,6 +166,21 @@ async function sendResultMessage(event, text) {
             )
         }
     );
+}
+
+async function queueSyncRetry({ target, booking, fileName, fileHash, driveFileId, driveUrl, sheetTitle, eventId }) {
+    const payload = { booking, fileName, fileHash, driveFileId, driveUrl, sheetTitle };
+    try {
+        const queued = await enqueueSyncJob({ target, idempotencyKey: `${target}:${fileHash}`, payload, eventId });
+        if (!queued) throw new Error("SYNC_QUEUE_NOT_CONFIGURED");
+        await updateSyncState({ fileHash, target, state: "queued", error: "รอลองซิงก์อัตโนมัติ" });
+        console.warn("SYNC_RETRY_QUEUED", { target, fileHash: String(fileHash || "").slice(0, 10) });
+        return true;
+    } catch (error) {
+        console.error("SYNC_RETRY_QUEUE_FAILED", target, error?.response?.status || error?.code || "unknown_error");
+        await updateSyncState({ fileHash, target, state: "failed", error: error?.response?.status || error?.code || error?.message || "ไม่สามารถเพิ่มงานเข้าคิวลองซ้ำได้" }).catch(() => {});
+        return false;
+    }
 }
 
 async function ensureSheetTab(
@@ -381,11 +398,11 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
     const spreadsheetId = getAppSheetSpreadsheetId();
     if (!spreadsheetId) {
         console.warn("APPSHEET_LINE_SYNC_SKIPPED: AppSheet spreadsheet is not configured");
-        return;
+        return { skipped: true };
     }
     if (!booking?.customerName || !booking?.pickupDate || !booking?.returnDate) {
         console.log("APPSHEET_LINE_SYNC_SKIPPED: incomplete booking data");
-        return;
+        return { skipped: true };
     }
     try {
         const sheetTitle = process.env.APPSHEET_BOOKING_SHEET || "Bookings";
@@ -412,7 +429,7 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
                 console.log("APPSHEET_LINE_SYNC: repaired file link");
             }
             console.log("APPSHEET_LINE_SYNC: duplicate");
-            return;
+            return { ok: true, duplicate: true };
         }
         const values = Array(headers.length).fill("");
         const set = (candidates, value) => { const index = findColumn(candidates); if (index >= 0) values[index] = value ?? ""; };
@@ -436,8 +453,10 @@ async function syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl
         for (let n = headers.length; n > 0; n = Math.floor((n - 1) / 26)) endColumn = String.fromCharCode(65 + ((n - 1) % 26)) + endColumn;
         await sheets.spreadsheets.values.append({ spreadsheetId, range: sheetTitle + "!A:" + endColumn, valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", requestBody: { values: [values] } });
         console.log("APPSHEET_LINE_SYNC: added booking");
+        return { ok: true };
     } catch (error) {
         console.error("APPSHEET_LINE_SYNC_ERROR", error?.response?.status || error?.code || "unknown_error");
+        return { ok: false, error: error?.code || error?.response?.status || "appsheet_sync_failed" };
     }
 }
 
@@ -462,7 +481,31 @@ app.post(
             // Process a LINE batch in order so large file downloads do not
             // multiply memory use without bound.
             for (const event of events) {
-                await handleEvent(event);
+                const eventId = cleanText(event?.webhookEventId || "");
+                const messageId = cleanText(event?.message?.id || "");
+                const fileName = cleanText(event?.message?.fileName || "");
+                if (eventId) {
+                    try {
+                        const receipt = await claimLineEvent({ eventId, messageId, fileName });
+                        if (!receipt.claimed) {
+                            console.log("LINE_DUPLICATE_EVENT_IGNORED");
+                            continue;
+                        }
+                        if (!receipt.tracked) console.warn("LINE_EVENT_IDEMPOTENCY_UNAVAILABLE", receipt.reason);
+                    } catch (receiptError) {
+                        // Do not drop a legitimate customer upload during a brief database outage.
+                        // Drive content hashing remains a secondary duplicate safeguard.
+                        console.error("LINE_EVENT_RECEIPT_CLAIM_FAILED", receiptError?.response?.status || receiptError?.code || "unknown_error");
+                    }
+                }
+                const processed = await handleEvent(event);
+                if (eventId) {
+                    try {
+                        await finishLineEvent({ eventId, state: processed ? "processed" : "failed", error: processed ? "" : "processing_failed" });
+                    } catch (receiptError) {
+                        console.error("LINE_EVENT_RECEIPT_FINALIZE_FAILED", receiptError?.response?.status || receiptError?.code || "unknown_error");
+                    }
+                }
             }
 
             res.sendStatus(200);
@@ -485,6 +528,8 @@ async function handleEvent(event) {
     let replied = false;
     let parseWarning = false;
     let rentalProSyncFailed = false;
+    let syncPending = false;
+    let drivePublic = true;
 
     try {
         console.log(
@@ -498,14 +543,14 @@ async function handleEvent(event) {
         )) {
             console.log("IGNORED_FILE_FROM_UNCONFIGURED_GROUP");
 
-            return;
+            return true;
         }
 
         if (
             event.type !== "message" ||
             event.message.type !== "file"
         ) {
-            return;
+            return true;
         }
 
         const messageId =
@@ -656,6 +701,9 @@ async function handleEvent(event) {
                 booking.car || ""
             );
 
+        // LINE/partner uploads need a human check on the error-prone OCR fields.
+        booking.ocrReviewStatus = "pending";
+
 // ============================
 // UPLOAD TO GOOGLE DRIVE
 // ============================
@@ -765,11 +813,17 @@ const mimeType =
 
 async function ensureDriveLinkAccess(drive, fileId) {
     try {
-        await drive.permissions.create({
+        const listed = await drive.permissions.list({ fileId, fields: "permissions(id,type,role)", supportsAllDrives: true });
+        const current = (listed.data.permissions || []).find((permission) => permission.type === "anyone" && permission.role === "reader");
+        if (current) return { public: true, error: "", permissionId: current.id };
+        const created = await drive.permissions.create({
             fileId,
-            requestBody: { role: "reader", type: "anyone" }
+            supportsAllDrives: true,
+            requestBody: { role: "reader", type: "anyone" },
+            fields: "id"
         });
-        return { public: true, error: "" };
+        console.log("DRIVE_LINK_SHARING_POLICY_APPLIED", { fileIdPrefix: String(fileId).slice(0, 8), access: "anyone_with_link_viewer" });
+        return { public: true, error: "", permissionId: created.data?.id };
     } catch (error) {
         console.error(
             "DRIVE_PUBLIC_PERMISSION_ERROR:",
@@ -815,6 +869,7 @@ try {
 
 if (duplicateFile?.id) {
     const duplicateAccess = await ensureDriveLinkAccess(drive, duplicateFile.id);
+    drivePublic = duplicateAccess.public;
     const duplicateLink =
         `https://drive.google.com/file/d/${duplicateFile.id}/view`;
 
@@ -852,11 +907,13 @@ if (duplicateFile?.id) {
             fileName,
             link: duplicateLink
         });
+        await updateSyncState({ fileHash, target: "google_sheets", state: "succeeded" }).catch(() => {});
     } catch (sheetBackfillError) {
         console.error(
             "SHEET_BACKFILL_ERROR",
             sheetBackfillError?.response?.status || sheetBackfillError?.code || "unknown_error"
         );
+        syncPending = (await queueSyncRetry({ target: "google_sheets", booking, fileName, fileHash, driveFileId: duplicateFile.id, driveUrl: duplicateLink, sheetTitle: isBookingFile ? "Booking" : "Other", eventId: event.webhookEventId })) || syncPending;
     }
 
     try {
@@ -867,21 +924,29 @@ if (duplicateFile?.id) {
             driveFileId: duplicateFile.id,
             driveUrl: duplicateLink
         });
-        rentalProSyncFailed = Boolean(rentalProSync?.skipped);
+        rentalProSyncFailed = Boolean(rentalProSync?.skipped && !rentalProSync?.duplicate);
+        if (rentalProSyncFailed) syncPending = (await queueSyncRetry({ target: "supabase", booking, fileName, fileHash, driveFileId: duplicateFile.id, driveUrl: duplicateLink, sheetTitle: isBookingFile ? "Booking" : "Other", eventId: event.webhookEventId })) || syncPending;
+        else {
+            await updateSyncState({ fileHash, target: "supabase", state: "succeeded" }).catch(() => {});
+            if (duplicateAccess.public) await updateDriveSharingAudit({ fileHash, driveFileId: duplicateFile.id, permissionId: duplicateAccess.permissionId }).catch((error) => console.warn("DRIVE_SHARING_AUDIT_FAILED", error?.response?.status || error?.code || "unknown_error"));
+        }
         console.log(rentalProSync?.duplicate ? "RentalPro sync: ALREADY EXISTS" : rentalProSync?.skipped ? "RentalPro sync: SKIPPED (missing environment variables)" : "RentalPro sync: OK");
     } catch (rentalProError) {
         rentalProSyncFailed = true;
         console.error("RENTALPRO_SYNC_ERROR", rentalProError?.response?.status || rentalProError?.code || "unknown_error");
+        syncPending = (await queueSyncRetry({ target: "supabase", booking, fileName, fileHash, driveFileId: duplicateFile.id, driveUrl: duplicateLink, sheetTitle: isBookingFile ? "Booking" : "Other", eventId: event.webhookEventId })) || syncPending;
     }
 
     if (isBookingFile) {
-        await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: duplicateLink });
+        const appSheetResult = await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: duplicateLink });
+        if (appSheetResult?.ok) await updateSyncState({ fileHash, target: "appsheet", state: "succeeded" }).catch(() => {});
+        else if (!appSheetResult?.skipped) syncPending = (await queueSyncRetry({ target: "appsheet", booking, fileName, fileHash, driveFileId: duplicateFile.id, driveUrl: duplicateLink, sheetTitle: "Booking", eventId: event.webhookEventId })) || syncPending;
     }
 
     const duplicateReply = [
         "♻️ ไฟล์นี้เคยบันทึกแล้ว",
 
-        ...(rentalProSyncFailed ? ["⚠️ ซิงก์ข้อมูลหน้าเว็บไม่สำเร็จ แต่ยังเปิดไฟล์ต้นฉบับเดิมได้"] : []),
+        ...(syncPending ? ["⚠️ บางปลายทางยังซิงก์ไม่สำเร็จ ระบบเพิ่มเข้าคิวลองใหม่แล้ว"] : rentalProSyncFailed ? ["⚠️ ยังซิงก์ข้อมูลหน้าเว็บไม่สำเร็จ กรุณาให้ผู้ดูแลตรวจคิวซิงก์"] : []),
 
         `📄 ${fileName}`,
 
@@ -900,7 +965,7 @@ if (duplicateFile?.id) {
     );
 
     replied = true;
-    return;
+    return true;
 }
 
 // อัปโหลดไฟล์
@@ -963,7 +1028,8 @@ console.log("Drive upload result:", {
         // MAKE FILE PUBLIC (best effort)
         // ============================
 
-        const driveAccess = await ensureDriveLinkAccess(drive, fileId);
+const driveAccess = await ensureDriveLinkAccess(drive, fileId);
+drivePublic = driveAccess.public;
 
         const link =
             `https://drive.google.com/file/d/${fileId}/view`;
@@ -999,6 +1065,11 @@ console.log("Drive upload result:", {
             // The LINE/Drive workflow should continue even if the website is temporarily unavailable.
             console.error("RENTALPRO_SYNC_ERROR", rentalProError?.response?.status || rentalProError?.code || "unknown_error");
         }
+        if (rentalProSyncFailed) syncPending = (await queueSyncRetry({ target: "supabase", booking, fileName, fileHash, driveFileId: fileId, driveUrl: link, sheetTitle: isBookingFile ? "Booking" : "Other", eventId: event.webhookEventId })) || syncPending;
+        else {
+            await updateSyncState({ fileHash, target: "supabase", state: "succeeded" }).catch(() => {});
+            if (driveAccess.public) await updateDriveSharingAudit({ fileHash, driveFileId: fileId, permissionId: driveAccess.permissionId }).catch((error) => console.warn("DRIVE_SHARING_AUDIT_FAILED", error?.response?.status || error?.code || "unknown_error"));
+        }
 
         // ============================
         // SAVE TO GOOGLE SHEET
@@ -1015,17 +1086,10 @@ console.log("Drive upload result:", {
                 ? "Booking"
                 : "Other";
 
-        await ensureSheetTab(
-            sheets,
-
-            process.env
-                .GOOGLE_SHEET_ID,
-
-            sheetTitle
-        );
-
-        await sheets.spreadsheets
-            .values.append({
+        try {
+            await ensureSheetTab(sheets, process.env.GOOGLE_SHEET_ID, sheetTitle);
+            await sheets.spreadsheets
+                .values.append({
                 spreadsheetId:
                     process.env
                         .GOOGLE_SHEET_ID,
@@ -1068,10 +1132,17 @@ console.log("Drive upload result:", {
                         link
                     ]]
                 }
-            });
+                });
+            await updateSyncState({ fileHash, target: "google_sheets", state: "succeeded" }).catch(() => {});
+        } catch (sheetError) {
+            console.error("GOOGLE_SHEET_APPEND_FAILED", sheetError?.response?.status || sheetError?.code || "unknown_error");
+            syncPending = (await queueSyncRetry({ target: "google_sheets", booking, fileName, fileHash, driveFileId: fileId, driveUrl: link, sheetTitle, eventId: event.webhookEventId })) || syncPending;
+        }
 
         if (isBookingFile) {
-            await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: link });
+            const appSheetResult = await syncLineBookingToAppSheet({ booking, fileHash, fileName, driveUrl: link });
+            if (appSheetResult?.ok) await updateSyncState({ fileHash, target: "appsheet", state: "succeeded" }).catch(() => {});
+            else if (!appSheetResult?.skipped) syncPending = (await queueSyncRetry({ target: "appsheet", booking, fileName, fileHash, driveFileId: fileId, driveUrl: link, sheetTitle: "Booking", eventId: event.webhookEventId })) || syncPending;
         }
 
         // Keep the newest uploaded files at the top of the Booking sheet.
@@ -1262,7 +1333,8 @@ console.log("Drive upload result:", {
 
         const replyText = [
             reply1,
-            ...(rentalProSyncFailed ? ["⚠️ บันทึกข้อมูลหน้าเว็บไม่สำเร็จ ไฟล์ต้นฉบับยังอยู่ใน Google Drive และ Google Sheets"] : []),
+            ...(!drivePublic ? ["⚠️ บันทึกไฟล์แล้ว แต่ Google Drive ไม่อนุญาตให้เปิดด้วยลิงก์สาธารณะ ผู้ดูแลต้องตรวจสิทธิ์ไฟล์"] : []),
+            ...(syncPending ? ["⚠️ ไฟล์ต้นฉบับบันทึกแล้ว แต่บางปลายทางรอซิงก์ ระบบจะลองซ้ำอัตโนมัติ"] : rentalProSyncFailed ? ["⚠️ ไฟล์ต้นฉบับบันทึกแล้ว แต่ข้อมูลหน้าเว็บยังซิงก์ไม่สำเร็จ กรุณาให้ผู้ดูแลตรวจสอบ"] : []),
             reply2
         ].join("\n\n");
 
@@ -1281,6 +1353,7 @@ console.log("Drive upload result:", {
         );
 
         replied = true;
+        return true;
     } catch (error) {
         console.error(
             "============= ERROR ============="
@@ -1314,6 +1387,7 @@ console.log("Drive upload result:", {
                 );
             }
         }
+        return false;
     }
 }
 
@@ -1496,6 +1570,53 @@ async function runCombinedSheetSync() {
     }
 }
 
+let syncJobRunActive = false;
+async function runSyncRetryQueue() {
+    if (syncJobRunActive) return;
+    syncJobRunActive = true;
+    try {
+        const jobs = await nextSyncJobs({ limit: 10 });
+        for (const job of jobs) {
+            const payload = job.payload || {};
+            const processingJob = { ...job, attempts: Number(job.attempts || 0) + 1 };
+            let claimed = false;
+            try {
+                const lock = await claimSyncJob(job);
+                if (!lock) continue;
+                claimed = true;
+                processingJob.attempts = Number(lock.attempts || processingJob.attempts);
+                if (job.target === "supabase") {
+                    const result = await savePartnerUpload({ booking: payload.booking || {}, fileName: payload.fileName, fileHash: payload.fileHash, driveFileId: payload.driveFileId, driveUrl: payload.driveUrl });
+                    if (result?.skipped && !result?.duplicate) throw new Error("SUPABASE_SYNC_STILL_UNAVAILABLE");
+                } else if (job.target === "google_sheets") {
+                    const sheets = google.sheets({ version: "v4", auth });
+                    await ensureSheetTab(sheets, getLineSpreadsheetId(), payload.sheetTitle || "Booking");
+                    await backfillSheetRowIfMissing({ sheets, spreadsheetId: getLineSpreadsheetId(), sheetTitle: payload.sheetTitle || "Booking", booking: payload.booking || {}, fileName: payload.fileName || "", link: payload.driveUrl || "" });
+                } else if (job.target === "appsheet") {
+                    const result = await syncLineBookingToAppSheet({ booking: payload.booking || {}, fileHash: payload.fileHash, fileName: payload.fileName, driveUrl: payload.driveUrl });
+                    if (!result?.ok) throw new Error(result?.error || "APPSHEET_RETRY_FAILED");
+                }
+                await setSyncJob(processingJob, "succeeded");
+                await updateSyncState({ fileHash: payload.fileHash, target: job.target, state: "succeeded" }).catch(() => {});
+            } catch (error) {
+                if (!claimed) {
+                    console.error("SYNC_RETRY_CLAIM_FAILED", error?.response?.status || error?.code || "unknown_error");
+                    continue;
+                }
+                const detail = error?.response?.status || error?.code || error?.message || "sync_retry_failed";
+                const nextState = processingJob.attempts >= 8 ? "failed" : "queued";
+                await setSyncJob(processingJob, nextState, detail).catch(() => {});
+                await updateSyncState({ fileHash: payload.fileHash, target: job.target, state: nextState, error: detail }).catch(() => {});
+                console.error("SYNC_RETRY_FAILED", { target: job.target, attempts: processingJob.attempts, reason: String(detail).slice(0, 120) });
+            }
+        }
+    } catch (error) {
+        console.error("SYNC_RETRY_QUEUE_READ_FAILED", error?.response?.status || error?.code || "unknown_error");
+    } finally {
+        syncJobRunActive = false;
+    }
+}
+
 if (getAppSheetSpreadsheetId()) {
     setTimeout(() => void runAppSheetSync(), 15000);
     setInterval(() => void runAppSheetSync(), Math.max(60000, Number(process.env.APPSHEET_SYNC_INTERVAL_MS || 300000)));
@@ -1523,6 +1644,11 @@ if (process.env.SUPABASE_BACKFILL_ONCE === "true") {
 if (getCombinedSpreadsheetId()) {
     setTimeout(() => void runCombinedSheetSync(), 20000);
     setInterval(() => void runCombinedSheetSync(), Math.max(60000, Number(process.env.COMBINED_SYNC_INTERVAL_MS || 300000)));
+}
+
+if (cleanText(process.env.RENTALPRO_SUPABASE_URL || "") && cleanText(process.env.RENTALPRO_SUPABASE_SERVICE_ROLE_KEY || "")) {
+    setTimeout(() => void runSyncRetryQueue(), 45000);
+    setInterval(() => void runSyncRetryQueue(), Math.max(60000, Number(process.env.SYNC_RETRY_INTERVAL_MS || 60000)));
 }
 
 app.listen(

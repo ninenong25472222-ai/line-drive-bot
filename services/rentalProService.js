@@ -48,7 +48,8 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         file_name: clean(fileName),
         file_hash: clean(fileHash),
         drive_file_id: clean(driveFileId),
-        drive_url: clean(driveUrl)
+        drive_url: clean(driveUrl),
+        ocr_review_status: clean(booking.ocrReviewStatus) || "pending"
     };
 
     const bookingRow = {
@@ -71,6 +72,7 @@ async function savePartnerUpload({ booking, fileName, fileHash, driveFileId, dri
         file_hash: details.file_hash,
         drive_file_id: details.drive_file_id,
         drive_url: details.drive_url,
+        ocr_review_status: details.ocr_review_status,
         updated_at: new Date().toISOString()
     };
 
