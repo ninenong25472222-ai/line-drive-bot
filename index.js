@@ -11,6 +11,7 @@ const { claimLineEvent, finishLineEvent } = require("./services/lineEventReceipt
 const { enqueueSyncJob, updateSyncState, updateDriveSharingAudit, nextSyncJobs, setSyncJob, claimSyncJob } = require("./services/syncJobService");
 const {
     getEventGroupId,
+    getAllowedSourceGroupIds,
     isAllowedSourceGroup,
     canSendToDestination
 } = require("./services/lineRouting");
@@ -530,18 +531,30 @@ async function handleEvent(event) {
     let rentalProSyncFailed = false;
     let syncPending = false;
     let drivePublic = true;
+    const allowedSourceGroupOptions = {
+        includeLegacyTestGroup: !cleanText(process.env.SOURCE_GROUP_IDS || "")
+    };
 
     try {
         console.log(
             "LINE_EVENT_SOURCE:",
-            event?.source?.type || "unknown"
+            event?.source?.type || "unknown",
+            "groupId:",
+            getEventGroupId(event) || "none",
+            "groupConfigured:",
+            isAllowedSourceGroup(event, process.env.SOURCE_GROUP_IDS || process.env.SOURCE_GROUP_ID, allowedSourceGroupOptions)
         );
 
         if (!isAllowedSourceGroup(
             event,
-            process.env.SOURCE_GROUP_ID
+            process.env.SOURCE_GROUP_IDS || process.env.SOURCE_GROUP_ID,
+            allowedSourceGroupOptions
         )) {
-            console.log("IGNORED_FILE_FROM_UNCONFIGURED_GROUP");
+            console.log("IGNORED_FILE_FROM_UNCONFIGURED_GROUP", {
+                sourceType: event?.source?.type || "unknown",
+                hasGroupId: Boolean(getEventGroupId(event)),
+                fileName: cleanText(event?.message?.fileName || "").slice(0, 100) || undefined
+            });
 
             return true;
         }
@@ -1658,5 +1671,14 @@ app.listen(
         console.log(
             `Bot Started on port ${PORT}`
         );
+        const configuredSourceGroups = process.env.SOURCE_GROUP_IDS || process.env.SOURCE_GROUP_ID;
+        const legacyGroupOption = {
+            includeLegacyTestGroup: !cleanText(process.env.SOURCE_GROUP_IDS || "")
+        };
+        console.log("LINE_GROUP_ROUTING_CONFIG", {
+            acceptedSourceGroupCount: getAllowedSourceGroupIds(configuredSourceGroups, legacyGroupOption).length,
+            usingExplicitSourceGroupList: Boolean(cleanText(process.env.SOURCE_GROUP_IDS || "")),
+            destinationGroupConfigured: Boolean(cleanText(process.env.DESTINATION_GROUP_ID || ""))
+        });
     }
 );

@@ -8,24 +8,25 @@ function getEventGroupId(event) {
     return cleanGroupId(event?.source?.groupId);
 }
 
-function getAllowedSourceGroupIds(sourceGroupId) {
-    const primaryGroupId = cleanGroupId(sourceGroupId);
+function getAllowedSourceGroupIds(sourceGroupIds, { includeLegacyTestGroup = true } = {}) {
+    const configuredGroupIds = (Array.isArray(sourceGroupIds)
+        ? sourceGroupIds
+        : String(sourceGroupIds || "").split(/[\s,;]+/))
+        .map(cleanGroupId)
+        .filter(Boolean);
 
-    // Fail closed: a deployment without its primary source group configured
-    // must not accept events from the test group (or from any other group).
-    if (!primaryGroupId) {
+    if (!configuredGroupIds.length) {
         return [];
     }
 
-    return [
-        primaryGroupId,
-        TEST_SOURCE_GROUP_ID
-    ];
+    return [...new Set([
+        ...configuredGroupIds,
+        ...(includeLegacyTestGroup ? [TEST_SOURCE_GROUP_ID] : [])
+    ])];
 }
 
-function isAllowedSourceGroup(event, sourceGroupId) {
-    const allowedGroupIds =
-        getAllowedSourceGroupIds(sourceGroupId);
+function isAllowedSourceGroup(event, sourceGroupIds, options) {
+    const allowedGroupIds = getAllowedSourceGroupIds(sourceGroupIds, options);
 
     return allowedGroupIds.includes(
         getEventGroupId(event)
