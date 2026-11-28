@@ -116,9 +116,6 @@ async function sendResultMessage(event, text) {
             ""
         );
 
-    const sourceGroupId =
-        getEventGroupId(event);
-
     if (canSendToDestination(event, destinationGroupId)) {
         try {
             await client.pushMessage({
@@ -138,35 +135,13 @@ async function sendResultMessage(event, text) {
         }
     }
 
-    // Keep customer details and Drive links out of the source group. When the
-    // destination is missing or cannot receive messages, return only a generic
-    // notice while the LINE reply token is still available instead of failing
-    // silently.
-    if (event?.replyToken) {
-        await client.replyMessage({
-            replyToken: event.replyToken,
-            messages: [{
-                type: "text",
-                text: "⚠️ ระบบรับไฟล์แล้ว แต่ส่งผลการประมวลผลไปยังกลุ่มปลายทางไม่ได้ กรุณาแจ้งผู้ดูแลให้ตรวจสอบการตั้งค่ากลุ่ม LINE"
-            }]
-        });
-        console.warn("LINE_RESULT_ROUTING_FALLBACK_SENT", {
-            hasDestinationGroup: Boolean(destinationGroupId),
-            matchesSourceGroup: Boolean(destinationGroupId && destinationGroupId === sourceGroupId)
-        });
-        return;
-    }
-
-    console.error(
-        "LINE_RESULT_NOT_SENT_NO_REPLY_TOKEN",
-        {
-            hasDestinationGroup: Boolean(destinationGroupId),
-            matchesSourceGroup: Boolean(
-                destinationGroupId &&
-                destinationGroupId === sourceGroupId
-            )
-        }
-    );
+    // Group 1 is receive-only. Never use replyMessage() here because LINE
+    // would send the notice back to the source group. If Group 2 is missing
+    // or unavailable, keep Group 1 completely silent and log the failure.
+    console.error("LINE_RESULT_NOT_SENT_DESTINATION_ONLY", {
+        hasDestinationGroup: Boolean(destinationGroupId),
+        sourceGroup: getEventGroupId(event).slice(-6)
+    });
 }
 
 async function queueSyncRetry({ target, booking, fileName, fileHash, driveFileId, driveUrl, sheetTitle, eventId }) {
